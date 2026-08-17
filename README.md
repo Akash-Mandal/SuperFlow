@@ -25,10 +25,47 @@ It also integrates a practical self-discipline system: Plan Ahead/Do Now, up to 
 
 ## Project status
 
-The repository is currently in the **product-planning stage**. Android source code has not been initialized yet.
+The app is **built and shipping as a signed APK**, on real Android architecture.
+
+```bash
+tools/build_apk.sh release   # -> build/outputs/superflow-release.apk
+tools/run_tests.sh           # 143 logic assertions
+```
+
+| | |
+|---|---|
+| Package | `com.superflow` 2.0.0 |
+| minSdk / targetSdk | 26 / 34 |
+| Size | ~7.5 MB, v2+v3 signed |
+| Stack | Material 3, AppCompat, ConstraintLayout, RecyclerView, Fragment, ViewPager2, ViewModel/LiveData, Coroutines, androidx.sqlite, WorkManager, DataStore, Lottie |
+| Capabilities | 49 registered commands shared by the UI and the AI |
+
+SuperFlow is a full AndroidX application: MVVM with `ViewModel` + `StateFlow`,
+`RecyclerView` + `DiffUtil` lists, Material 3 theming with a complete dark mode,
+edge-to-edge layouts, collapsing toolbars, bottom-sheet editors, custom animated
+charts, haptics, a home-screen widget and voice control.
+
+The domain core follows the plan's rules by construction: scheduling is a
+recurrence rule rather than a weekday mask, and adherence, runs, recoveries and
+misses are **derived from an opportunity series** rather than stored — so
+planned skips and pauses never create misses, schedule edits never rewrite
+history, and date maths is `java.time` against an injected clock that survives
+reboots, time-zone travel, daylight saving and leap days.
+
+It is built **without Gradle**, because the build environment cannot reach
+Google Maven, Maven Central or the Gradle distribution servers. The script in
+`tools/` drives `aapt2`, `kotlinc`, `dx` and `apksigner` directly against a
+local set of 71 pre-exploded AARs. See **[BUILD.md](docs/BUILD.md)** for the
+toolchain and the five non-obvious problems that had to be solved, and
+**[IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md)** for an honest
+feature-by-feature account.
 
 ## Product plans
 
+- **[Build and toolchain guide](docs/BUILD.md)** — how the APK is produced
+- **[Implementation status](docs/IMPLEMENTATION_STATUS.md)** — what actually shipped
+- **[Build and toolchain guide](docs/BUILD.md)** — how the APK is produced
+- **[Implementation status](docs/IMPLEMENTATION_STATUS.md)** — what actually shipped
 - **[SuperFlow Grand Product and Engineering Plan](docs/GRAND_PLAN.md)**
 - **[Blueprint Studio Long-Horizon Intent Compiler Plan](docs/BLUEPRINT_STUDIO_PLAN.md)** — flagship feature
 - **[Full Control Plan](docs/FULL_CONTROL_PLAN.md)** — primary AI profile

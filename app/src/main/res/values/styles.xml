@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cards: soft, low elevation, generous radius -->
+    <style name="Widget.SuperFlow.Card" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardCornerRadius">24dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="cardBackgroundColor">?attr/colorSurface</item>
+        <item name="strokeColor">?attr/colorOutlineVariant</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="contentPadding">0dp</item>
+        <item name="rippleColor">?attr/colorPrimary</item>
+    </style>
+
+    <style name="Widget.SuperFlow.Card.Filled" parent="Widget.SuperFlow.Card">
+        <item name="cardBackgroundColor">?attr/colorSurfaceVariant</item>
+        <item name="strokeWidth">0dp</item>
+    </style>
+
+    <style name="Widget.SuperFlow.Card.Accent" parent="Widget.SuperFlow.Card">
+        <item name="cardBackgroundColor">?attr/colorPrimaryContainer</item>
+        <item name="strokeWidth">0dp</item>
+    </style>
+
+    <style name="Widget.SuperFlow.Card.Warm" parent="Widget.SuperFlow.Card">
+        <item name="cardBackgroundColor">?attr/colorSecondaryContainer</item>
+        <item name="strokeWidth">0dp</item>
+    </style>
+
+    <style name="Widget.SuperFlow.Chip" parent="Widget.Material3.Chip.Filter">
+        <item name="chipCornerRadius">18dp</item>
+        <item name="android:textAppearance">@style/Text.SuperFlow.LabelLarge</item>
+        <item name="chipMinHeight">38dp</item>
+    </style>
+
+    <style name="Widget.SuperFlow.Chip.Action" parent="Widget.Material3.Chip.Assist">
+        <item name="chipCornerRadius">18dp</item>
+        <item name="chipMinHeight">38dp</item>
+    </style>
+
+    <!-- Section label above groups of content -->
+    <style name="Widget.SuperFlow.SectionLabel" parent="">
+        <item name="android:textAppearance">@style/Text.SuperFlow.Overline</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+        <item name="android:paddingStart">4dp</item>
+        <item name="android:paddingTop">22dp</item>
+        <item name="android:paddingBottom">10dp</item>
+    </style>
+
+    <style name="Widget.SuperFlow.Toolbar" parent="Widget.Material3.Toolbar">
+        <item name="titleTextAppearance">@style/Text.SuperFlow.TitleLarge</item>
+        <item name="android:background">@android:color/transparent</item>
+    </style>
+
+    <style name="Widget.SuperFlow.TextInput" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxCornerRadiusTopStart">16dp</item>
+        <item name="boxCornerRadiusTopEnd">16dp</item>
+        <item name="boxCornerRadiusBottomStart">16dp</item>
+        <item name="boxCornerRadiusBottomEnd">16dp</item>
+        <item name="hintTextColor">?attr/colorPrimary</item>
+    </style>
+
+    <style name="Widget.SuperFlow.BottomNav" parent="Widget.Material3.BottomNavigationView">
+        <item name="android:background">?attr/colorSurface</item>
+        <item name="itemActiveIndicatorStyle">@style/Widget.SuperFlow.NavIndicator</item>
+        <item name="labelVisibilityMode">labeled</item>
+    </style>
+
+    <style name="Widget.SuperFlow.NavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">?attr/colorPrimaryContainer</item>
+        <item name="android:width">64dp</item>
+        <item name="android:height">34dp</item>
+    </style>
+
+    <style name="Widget.SuperFlow.Button" parent="Widget.Material3.Button">
+        <item name="android:textAppearance">@style/Text.SuperFlow.LabelLarge</item>
+        <item name="cornerRadius">18dp</item>
+        <item name="android:minHeight">52dp</item>
+    </style>
+
+    <style name="Widget.SuperFlow.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="cornerRadius">18dp</item>
+        <item name="android:minHeight">52dp</item>
+    </style>
+
+    <style name="Widget.SuperFlow.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="cornerRadius">18dp</item>
+        <item name="android:minHeight">50dp</item>
+    </style>
+
+    <style name="Widget.SuperFlow.Button.Text" parent="Widget.Material3.Button.TextButton" />
+</resources>

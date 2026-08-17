@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dark theme. Deep warm charcoal rather than pure black, so the app still
+  reads as calm paper at night and OLED smearing is avoided on scroll.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.SuperFlow" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/sf_green_80</item>
+        <item name="colorOnPrimary">@color/sf_green_20</item>
+        <item name="colorPrimaryContainer">@color/sf_green_30</item>
+        <item name="colorOnPrimaryContainer">@color/sf_green_90</item>
+        <item name="colorPrimaryInverse">@color/sf_green_50</item>
+
+        <item name="colorSecondary">@color/sf_amber_80</item>
+        <item name="colorOnSecondary">@color/sf_amber_20</item>
+        <item name="colorSecondaryContainer">@color/sf_amber_30</item>
+        <item name="colorOnSecondaryContainer">@color/sf_amber_90</item>
+
+        <item name="colorTertiary">@color/sf_indigo_80</item>
+        <item name="colorOnTertiary">#FF17294A</item>
+        <item name="colorTertiaryContainer">#FF27406B</item>
+        <item name="colorOnTertiaryContainer">@color/sf_indigo_90</item>
+
+        <item name="android:colorBackground">#FF14130F</item>
+        <item name="colorOnBackground">@color/sf_neutral_90</item>
+        <item name="colorSurface">#FF1C1B17</item>
+        <item name="colorOnSurface">@color/sf_neutral_90</item>
+        <item name="colorSurfaceVariant">#FF2A2823</item>
+        <item name="colorOnSurfaceVariant">@color/sf_neutral_80</item>
+        <item name="colorSurfaceInverse">@color/sf_neutral_90</item>
+        <item name="colorOnSurfaceInverse">@color/sf_neutral_20</item>
+        <item name="colorOutline">@color/sf_neutral_50</item>
+        <item name="colorOutlineVariant">#FF3A382F</item>
+
+        <item name="colorError">#FFEFB4A8</item>
+        <item name="colorOnError">#FF5A1B10</item>
+        <item name="colorErrorContainer">#FF7A2E22</item>
+        <item name="colorOnErrorContainer">@color/sf_error_90</item>
+
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+
+        <item name="shapeAppearanceCornerExtraSmall">@style/Shape.SuperFlow.ExtraSmall</item>
+        <item name="shapeAppearanceCornerSmall">@style/Shape.SuperFlow.Small</item>
+        <item name="shapeAppearanceCornerMedium">@style/Shape.SuperFlow.Medium</item>
+        <item name="shapeAppearanceCornerLarge">@style/Shape.SuperFlow.Large</item>
+        <item name="shapeAppearanceCornerExtraLarge">@style/Shape.SuperFlow.ExtraLarge</item>
+
+        <item name="textAppearanceDisplaySmall">@style/Text.SuperFlow.DisplaySmall</item>
+        <item name="textAppearanceHeadlineMedium">@style/Text.SuperFlow.HeadlineMedium</item>
+        <item name="textAppearanceHeadlineSmall">@style/Text.SuperFlow.HeadlineSmall</item>
+        <item name="textAppearanceTitleLarge">@style/Text.SuperFlow.TitleLarge</item>
+        <item name="textAppearanceTitleMedium">@style/Text.SuperFlow.TitleMedium</item>
+        <item name="textAppearanceBodyLarge">@style/Text.SuperFlow.BodyLarge</item>
+        <item name="textAppearanceBodyMedium">@style/Text.SuperFlow.BodyMedium</item>
+        <item name="textAppearanceLabelLarge">@style/Text.SuperFlow.LabelLarge</item>
+
+        <item name="materialCardViewStyle">@style/Widget.SuperFlow.Card</item>
+        <item name="bottomSheetDialogTheme">@style/Theme.SuperFlow.BottomSheet</item>
+        <item name="materialAlertDialogTheme">@style/Theme.SuperFlow.Dialog</item>
+        <item name="chipStyle">@style/Widget.SuperFlow.Chip</item>
+
+        <item name="android:windowActivityTransitions">true</item>
+        <item name="android:windowContentTransitions">true</item>
+    </style>
+</resources>

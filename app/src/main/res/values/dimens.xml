@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="space_xs">4dp</dimen>
+    <dimen name="space_s">8dp</dimen>
+    <dimen name="space_m">16dp</dimen>
+    <dimen name="space_l">24dp</dimen>
+    <dimen name="space_xl">32dp</dimen>
+    <dimen name="screen_margin">20dp</dimen>
+    <dimen name="card_padding">20dp</dimen>
+    <dimen name="card_gap">12dp</dimen>
+    <dimen name="list_bottom_padding">120dp</dimen>
+    <dimen name="touch_min">48dp</dimen>
+</resources>

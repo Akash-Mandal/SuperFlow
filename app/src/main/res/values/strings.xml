@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SuperFlow</string>
+    <string name="tagline">Shape your system. Become your future self.</string>
+
+    <!-- Navigation -->
+    <string name="tab_today">Today</string>
+    <string name="tab_journey">Journey</string>
+    <string name="tab_insights">Insights</string>
+    <string name="tab_coach">Coach</string>
+    <string name="tab_settings">Settings</string>
+
+    <!-- Common -->
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="close">Close</string>
+    <string name="delete">Delete</string>
+    <string name="edit">Edit</string>
+    <string name="undo">Undo</string>
+    <string name="done">Done</string>
+    <string name="next">Next</string>
+    <string name="back">Back</string>
+    <string name="skip">Skip</string>
+    <string name="add">Add</string>
+    <string name="remove">Remove</string>
+    <string name="open">Open</string>
+    <string name="retry">Retry</string>
+    <string name="confirm">Confirm</string>
+
+    <!-- Levels -->
+    <string name="level_tiny">Tiny</string>
+    <string name="level_minimum">Minimum</string>
+    <string name="level_standard">Standard</string>
+    <string name="level_stretch">Stretch</string>
+
+    <!-- Today -->
+    <string name="good_morning">Good morning</string>
+    <string name="good_afternoon">Good afternoon</string>
+    <string name="good_evening">Good evening</string>
+    <string name="becoming">You are becoming</string>
+    <string name="daily_focus">Daily Focus</string>
+    <string name="daily_focus_hint">Up to three actions that deserve emphasis today.</string>
+    <string name="return_today">Return today</string>
+    <string name="never_miss_twice">Yesterday slipped by. That happens. The rule is simply: never miss twice.</string>
+    <string name="nothing_scheduled">Nothing scheduled</string>
+    <string name="quiet_day_ok">A quiet day is allowed. Add a habit whenever you are ready.</string>
+    <string name="plan_tomorrow">Plan tomorrow</string>
+    <string name="minimum_mode">Minimum Mode</string>
+    <string name="checkpoints">Checkpoints</string>
+    <string name="energy_now">Energy right now</string>
+
+    <!-- Habit -->
+    <string name="habit">Habit</string>
+    <string name="habit_designer">Habit Designer</string>
+    <string name="new_habit">New habit</string>
+    <string name="tiny_start">Tiny start</string>
+    <string name="your_contract">Your contract</string>
+    <string name="the_ladder">The ladder</string>
+    <string name="obstacle_plans">Obstacle plans</string>
+    <string name="add_obstacle">Add obstacle plan</string>
+
+    <!-- Designer sections -->
+    <string name="section_meaning">Meaning</string>
+    <string name="section_notice">Notice</string>
+    <string name="section_want">Want</string>
+    <string name="section_start">Start</string>
+    <string name="section_feel">Feel</string>
+    <string name="section_contract">Contract</string>
+
+    <!-- Journey -->
+    <string name="identities">Identities</string>
+    <string name="goals">Goals</string>
+    <string name="systems">Systems</string>
+    <string name="habits">Habits</string>
+    <string name="archived">Archived</string>
+    <string name="habit_scorecard">Habit Scorecard</string>
+    <string name="flows">Flows</string>
+    <string name="review">Review</string>
+    <string name="recovery_center">Recovery</string>
+
+    <!-- Insights -->
+    <string name="insights_subtitle">Evidence about your system, not a verdict about you.</string>
+    <string name="repetitions">Repetitions</string>
+    <string name="recoveries">Recoveries</string>
+    <string name="consistency">Consistency</string>
+    <string name="identity_evidence">Identity evidence</string>
+
+    <!-- Coach / AI -->
+    <string name="ask_superflow">Ask SuperFlow</string>
+    <string name="blueprint_studio">Blueprint Studio</string>
+    <string name="ai_engine">AI Engine</string>
+    <string name="activity_trail">Activity</string>
+    <string name="full_control">Full Control</string>
+    <string name="voice_input">Voice input</string>
+    <string name="listening">Listening…</string>
+    <string name="send">Send</string>
+    <string name="message_hint">Tell SuperFlow what to do</string>
+
+    <!-- Settings -->
+    <string name="reminders">Reminders</string>
+    <string name="quiet_hours">Quiet hours</string>
+    <string name="appearance">Appearance</string>
+    <string name="theme_system">Follow system</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="your_data">Your data</string>
+    <string name="export_data">Export</string>
+    <string name="import_data">Import</string>
+    <string name="delete_all">Delete all data</string>
+    <string name="privacy">Privacy</string>
+    <string name="about">About</string>
+
+    <!-- Widget -->
+    <string name="widget_title">SuperFlow Today</string>
+    <string name="widget_description">Your Daily Focus and next tiny action.</string>
+
+    <!-- Notifications -->
+    <string name="channel_habits">Habit reminders</string>
+    <string name="channel_habits_desc">Gentle nudges for the habits you scheduled</string>
+    <string name="channel_checkpoints">Checkpoints</string>
+    <string name="channel_checkpoints_desc">Morning, midday and evening check-ins</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_back">Navigate up</string>
+    <string name="cd_more">More options</string>
+    <string name="cd_add">Add</string>
+    <string name="cd_mic">Start voice input</string>
+    <string name="cd_habit_done">Mark as done</string>
+
+    <!-- Disclaimers -->
+    <string name="disclaimer_attribution">SuperFlow is an independent project inspired by widely discussed behaviour-change principles. It is not affiliated with or endorsed by James Clear or the publishers of Atomic Habits.</string>
+    <string name="disclaimer_care">SuperFlow is not a substitute for medical, mental-health, addiction or other professional care. If a behaviour feels unsafe, please reach out to a qualified person.</string>
+</resources>

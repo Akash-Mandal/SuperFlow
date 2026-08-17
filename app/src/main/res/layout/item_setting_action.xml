@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="?attr/selectableItemBackground"
+    android:minHeight="@dimen/touch_min"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp">
+    <ImageView android:id="@+id/action_icon" android:layout_width="22dp"
+        android:layout_height="22dp" android:layout_marginEnd="14dp"
+        app:tint="?attr/colorPrimary" />
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_weight="1" android:orientation="vertical">
+        <TextView android:id="@+id/action_title" android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/Text.SuperFlow.BodyLarge"
+            android:textColor="?attr/colorOnSurface" />
+        <TextView android:id="@+id/action_sub" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="2dp"
+            android:visibility="gone"
+            android:textAppearance="@style/Text.SuperFlow.BodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+    </LinearLayout>
+    <ImageView android:layout_width="18dp" android:layout_height="18dp"
+        android:src="@drawable/ic_chevron_right" app:tint="?attr/colorOnSurfaceVariant" />
+</LinearLayout>

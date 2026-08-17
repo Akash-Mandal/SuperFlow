@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SuperFlow Material 3 theme.
+
+  Built on Theme.Material3.DayNight.NoActionBar so every Material component
+  picks up the correct tonal surfaces, ripples, shape and typography without
+  per-widget styling.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="Theme.SuperFlow" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary -->
+        <item name="colorPrimary">@color/sf_green_50</item>
+        <item name="colorOnPrimary">@color/sf_neutral_100</item>
+        <item name="colorPrimaryContainer">@color/sf_green_90</item>
+        <item name="colorOnPrimaryContainer">@color/sf_green_10</item>
+        <item name="colorPrimaryInverse">@color/sf_green_80</item>
+
+        <!-- Secondary -->
+        <item name="colorSecondary">@color/sf_amber_50</item>
+        <item name="colorOnSecondary">@color/sf_neutral_100</item>
+        <item name="colorSecondaryContainer">@color/sf_amber_90</item>
+        <item name="colorOnSecondaryContainer">@color/sf_amber_10</item>
+
+        <!-- Tertiary -->
+        <item name="colorTertiary">@color/sf_indigo_40</item>
+        <item name="colorOnTertiary">@color/sf_neutral_100</item>
+        <item name="colorTertiaryContainer">@color/sf_indigo_90</item>
+        <item name="colorOnTertiaryContainer">#FF0E1B33</item>
+
+        <!-- Surfaces -->
+        <item name="android:colorBackground">@color/sf_neutral_98</item>
+        <item name="colorOnBackground">@color/sf_neutral_10</item>
+        <item name="colorSurface">@color/sf_neutral_100</item>
+        <item name="colorOnSurface">@color/sf_neutral_10</item>
+        <item name="colorSurfaceVariant">@color/sf_neutral_94</item>
+        <item name="colorOnSurfaceVariant">@color/sf_neutral_40</item>
+        <item name="colorSurfaceInverse">@color/sf_neutral_20</item>
+        <item name="colorOnSurfaceInverse">@color/sf_neutral_96</item>
+        <item name="colorOutline">@color/sf_neutral_70</item>
+        <item name="colorOutlineVariant">@color/sf_neutral_90</item>
+
+        <item name="colorError">@color/sf_error_40</item>
+        <item name="colorOnError">@color/sf_neutral_100</item>
+        <item name="colorErrorContainer">@color/sf_error_90</item>
+        <item name="colorOnErrorContainer">#FF3B0F09</item>
+
+        <!-- System bars: edge to edge -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="29">false</item>
+        <item name="android:enforceStatusBarContrast" tools:targetApi="29">false</item>
+
+        <!-- Shape -->
+        <item name="shapeAppearanceCornerExtraSmall">@style/Shape.SuperFlow.ExtraSmall</item>
+        <item name="shapeAppearanceCornerSmall">@style/Shape.SuperFlow.Small</item>
+        <item name="shapeAppearanceCornerMedium">@style/Shape.SuperFlow.Medium</item>
+        <item name="shapeAppearanceCornerLarge">@style/Shape.SuperFlow.Large</item>
+        <item name="shapeAppearanceCornerExtraLarge">@style/Shape.SuperFlow.ExtraLarge</item>
+
+        <!-- Type -->
+        <item name="textAppearanceDisplaySmall">@style/Text.SuperFlow.DisplaySmall</item>
+        <item name="textAppearanceHeadlineMedium">@style/Text.SuperFlow.HeadlineMedium</item>
+        <item name="textAppearanceHeadlineSmall">@style/Text.SuperFlow.HeadlineSmall</item>
+        <item name="textAppearanceTitleLarge">@style/Text.SuperFlow.TitleLarge</item>
+        <item name="textAppearanceTitleMedium">@style/Text.SuperFlow.TitleMedium</item>
+        <item name="textAppearanceBodyLarge">@style/Text.SuperFlow.BodyLarge</item>
+        <item name="textAppearanceBodyMedium">@style/Text.SuperFlow.BodyMedium</item>
+        <item name="textAppearanceLabelLarge">@style/Text.SuperFlow.LabelLarge</item>
+
+        <!-- Component defaults -->
+        <item name="materialCardViewStyle">@style/Widget.SuperFlow.Card</item>
+        <item name="bottomSheetDialogTheme">@style/Theme.SuperFlow.BottomSheet</item>
+        <item name="materialAlertDialogTheme">@style/Theme.SuperFlow.Dialog</item>
+        <item name="chipStyle">@style/Widget.SuperFlow.Chip</item>
+
+        <!-- Motion -->
+        <item name="android:windowActivityTransitions">true</item>
+        <item name="android:windowContentTransitions">true</item>
+    </style>
+
+    <style name="Theme.SuperFlow.Splash" parent="Theme.SuperFlow">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+    </style>
+
+    <!-- Bottom sheets get a large top-corner radius and no dim overload -->
+    <style name="Theme.SuperFlow.BottomSheet" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Widget.SuperFlow.BottomSheet</item>
+        <item name="android:navigationBarColor">?attr/colorSurface</item>
+    </style>
+
+    <style name="Widget.SuperFlow.BottomSheet" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="shapeAppearance">@style/Shape.SuperFlow.BottomSheet</item>
+        <item name="backgroundTint">?attr/colorSurface</item>
+        <item name="behavior_peekHeight">560dp</item>
+    </style>
+
+    <style name="Theme.SuperFlow.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="shapeAppearanceOverlay">@style/Shape.SuperFlow.Dialog</item>
+    </style>
+
+</resources>

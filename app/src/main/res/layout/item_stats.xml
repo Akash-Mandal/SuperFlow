@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="@dimen/card_gap"
+    style="@style/Widget.SuperFlow.Card">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="@dimen/card_padding">
+        <TextView android:id="@+id/stats_title" android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/Text.SuperFlow.TitleMedium"
+            android:textColor="?attr/colorOnSurface" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" android:orientation="horizontal"
+            android:baselineAligned="false">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/stat_1_value" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/Text.SuperFlow.HeadlineSmall"
+                    android:textColor="?attr/colorPrimary" />
+                <TextView android:id="@+id/stat_1_label" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:layout_marginTop="2dp"
+                    android:gravity="center"
+                    android:textAppearance="@style/Text.SuperFlow.BodyMedium"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/stat_2_value" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/Text.SuperFlow.HeadlineSmall"
+                    android:textColor="?attr/colorOnSurface" />
+                <TextView android:id="@+id/stat_2_label" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:layout_marginTop="2dp"
+                    android:gravity="center"
+                    android:textAppearance="@style/Text.SuperFlow.BodyMedium"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/stat_3_value" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/Text.SuperFlow.HeadlineSmall"
+                    android:textColor="?attr/colorSecondary" />
+                <TextView android:id="@+id/stat_3_label" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:layout_marginTop="2dp"
+                    android:gravity="center"
+                    android:textAppearance="@style/Text.SuperFlow.BodyMedium"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+            </LinearLayout>
+        </LinearLayout>
+        <TextView android:id="@+id/stats_note" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="14dp"
+            android:textAppearance="@style/Text.SuperFlow.BodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
