@@ -1,0 +1,14 @@
+# Build outputs
+build/
+out/
+*.apk
+*.aab
+*.dex
+*.ap_
+*.jks
+*.keystore
+local.properties
+.gradle/
+
+# Toolchain and vendored Android libraries (fetched separately, see docs/BUILD.md)
+toolchain/

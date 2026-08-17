@@ -25,10 +25,27 @@ It also integrates a practical self-discipline system: Plan Ahead/Do Now, up to 
 
 ## Project status
 
-The repository is currently in the **product-planning stage**. Android source code has not been initialized yet.
+The app is **built and shipping as a signed APK**. The Android source lives in `app/`, and the build is driven by `tools/build_apk.sh`.
+
+```bash
+tools/build_apk.sh release   # -> build/outputs/superflow-release.apk
+tools/run_tests.sh           # 103 logic assertions
+```
+
+| | |
+|---|---|
+| Package | `com.superflow` 1.0.0 |
+| minSdk / targetSdk | 26 / 34 |
+| Size | ~1.1 MB, v2+v3 signed |
+| Runtime dependencies | none — Android framework only |
+| Capabilities | 45 registered commands shared by the UI and the AI |
+
+SuperFlow is written against the Android framework alone: Views instead of Compose, SQLite instead of Room, `AlarmManager` instead of WorkManager, `HttpURLConnection` instead of Retrofit. The build environment had no access to Google Maven, Maven Central or Gradle, so the app carries no third-party runtime dependencies and is compiled directly with `aapt2`, `kotlinc`, `dx` and `apksigner`. See **[BUILD.md](docs/BUILD.md)** for the toolchain and **[IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md)** for an honest feature-by-feature account of what is implemented, partial and not built.
 
 ## Product plans
 
+- **[Build and toolchain guide](docs/BUILD.md)** — how the APK is produced
+- **[Implementation status](docs/IMPLEMENTATION_STATUS.md)** — what actually shipped
 - **[SuperFlow Grand Product and Engineering Plan](docs/GRAND_PLAN.md)**
 - **[Blueprint Studio Long-Horizon Intent Compiler Plan](docs/BLUEPRINT_STUDIO_PLAN.md)** — flagship feature
 - **[Full Control Plan](docs/FULL_CONTROL_PLAN.md)** — primary AI profile

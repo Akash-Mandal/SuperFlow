@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item android:id="@+id/action_plan_tomorrow" android:title="@string/plan_tomorrow"
+        android:icon="@drawable/ic_calendar" app:showAsAction="ifRoom" />
+    <item android:id="@+id/action_minimum_mode" android:title="@string/minimum_mode"
+        app:showAsAction="never" />
+    <item android:id="@+id/action_recovery" android:title="@string/recovery_center"
+        app:showAsAction="never" />
+</menu>

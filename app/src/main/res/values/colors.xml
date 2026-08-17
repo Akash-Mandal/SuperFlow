@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SuperFlow colour system.
+
+  A calm, warm, paper-like light scheme built around a single grounded green.
+  Calm is a feature: no alarm reds for a missed day, no saturated gamification.
+  Misses use a warm amber, never a punitive red.
+-->
+<resources>
+
+    <!-- Brand seed -->
+    <color name="sf_green_10">#FF06231A</color>
+    <color name="sf_green_20">#FF0C3A2B</color>
+    <color name="sf_green_30">#FF17513C</color>
+    <color name="sf_green_40">#FF2E6B50</color>
+    <color name="sf_green_50">#FF3A7D5C</color>
+    <color name="sf_green_60">#FF56997A</color>
+    <color name="sf_green_70">#FF78B598</color>
+    <color name="sf_green_80">#FF9FD2B8</color>
+    <color name="sf_green_90">#FFC8E9D8</color>
+    <color name="sf_green_95">#FFE2F4EB</color>
+    <color name="sf_green_99">#FFF5FCF8</color>
+
+    <!-- Warm secondary: preparation, anticipation -->
+    <color name="sf_amber_10">#FF2B1600</color>
+    <color name="sf_amber_20">#FF472600</color>
+    <color name="sf_amber_30">#FF663800</color>
+    <color name="sf_amber_40">#FF8A4E0B</color>
+    <color name="sf_amber_50">#FFB4703A</color>
+    <color name="sf_amber_70">#FFE0A578</color>
+    <color name="sf_amber_80">#FFF2C6A2</color>
+    <color name="sf_amber_90">#FFFAE3D0</color>
+    <color name="sf_amber_95">#FFFDF1E6</color>
+
+    <!-- Tertiary: reflection, insight -->
+    <color name="sf_indigo_40">#FF3F5A8A</color>
+    <color name="sf_indigo_80">#FFB2C6EC</color>
+    <color name="sf_indigo_90">#FFD8E3F8</color>
+
+    <!-- Neutrals, warmed slightly so the app reads as paper not screen -->
+    <color name="sf_neutral_0">#FF000000</color>
+    <color name="sf_neutral_10">#FF1C1B18</color>
+    <color name="sf_neutral_20">#FF31302C</color>
+    <color name="sf_neutral_30">#FF48463F</color>
+    <color name="sf_neutral_40">#FF605D55</color>
+    <color name="sf_neutral_50">#FF79756C</color>
+    <color name="sf_neutral_60">#FF938F85</color>
+    <color name="sf_neutral_70">#FFAEA99F</color>
+    <color name="sf_neutral_80">#FFCAC5BA</color>
+    <color name="sf_neutral_90">#FFE7E2D6</color>
+    <color name="sf_neutral_94">#FFF1ECE0</color>
+    <color name="sf_neutral_96">#FFF7F2E7</color>
+    <color name="sf_neutral_98">#FFFBF7EE</color>
+    <color name="sf_neutral_100">#FFFFFFFF</color>
+
+    <color name="sf_error_40">#FF9B4A3C</color>
+    <color name="sf_error_90">#FFF7DAD4</color>
+
+    <!-- Semantic aliases used directly by charts and level chips -->
+    <color name="level_tiny">#FF9FD2B8</color>
+    <color name="level_minimum">#FF78B598</color>
+    <color name="level_standard">#FF3A7D5C</color>
+    <color name="level_stretch">#FF17513C</color>
+    <color name="state_skipped">#FFCAC5BA</color>
+    <color name="state_missed">#FFF2C6A2</color>
+    <color name="state_empty">#FFE7E2D6</color>
+
+    <color name="scrim_dim">#66000000</color>
+</resources>
