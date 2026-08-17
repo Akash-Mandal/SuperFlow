@@ -158,8 +158,9 @@ object Coordinator {
     /** Deterministic offline coach card when no model is configured. */
     fun coachCard(repo: Repository): String {
         val stats = com.superflow.domain.Insights.allStats(repo)
-        val date = com.superflow.util.Dates.today()
-        val checkIns = repo.checkInsFor(date).associateBy { it.habitId }
+        val date = repo.clock.today()
+        val checkIns = repo.checkInsFor(
+            com.superflow.core.time.SfTime.format(date)).associateBy { it.habitId }
         val open = repo.habitsForDay(date).filter { checkIns[it.id] == null }
         return when {
             stats.isEmpty() ->
@@ -183,12 +184,14 @@ object Coordinator {
 
     fun suggestions(repo: Repository): List<String> {
         val out = ArrayList<String>()
-        val date = com.superflow.util.Dates.today()
-        val checkIns = repo.checkInsFor(date).associateBy { it.habitId }
+        val date = repo.clock.today()
+        val checkIns = repo.checkInsFor(
+            com.superflow.core.time.SfTime.format(date)).associateBy { it.habitId }
         val open = repo.habitsForDay(date).filter { checkIns[it.id] == null }
         if (open.isNotEmpty()) out.add("Done ${open.first().title}")
         out.add("How am I doing?")
-        if (repo.focusFor(date).isEmpty()) out.add("Plan tomorrow")
+        if (repo.focusFor(com.superflow.core.time.SfTime.format(date)).isEmpty())
+            out.add("Plan tomorrow")
         out.add("Minimum mode")
         out.add("List habits")
         return out.take(5)

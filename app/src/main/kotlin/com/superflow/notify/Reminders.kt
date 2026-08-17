@@ -19,6 +19,7 @@ import com.superflow.data.model.Checkpoint
 import com.superflow.domain.Actor
 import com.superflow.domain.CommandBus
 import com.superflow.ui.MainActivity
+import com.superflow.core.time.SfTime
 import com.superflow.util.Dates
 import com.superflow.util.jsonOf
 import com.superflow.widget.TodayWidget
@@ -188,9 +189,9 @@ class ReminderReceiver : BroadcastReceiver() {
                 val habitId = intent.getStringExtra("habitId") ?: return
                 val title = intent.getStringExtra("title") ?: "Your habit"
                 val tiny = intent.getStringExtra("tiny").orEmpty()
-                if (!prefs.remindersEnabled || Reminders.inQuietHours(prefs, Dates.nowTime())) return
+                if (!prefs.remindersEnabled || Reminders.inQuietHours(prefs, SfTime.formatTime(java.time.LocalTime.now()))) return
                 val repo = Repository.get(context)
-                if (repo.checkIn(habitId, Dates.today()) != null) return
+                if (repo.checkIn(habitId, SfTime.format(repo.clock.today())) != null) return
                 val id = habitId.hashCode() and 0xFFFF
                 Reminders.notify(
                     context, id, Reminders.CHANNEL_HABITS, title,
@@ -211,7 +212,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
             "checkpoint" -> {
                 if (!prefs.checkpointsEnabled) return
-                if (Reminders.inQuietHours(prefs, Dates.nowTime())) return
+                if (Reminders.inQuietHours(prefs, SfTime.formatTime(java.time.LocalTime.now()))) return
                 val cp = intent.getStringExtra("checkpoint") ?: return
                 val res = CommandBus.get(context)
                     .execute("run_checkpoint", jsonOf("checkpoint" to cp), Actor.SYSTEM)

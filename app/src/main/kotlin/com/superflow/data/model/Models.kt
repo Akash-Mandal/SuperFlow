@@ -119,8 +119,11 @@ data class Habit(
     // Feel
     val reward: String = "",
     val recoveryPlan: String = "",
-    // Scheduling
-    val daysMask: Int = 0b1111111,
+    // Scheduling (see core.schedule.Recurrence for the encoded forms)
+    val recurrenceRule: String = "WEEKLY:1,2,3,4,5,6,7",
+    val scheduleVersion: Int = 1,
+    val startDate: String = "",
+    val endDate: String? = null,
     val reminderEnabled: Boolean = false,
     val protectedRoutine: Boolean = false,
     val colorSeed: Int = 0,
@@ -128,8 +131,6 @@ data class Habit(
     val status: Status = Status.ACTIVE,
     val createdAt: Long = System.currentTimeMillis()
 ) {
-    fun runsOn(isoDayOfWeek: Int): Boolean = (daysMask shr (isoDayOfWeek - 1)) and 1 == 1
-
     fun levelText(level: Level): String = when (level) {
         Level.TINY -> tinyStart.ifBlank { title }
         Level.MINIMUM -> minimumVersion.ifBlank { tinyStart.ifBlank { title } }
@@ -230,6 +231,33 @@ data class EnergyLog(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+/** Calendar pause: holiday, illness, travel. Paused days never become misses. */
+data class PauseWindow(
+    val id: String = newId(),
+    val habitId: String? = null,          // null = applies to every habit
+    val startDate: String,
+    val endDate: String,
+    val reason: String = "",
+    val createdAt: Long = System.currentTimeMillis()
+) {
+    fun covers(date: java.time.LocalDate): Boolean {
+        val s = runCatching { java.time.LocalDate.parse(startDate) }.getOrNull() ?: return false
+        val e = runCatching { java.time.LocalDate.parse(endDate) }.getOrNull() ?: return false
+        return !date.isBefore(s) && !date.isAfter(e)
+    }
+}
+
+/** Profile: locale, zone and week start drive every date calculation. */
+data class UserProfile(
+    val id: String = "local",
+    val displayName: String = "",
+    val locale: String = "",
+    val zoneId: String = "",
+    val weekStart: Int = 1,               // ISO: Monday = 1
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
 data class AuditEntry(
     val id: String = newId(),
     val actor: String,
@@ -320,7 +348,12 @@ data class HabitStats(
     val currentRun: Int,
     val bestRun: Int,
     val consistency30: Int,
+    val opportunities30: Int,
     val recoveries: Int,
     val missesInARow: Int,
+    val needsReturn: Boolean,
     val lastDone: String?
-)
+) {
+    /** Sample size is disclosed wherever consistency is shown. */
+    val hasEnoughData: Boolean get() = opportunities30 >= 5
+}

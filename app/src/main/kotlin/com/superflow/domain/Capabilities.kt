@@ -1,7 +1,8 @@
 package com.superflow.domain
 
+import com.superflow.core.schedule.Recurrence
+import com.superflow.core.time.SfTime
 import com.superflow.data.model.*
-import com.superflow.util.Dates
 import com.superflow.util.jsonOf
 import com.superflow.util.string
 import org.json.JSONArray
@@ -24,6 +25,7 @@ object Capabilities {
         addAll(checkInCaps())
         addAll(focusCaps())
         addAll(designCaps())
+        addAll(pauseCaps())
         addAll(reviewCaps())
         addAll(queryCaps())
         addAll(dataCaps())
@@ -176,7 +178,7 @@ object Capabilities {
             val title = c.str("title").trim()
             if (title.isBlank()) return@Capability CommandResult.fail("A habit title is required")
             val cueTime = c.str("cueTime").trim()
-            if (cueTime.isNotBlank() && !Dates.isValidTime(cueTime))
+            if (cueTime.isNotBlank() && !SfTime.isValidTime(cueTime))
                 return@Capability CommandResult.fail("Cue time must look like 07:30")
             val existing = c.repo.habits(true)
             val h = Habit(
@@ -197,7 +199,8 @@ object Capabilities {
                 stretchVersion = c.str("stretchVersion"),
                 frictionPlan = c.str("frictionPlan"), environmentPrep = c.str("environmentPrep"),
                 reward = c.str("reward"), recoveryPlan = c.str("recoveryPlan"),
-                daysMask = parseDays(c.str("days")),
+                recurrenceRule = Recurrence.parse(c.str("days")).encode(),
+                startDate = SfTime.format(c.repo.clock.today()),
                 reminderEnabled = c.bool("reminder", false),
                 protectedRoutine = c.bool("protected", false),
                 colorSeed = c.int("colorSeed", existing.size % 6),
@@ -225,8 +228,14 @@ object Capabilities {
                     updated = applyField(updated, k, c.args.string(k)) ?: updated
                 }
             }
-            if (!c.args.isNull("days")) updated = updated.copy(daysMask = parseDays(c.str("days")))
-            if (updated.cueTime.isNotBlank() && !Dates.isValidTime(updated.cueTime))
+            if (!c.args.isNull("days")) {
+                // A schedule edit bumps the version; history is never rewritten.
+                updated = updated.copy(
+                    recurrenceRule = Recurrence.parse(c.str("days")).encode(),
+                    scheduleVersion = updated.scheduleVersion + 1
+                )
+            }
+            if (updated.cueTime.isNotBlank() && !SfTime.isValidTime(updated.cueTime))
                 return@Capability CommandResult.fail("Cue time must look like 07:30")
             c.repo.saveHabit(updated)
             val id = c.bus.record(c.actor, "update_habit", "Updated habit \"${updated.title}\"",
@@ -336,7 +345,7 @@ object Capabilities {
             val undo = if (prev == null) jsonOf("kind" to "clearCheckIn", "habitId" to h.id, "date" to date)
             else undoRestore("checkin", Serial.of(prev))
             val id = c.bus.record(c.actor, "check_in",
-                "${h.title}: ${level.label} on ${Dates.shortDay(date)}", Serial.of(ci), undo, c.groupId)
+                "${h.title}: ${level.label} on ${SfTime.shortDay(c.localDate())}", Serial.of(ci), undo, c.groupId)
             okResult("${level.label} · ${h.title}", jsonOf("id" to ci.id, "habitId" to h.id), id)
         },
 
@@ -437,7 +446,7 @@ object Capabilities {
             }
             val undo = jsonOf("kind" to "restoreRows", "table" to "focus", "rows" to rows)
             val id = c.bus.record(c.actor, "set_daily_focus",
-                "Daily Focus for ${Dates.shortDay(date)}: ${titles.joinToString("; ")}", null, undo, c.groupId)
+                "Daily Focus for ${SfTime.shortDay(c.localDate())}: ${titles.joinToString("; ")}", null, undo, c.groupId)
             okResult("Daily Focus set", null, id)
         },
 
@@ -501,8 +510,9 @@ object Capabilities {
 
         Capability("plan_tomorrow", "Draft tomorrow's Daily Focus from scheduled habits",
             listOf(), Risk.MEDIUM) { c ->
-            val date = Dates.tomorrow()
-            val candidates = c.repo.habitsForDay(date)
+            val tomorrow = c.repo.clock.today().plusDays(1)
+            val date = SfTime.format(tomorrow)
+            val candidates = c.repo.habitsForDay(tomorrow)
                 .sortedWith(compareByDescending<Habit> { it.protectedRoutine }.thenBy { it.orderIndex })
                 .take(3)
             if (candidates.isEmpty()) return@Capability CommandResult.fail("No habits are scheduled for tomorrow")
@@ -595,8 +605,9 @@ object Capabilities {
 
         Capability("enter_minimum_mode", "Drop every non-protected habit to its Minimum for today",
             listOf("date" to "yyyy-MM-dd"), Risk.MEDIUM) { c ->
-            val date = c.date()
-            val habits = c.repo.habitsForDay(date).filter { !it.protectedRoutine }
+            val day = c.localDate()
+            val date = SfTime.format(day)
+            val habits = c.repo.habitsForDay(day).filter { !it.protectedRoutine }
             if (habits.isEmpty()) return@Capability CommandResult.fail("No habits to reduce today")
             val group = c.groupId ?: newId()
             var n = 0
@@ -618,10 +629,10 @@ object Capabilities {
             listOf("checkpoint" to "MORNING|MIDDAY|EVENING"), Risk.LOW) { c ->
             val cp = runCatching { Checkpoint.valueOf(c.str("checkpoint", "MORNING").uppercase()) }
                 .getOrDefault(Checkpoint.MORNING)
-            val date = Dates.today()
-            val habits = c.repo.habitsForDay(date)
-            val done = c.repo.checkInsFor(date).count { it.isSuccess }
-            val focus = c.repo.focusFor(date)
+            val day = c.repo.clock.today()
+            val habits = c.repo.habitsForDay(day)
+            val done = c.repo.checkInsFor(SfTime.format(day)).count { it.isSuccess }
+            val focus = c.repo.focusFor(SfTime.format(day))
             val text = when (cp) {
                 Checkpoint.MORNING -> "Morning checkpoint. ${habits.size} habits scheduled. " +
                         if (focus.isEmpty()) "Pick up to three Daily Focus actions."
@@ -636,6 +647,61 @@ object Capabilities {
         }
     )
 
+    /* ----------------------------------------------------------- pause layer */
+
+    private fun pauseCaps() = listOf(
+        Capability("pause_habits", "Pause habits for a date range, without creating misses",
+            listOf("from" to "yyyy-MM-dd", "to" to "yyyy-MM-dd", "habit" to "id or title (optional)",
+                "reason" to "string"), Risk.MEDIUM) { c ->
+            val today = c.repo.clock.today()
+            val from = SfTime.parseDate(c.str("from")) ?: today
+            val to = SfTime.parseDate(c.str("to")) ?: from
+            if (to.isBefore(from)) return@Capability CommandResult.fail("The end date is before the start")
+            val habit = if (c.str("habit").isBlank()) null else resolveHabit(c)
+            val p = PauseWindow(
+                habitId = habit?.id, startDate = SfTime.format(from),
+                endDate = SfTime.format(to), reason = c.str("reason")
+            )
+            c.repo.savePause(p)
+            val scope = habit?.title ?: "all habits"
+            val id = c.bus.record(c.actor, "pause_habits",
+                "Paused $scope from ${SfTime.shortDay(from)} to ${SfTime.shortDay(to)}",
+                Serial.of(p), undoDelete("pause", p.id), c.groupId)
+            okResult("Paused $scope. Those days will not count as misses.", jsonOf("id" to p.id), id)
+        },
+
+        Capability("resume_habits", "Remove a pause window", listOf("id" to "string"),
+            Risk.LOW) { c ->
+            val old = c.repo.pauses().firstOrNull { it.id == c.str("id") }
+                ?: return@Capability CommandResult.fail("Pause not found")
+            c.repo.deletePause(old.id)
+            val id = c.bus.record(c.actor, "resume_habits", "Removed a pause window",
+                Serial.of(old), undoRestore("pause", Serial.of(old)), c.groupId)
+            okResult("Resumed", null, id)
+        },
+
+        Capability("set_schedule", "Change when a habit recurs",
+            listOf("habit" to "id or title", "days" to "daily|weekdays|3x a week|mon,wed",
+                "cueTime" to "HH:mm"), Risk.LOW) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val cueTime = c.str("cueTime").trim()
+            if (cueTime.isNotBlank() && !SfTime.isValidTime(cueTime))
+                return@Capability CommandResult.fail("Cue time must look like 07:30")
+            val recurrence = if (c.str("days").isBlank()) Recurrence.decode(old.recurrenceRule)
+            else Recurrence.parse(c.str("days"))
+            val updated = old.copy(
+                recurrenceRule = recurrence.encode(),
+                cueTime = cueTime.ifBlank { old.cueTime },
+                scheduleVersion = old.scheduleVersion + 1
+            )
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "set_schedule",
+                "\"${updated.title}\" now runs ${recurrence.label().lowercase()}",
+                Serial.of(updated), undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("Schedule updated to ${recurrence.label().lowercase()}", null, id)
+        }
+    )
+
     /* ---------------------------------------------------------- review layer */
 
     private fun reviewCaps() = listOf(
@@ -646,9 +712,11 @@ object Capabilities {
             val kind = runCatching { ReviewKind.valueOf(c.str("kind", "WEEKLY").uppercase()) }
                 .getOrDefault(ReviewKind.WEEKLY)
             val label = when (kind) {
-                ReviewKind.WEEKLY -> Dates.weekLabel()
-                ReviewKind.MONTHLY -> Dates.monthLabel()
-                ReviewKind.QUARTERLY -> "Quarter ending ${Dates.shortDay(Dates.today())}"
+                ReviewKind.WEEKLY -> "Week of ${SfTime.shortDay(
+                    SfTime.startOfWeek(c.repo.clock.today()))}"
+                ReviewKind.MONTHLY -> SfTime.monthLabel(c.repo.clock.today())
+                ReviewKind.QUARTERLY ->
+                    "Quarter ending ${SfTime.shortDay(c.repo.clock.today())}"
             }
             val r = Review(kind = kind, periodLabel = label, whatWorked = c.str("whatWorked"),
                 whatDidnt = c.str("whatDidnt"), systemChange = c.str("systemChange"),
@@ -676,10 +744,11 @@ object Capabilities {
     private fun queryCaps() = listOf(
         Capability("list_habits", "List habits with today's status",
             listOf("date" to "yyyy-MM-dd"), Risk.LOW) { c ->
-            val date = c.date()
+            val day = c.localDate()
+            val date = SfTime.format(day)
             val habits = c.repo.habits()
             if (habits.isEmpty()) return@Capability okResult("You have no habits yet.")
-            val today = c.repo.habitsForDay(date).map { it.id }.toSet()
+            val today = c.repo.habitsForDay(day).map { it.id }.toSet()
             val text = habits.joinToString("\n") { h ->
                 val ci = c.repo.checkIn(h.id, date)
                 val mark = when {
@@ -694,7 +763,7 @@ object Capabilities {
         },
 
         Capability("today_summary", "Summarise today", listOf("date" to "yyyy-MM-dd"), Risk.LOW) { c ->
-            okResult(Insights.todaySummary(c.repo, c.date()))
+            okResult(Insights.todaySummary(c.repo, c.localDate()))
         },
 
         Capability("get_insights", "Repetitions, consistency, recovery and identity evidence",
@@ -807,27 +876,10 @@ object Capabilities {
         return c.repo.habit(key) ?: c.repo.findHabit(key)
     }
 
-    /** "mon,wed", "daily", "weekdays", "weekends" -> bitmask, Monday = bit 0. */
-    fun parseDays(spec: String): Int {
-        val s = spec.trim().lowercase()
-        if (s.isBlank() || s == "daily" || s == "every day" || s == "everyday") return 0b1111111
-        if (s == "weekdays") return 0b0011111
-        if (s == "weekends" || s == "weekend") return 0b1100000
-        val names = listOf("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-        var mask = 0
-        for (part in s.split(",", " ", "/", "and").map { it.trim() }.filter { it.isNotBlank() }) {
-            val idx = names.indexOfFirst { part.startsWith(it) }
-            if (idx >= 0) mask = mask or (1 shl idx)
-        }
-        return if (mask == 0) 0b1111111 else mask
-    }
+    /** Natural-language schedule spec -> recurrence rule. */
+    fun parseDays(spec: String): Recurrence = Recurrence.parse(spec)
 
-    fun daysLabel(mask: Int): String {
-        if (mask == 0b1111111) return "Every day"
-        if (mask == 0b0011111) return "Weekdays"
-        if (mask == 0b1100000) return "Weekends"
-        val names = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-        return (0..6).filter { (mask shr it) and 1 == 1 }.joinToString(", ") { names[it] }
-            .ifBlank { "No days" }
-    }
+    fun daysLabel(habit: Habit): String = Recurrence.decode(habit.recurrenceRule).label()
+
+    fun daysLabel(rule: String): String = Recurrence.decode(rule).label()
 }

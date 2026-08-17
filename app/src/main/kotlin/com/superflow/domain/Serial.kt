@@ -44,7 +44,9 @@ object Serial {
         "tinyStart" to h.tinyStart, "minimumVersion" to h.minimumVersion,
         "standardVersion" to h.standardVersion, "stretchVersion" to h.stretchVersion,
         "frictionPlan" to h.frictionPlan, "environmentPrep" to h.environmentPrep,
-        "reward" to h.reward, "recoveryPlan" to h.recoveryPlan, "daysMask" to h.daysMask,
+        "reward" to h.reward, "recoveryPlan" to h.recoveryPlan,
+        "recurrenceRule" to h.recurrenceRule, "scheduleVersion" to h.scheduleVersion,
+        "startDate" to h.startDate, "endDate" to h.endDate,
         "reminderEnabled" to h.reminderEnabled, "protectedRoutine" to h.protectedRoutine,
         "colorSeed" to h.colorSeed, "orderIndex" to h.orderIndex,
         "status" to h.status.name, "createdAt" to h.createdAt
@@ -90,6 +92,12 @@ object Serial {
     fun of(e: EnergyLog): JSONObject = jsonOf(
         "table" to "energy", "id" to e.id, "date" to e.date, "checkpoint" to e.checkpoint.name,
         "energy" to e.energy, "note" to e.note, "createdAt" to e.createdAt
+    )
+
+    fun of(p: PauseWindow): JSONObject = jsonOf(
+        "table" to "pause", "id" to p.id, "habitId" to p.habitId,
+        "startDate" to p.startDate, "endDate" to p.endDate,
+        "reason" to p.reason, "createdAt" to p.createdAt
     )
 
     fun of(p: BlueprintProject): JSONObject = jsonOf(
@@ -147,7 +155,14 @@ object Serial {
         minimumVersion = o.string("minimumVersion"), standardVersion = o.string("standardVersion"),
         stretchVersion = o.string("stretchVersion"), frictionPlan = o.string("frictionPlan"),
         environmentPrep = o.string("environmentPrep"), reward = o.string("reward"),
-        recoveryPlan = o.string("recoveryPlan"), daysMask = o.optInt("daysMask", 0b1111111),
+        recoveryPlan = o.string("recoveryPlan"),
+        recurrenceRule = o.string("recurrenceRule").ifBlank {
+            if (o.has("daysMask"))
+                com.superflow.core.schedule.Recurrence.fromMask(o.optInt("daysMask", 127)).encode()
+            else "WEEKLY:1,2,3,4,5,6,7"
+        },
+        scheduleVersion = o.optInt("scheduleVersion", 1),
+        startDate = o.string("startDate"), endDate = o.stringOrNull("endDate"),
         reminderEnabled = o.optBoolean("reminderEnabled", false),
         protectedRoutine = o.optBoolean("protectedRoutine", false),
         colorSeed = o.optInt("colorSeed", 0),
@@ -197,6 +212,11 @@ object Serial {
         o.optInt("energy", 3), o.string("note"), long(o, "createdAt")
     )
 
+    fun pause(o: JSONObject) = PauseWindow(
+        o.string("id", newId()), o.stringOrNull("habitId"), o.string("startDate"),
+        o.string("endDate"), o.string("reason"), long(o, "createdAt")
+    )
+
     fun project(o: JSONObject) = BlueprintProject(
         o.string("id", newId()), o.string("name"), o.string("instructions"),
         o.optInt("version", 1), o.string("state", "DRAFT"),
@@ -234,6 +254,7 @@ object Serial {
         root.put("flowSteps", arr(repo.flows().flatMap { repo.flowSteps(it.id) }.map { of(it) }))
         root.put("reviews", arr(repo.reviews().map { of(it) }))
         root.put("energy", arr(repo.energyLogs().map { of(it) }))
+        root.put("pauses", arr(repo.pauses().map { of(it) }))
         val projects = repo.projects()
         root.put("projects", arr(projects.map { of(it) }))
         root.put("sources", arr(projects.flatMap { repo.sources(it.id) }.map { of(it) }))
@@ -254,6 +275,7 @@ object Serial {
         root.optJSONArray("flowSteps")?.objects()?.forEach { repo.saveFlowStep(flowStep(it)) }
         root.optJSONArray("reviews")?.objects()?.forEach { repo.saveReview(review(it)) }
         root.optJSONArray("energy")?.objects()?.forEach { repo.saveEnergy(energy(it)) }
+        root.optJSONArray("pauses")?.objects()?.forEach { repo.savePause(pause(it)) }
         root.optJSONArray("projects")?.objects()?.forEach { repo.saveProject(project(it)) }
         root.optJSONArray("sources")?.objects()?.forEach { repo.saveSource(source(it)) }
         root.optJSONArray("requirements")?.objects()?.forEach { repo.saveRequirement(requirement(it)) }

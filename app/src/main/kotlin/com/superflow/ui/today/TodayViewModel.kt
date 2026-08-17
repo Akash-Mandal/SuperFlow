@@ -10,7 +10,11 @@ import com.superflow.domain.Actor
 import com.superflow.domain.CommandBus
 import com.superflow.domain.CommandResult
 import com.superflow.domain.Insights
-import com.superflow.util.Dates
+import com.superflow.core.time.DayBucket
+import com.superflow.core.time.Greeting
+import com.superflow.core.time.SfTime
+import java.time.LocalDate
+import java.time.LocalTime
 import com.superflow.util.jsonArrayOf
 import com.superflow.util.jsonOf
 import kotlinx.coroutines.Dispatchers
@@ -59,8 +63,8 @@ sealed class TodayRow {
 }
 
 data class TodayUiState(
-    val date: String = Dates.today(),
-    val greeting: String = "",
+    val date: LocalDate = LocalDate.now(),
+    val greeting: Greeting = Greeting.MORNING,
     val rows: List<TodayRow> = emptyList(),
     val loading: Boolean = true
 )
@@ -97,7 +101,8 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun build(): TodayUiState {
-        val date = Dates.today()
+        val date = repo.clock.today()
+        val iso = SfTime.format(date)
         val rows = ArrayList<TodayRow>()
 
         val (done, total) = Insights.dayProgress(repo, date)
@@ -112,11 +117,11 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         val returning = repo.returnCandidates(date)
         if (returning.isNotEmpty()) rows.add(TodayRow.Returning(returning))
 
-        rows.add(TodayRow.Focus(repo.focusFor(date)))
+        rows.add(TodayRow.Focus(repo.focusFor(iso)))
 
         if (prefs.checkpointsEnabled) {
             val cp = currentCheckpoint()
-            val energy = repo.energyFor(date).firstOrNull { it.checkpoint == cp }?.energy
+            val energy = repo.energyFor(iso).firstOrNull { it.checkpoint == cp }?.energy
             rows.add(TodayRow.Checkpoints(energy))
         }
 
@@ -128,17 +133,19 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
                 "Design a habit"
             ))
         } else {
-            val buckets = todayHabits.groupBy { Dates.bucketOf(it.habit.cueTime) }
-            for (key in listOf("Morning", "Day", "Evening", "Anytime")) {
+            val buckets = todayHabits.groupBy {
+                SfTime.bucketOf(SfTime.parseTime(it.habit.cueTime))
+            }
+            for (key in DayBucket.values()) {
                 val list = buckets[key] ?: continue
-                rows.add(TodayRow.Section(key))
+                rows.add(TodayRow.Section(key.label))
                 list.forEach { rows.add(TodayRow.HabitRow(it, historyFor(it.habit))) }
             }
         }
 
         return TodayUiState(
             date = date,
-            greeting = Dates.greeting(),
+            greeting = SfTime.greetingFor(repo.clock.nowTime()),
             rows = rows,
             loading = false
         )
@@ -151,25 +158,15 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         else -> "Every action today was a vote for who you are becoming."
     }
 
-    /** 14-day state strip: 1 success, 0 open, -1 missed, -2 skipped, -3 unscheduled. */
-    private fun historyFor(habit: Habit): List<Int> {
-        val checkIns = repo.checkInsOf(habit.id).associateBy { it.date }
-        return Dates.lastDays(14).map { d ->
-            when {
-                !habit.runsOn(Dates.isoDayOfWeek(d)) -> -3
-                checkIns[d]?.isSuccess == true -> 1
-                checkIns[d]?.result == CheckInResult.SKIPPED -> -2
-                checkIns[d]?.isMiss == true -> -1
-                else -> 0
-            }
-        }
-    }
+    /** 14-day state strip, derived from the opportunity series. */
+    private fun historyFor(habit: Habit): List<Int> = Insights.historyStates(repo, habit, 14)
 
-    private fun currentCheckpoint(): Checkpoint = when (Dates.minutesOfDay(Dates.nowTime())) {
-        in 0..(11 * 60 + 59) -> Checkpoint.MORNING
-        in (12 * 60)..(16 * 60 + 59) -> Checkpoint.MIDDAY
-        else -> Checkpoint.EVENING
-    }
+    private fun currentCheckpoint(): Checkpoint =
+        when (SfTime.greetingFor(repo.clock.nowTime())) {
+            Greeting.MORNING -> Checkpoint.MORNING
+            Greeting.AFTERNOON -> Checkpoint.MIDDAY
+            Greeting.EVENING -> Checkpoint.EVENING
+        }
 
     /* --------------------------------------------------------------- actions */
 
@@ -203,9 +200,10 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
 
     fun suggestFocus() {
         viewModelScope.launch {
-            val date = Dates.today()
-            val existing = repo.focusFor(date).map { it.title }
-            val checkIns = repo.checkInsFor(date).associateBy { it.habitId }
+            val date = repo.clock.today()
+            val iso = SfTime.format(date)
+            val existing = repo.focusFor(iso).map { it.title }
+            val checkIns = repo.checkInsFor(iso).associateBy { it.habitId }
             val candidates = repo.habitsForDay(date)
                 .filter { checkIns[it.id] == null && it.title !in existing }
                 .sortedWith(compareByDescending<Habit> { it.protectedRoutine }.thenBy { it.orderIndex })

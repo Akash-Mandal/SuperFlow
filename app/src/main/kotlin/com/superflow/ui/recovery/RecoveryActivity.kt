@@ -35,7 +35,7 @@ class RecoveryActivity : ScrollActivity() {
                     "new pattern — and that is the one worth interrupting."))
 
         content.addView(section("RETURN TODAY"))
-        val returning = repo.returnCandidates(Dates.today())
+        val returning = repo.returnCandidates(repo.clock.today())
         if (returning.isEmpty()) {
             content.addView(textCard("Nothing needs rescuing",
                 "If a habit slips, it will appear here with its smallest version."))

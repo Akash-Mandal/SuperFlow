@@ -303,7 +303,8 @@ class BlueprintActivity : ScrollActivity() {
     private fun newProject() {
         TextInputSheet.show(supportFragmentManager, "New mission", "My 2026 reset") { name ->
             val p = BlueprintProject(
-                name = name.trim().ifBlank { "Mission ${Dates.shortDay(Dates.today())}" }
+                name = name.trim().ifBlank {
+                    "Mission ${com.superflow.core.time.SfTime.shortDay(repo.clock.today())}" }
             )
             repo.saveProject(p)
             projectId = p.id
@@ -503,7 +504,7 @@ class BlueprintActivity : ScrollActivity() {
     private fun exportPack(p: BlueprintProject) {
         val md = buildString {
             append("# SuperFlow Design Pack — ${p.name}\n\n")
-            append("_Generated ${Dates.humanDay(Dates.today())}_\n\n")
+            append("_Generated ${com.superflow.core.time.SfTime.humanDay(repo.clock.today())}_\n\n")
             append("## Identities\n")
             repo.identities().forEach { append("- ${it.statement} (${it.lifeArea.label})\n") }
             append("\n## Goals\n")
@@ -518,7 +519,7 @@ class BlueprintActivity : ScrollActivity() {
                 append("- Contract: ${h.contract()}\n")
                 append("- Ladder: tiny=${h.tinyStart} | minimum=${h.minimumVersion} | " +
                         "standard=${h.standardVersion} | stretch=${h.stretchVersion}\n")
-                append("- Schedule: ${com.superflow.domain.Capabilities.daysLabel(h.daysMask)}\n\n")
+                append("- Schedule: ${com.superflow.domain.Capabilities.daysLabel(h)}\n\n")
             }
             append("\n## Requirement ledger\n")
             repo.requirements(p.id).forEach {

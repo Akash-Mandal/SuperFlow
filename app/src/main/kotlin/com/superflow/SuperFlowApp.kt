@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.appcompat.app.AppCompatDelegate
 import com.superflow.data.Prefs
 import com.superflow.notify.Reminders
+import com.superflow.work.BackgroundWork
 
 /**
  * Application entry point.
@@ -18,6 +19,7 @@ class SuperFlowApp : Application() {
         val prefs = Prefs.get(this)
         applyTheme(prefs.themeMode)
         Reminders.ensureChannels(this)
+        BackgroundWork.schedule(this)
     }
 
     companion object {

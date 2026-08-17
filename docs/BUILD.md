@@ -11,7 +11,7 @@ The result is a normal Android app — real `AppCompatActivity`, `Fragment`,
 
 ## Dependencies
 
-71 libraries, listed in dependency order in [`tools/libs.txt`](../tools/libs.txt):
+76 libraries, listed in dependency order in [`tools/libs.txt`](../tools/libs.txt):
 
 | Area | Libraries |
 |---|---|
@@ -19,7 +19,8 @@ The result is a normal Android app — real `AppCompatActivity`, `Fragment`,
 | Architecture | Fragment 1.6.1, Activity 1.11.0, Lifecycle/ViewModel/LiveData 2.6.2 (+ `-ktx`), SavedState, Startup |
 | Async | Kotlin Coroutines 1.8.1 (core + android) |
 | Data | `androidx.sqlite` 2.1.0 + framework, Room runtime, Gson |
-| Background | WorkManager 2.7.0 |
+| Background | WorkManager 2.7.0 (+ `-ktx` for `CoroutineWorker`) |
+| Preferences | DataStore 1.0 (core + preferences) |
 | Motion | Lottie 6.6.10, DynamicAnimation |
 | Net | OkHttp 5.1.0, Okio |
 
@@ -88,10 +89,18 @@ is what those libraries' own code links against.
 tools/run_tests.sh
 ```
 
-103 assertions over the framework-independent logic: dates and scheduling,
-the habit ladder, contract generation, day-mask parsing, JSON extraction from
-messy model output, natural-language habit parsing, prompt-injection detection,
-and Blueprint requirement extraction with citations and conflicts.
+143 assertions across four suites:
+
+- **CoreTest** (62) — injected clock, DST gaps and overlaps, leap days, locale
+  week starts, every recurrence form, and the opportunity engine: planned skips
+  and pauses never creating misses, today never counting as a miss, unscheduled
+  days staying transparent, runs/recoveries, never-miss-twice, and pro-rated
+  flexible quotas.
+- **LogicTest** (21) — habit ladder fallbacks, contract generation, enum parsing.
+- **ParseTest** (27) — recurrence parsing and round-tripping, JSON extracted from
+  fenced, prose-wrapped, nested and escaped model output.
+- **AiTest** (33) — natural-language habit parsing, prompt-injection detection,
+  Blueprint extraction with citations, conflicts and coverage.
 
 `tools/test/JsonShim.kt` supplies a real `org.json` for the desktop JVM (the
 stub in `android.jar` throws). It is never compiled into the APK.
@@ -102,9 +111,10 @@ stub in `android.jar` throws). It is never compiled into the APK.
 |---|---|
 | Package | `com.superflow` 2.0.0 (code 2) |
 | minSdk / targetSdk | 26 / 34 |
-| Size | ~7.5 MB, 934 files, 2 dex |
+| Size | ~7.8 MB, 2 dex |
 | Signatures | v2 + v3 verified |
-| App classes | 311 |
+| App classes | 343 |
+| Capabilities | 49 |
 
 ## AAB
 

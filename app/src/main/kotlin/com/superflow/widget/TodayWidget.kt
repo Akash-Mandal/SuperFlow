@@ -63,7 +63,8 @@ class TodayWidget : AppWidgetProvider() {
 
         private fun render(context: Context, manager: AppWidgetManager, widgetId: Int) {
             val repo = Repository.get(context)
-            val date = Dates.today()
+            val date = repo.clock.today()
+            val iso = com.superflow.core.time.SfTime.format(date)
             val (done, total) = Insights.dayProgress(repo, date)
             val views = RemoteViews(context.packageName, R.layout.widget_today)
 
@@ -74,7 +75,7 @@ class TodayWidget : AppWidgetProvider() {
             )
             views.setProgressBar(R.id.widget_bar, total.coerceAtLeast(1), done, false)
 
-            val checkIns = repo.checkInsFor(date).associateBy { it.habitId }
+            val checkIns = repo.checkInsFor(iso).associateBy { it.habitId }
             val next = repo.habitsForDay(date).firstOrNull { checkIns[it.id] == null }
 
             if (next == null) {

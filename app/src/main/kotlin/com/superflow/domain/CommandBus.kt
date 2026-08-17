@@ -4,7 +4,7 @@ import android.content.Context
 import com.superflow.data.Repository
 import com.superflow.data.model.AuditEntry
 import com.superflow.data.model.newId
-import com.superflow.util.Dates
+import com.superflow.core.time.SfTime
 import com.superflow.util.extractJson
 import com.superflow.util.jsonOf
 import com.superflow.util.string
@@ -200,6 +200,7 @@ class CommandBus private constructor(context: Context) {
             "scorecard" -> repo.deleteScorecard(id)
             "flow" -> repo.deleteFlow(id)
             "flowstep" -> repo.deleteFlowStep(id)
+            "pause" -> repo.deletePause(id)
             "review" -> repo.deleteReview(id)
             "bp_project" -> repo.deleteProject(id)
             "bp_source" -> repo.deleteSource(id)
@@ -219,6 +220,7 @@ class CommandBus private constructor(context: Context) {
             "flow" -> repo.saveFlow(Serial.flow(row))
             "flowstep" -> repo.saveFlowStep(Serial.flowStep(row))
             "review" -> repo.saveReview(Serial.review(row))
+            "pause" -> repo.savePause(Serial.pause(row))
             "bp_project" -> repo.saveProject(Serial.project(row))
             "bp_source" -> repo.saveSource(Serial.source(row))
         }
@@ -236,15 +238,18 @@ class CommandBus private constructor(context: Context) {
 
 /* ------------------------------------------------------------------ helpers */
 
-fun Ctx.date(key: String = "date"): String {
-    val raw = str(key).trim().lowercase()
-    return when (raw) {
-        "", "today" -> Dates.today()
-        "yesterday" -> Dates.yesterday()
-        "tomorrow" -> Dates.tomorrow()
-        else -> raw
+/** Resolves a date argument against the injected clock. */
+fun Ctx.localDate(key: String = "date"): java.time.LocalDate {
+    val today = repo.clock.today()
+    return when (val raw = str(key).trim().lowercase()) {
+        "", "today" -> today
+        "yesterday" -> today.minusDays(1)
+        "tomorrow" -> today.plusDays(1)
+        else -> SfTime.parseDate(raw) ?: today
     }
 }
+
+fun Ctx.date(key: String = "date"): String = SfTime.format(localDate(key))
 
 fun okResult(message: String, data: JSONObject? = null, auditId: String? = null) =
     CommandResult(true, message, auditId, data)

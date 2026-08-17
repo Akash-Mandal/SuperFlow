@@ -4,9 +4,9 @@ A full AndroidX / Material 3 Android application built from the product plans in
 this repository. This document records honestly what is implemented, what is
 partial, and what is not built.
 
-**Build:** `com.superflow` 2.0.0 · minSdk 26 · targetSdk 34 · ~7.5 MB ·
-v2+v3 signed · 71 AndroidX/Material libraries · 311 app classes ·
-103 logic assertions passing.
+**Build:** `com.superflow` 2.0.0 · minSdk 26 · targetSdk 34 · ~7.8 MB ·
+v2+v3 signed · 76 AndroidX/Material libraries · 343 app classes ·
+49 capabilities · **143 logic assertions passing**.
 
 ---
 
@@ -14,6 +14,10 @@ v2+v3 signed · 71 AndroidX/Material libraries · 311 app classes ·
 
 ```
 app/src/main/kotlin/com/superflow/
+├── core/
+│   ├── time/        Injected clock, java.time helpers, DST-safe resolution
+│   └── schedule/    Recurrence rules, Schedule, Opportunity engine
+├── work/            WorkManager jobs: daily rollover, reminder refresh
 ├── data/
 │   ├── model/       Domain models
 │   ├── db/          androidx.sqlite schema, DAOs, row mappers
@@ -37,6 +41,21 @@ app/src/main/kotlin/com/superflow/
 `DiffUtil` for every list, coroutines for all IO, `androidx.sqlite` persistence,
 `AlarmManager`/`BroadcastReceiver` for reminders, `AppWidgetProvider` for the
 widget, `SpeechRecognizer` for voice.
+
+**The core is rebuilt to the plan's domain rules.** Scheduling is a
+`Recurrence` rule (daily / weekdays / specific days / every N days / N times a
+week), not a weekday bitmask. Adherence, runs, recoveries and misses are all
+derived from an **Opportunity series** — never stored — so the plan's rules hold
+by construction:
+
+| Plan rule | How it holds |
+|---|---|
+| Streaks are derived, never authoritative stored state | `Opportunities.currentRun` computes from the series each time |
+| Planned skips and pause dates do not create misses | `SKIPPED_PLANNED` and `PAUSED` are excluded from the denominator and preserve runs |
+| Schedule edits do not rewrite historical opportunities | Each edit bumps `scheduleVersion`; opportunities record the version that produced them |
+| A habit can have no clock time | `localTime` is nullable; anchor-only habits bucket to "Anytime" |
+| Date maths survives reboot, travel, DST, locale, leap days | `java.time` throughout, an injected `SuperFlowClock`, explicit `ZoneId`, DST gap/overlap resolution |
+| Insights disclose sample size | `HabitStats.opportunities30` and `hasEnoughData` gate every rating |
 
 **The spine is the shared command bus.** A button tap, a notification action, an
 AI tool call and a Blueprint execution all flow through `CommandBus.execute()` —
@@ -111,6 +130,13 @@ execution as one undoable group after a snapshot; verification against actual
 app state; **amendment history with version diffing**; coverage report; setup
 audit; Markdown Design Pack export.
 
+### Background work
+WorkManager runs a periodic **daily rollover** that closes out finished days
+(materialising misses only where they are genuinely earned — never for paused
+days, planned skips, or flexible-quota habits) and a **reminder refresh** that
+re-arms alarms lost to reboot or doze. AlarmManager is kept only for exact
+user-facing reminders, as the plan specifies.
+
 ### Platform integration
 Home-screen widget with one-tap tiny check-in; notification actions
 (Done / Tiny / Skip); quiet hours and a daily reminder budget; boot
@@ -144,7 +170,8 @@ the reminder step.
 
 | Area | State |
 |---|---|
-| Room | Uses `androidx.sqlite` (Room's own support layer) with hand-written DAOs. Room's annotation processor is unavailable offline; the runtime contract is identical, but there is no compile-time query verification. |
+| Room | Uses `androidx.sqlite` (Room's own support layer) with hand-written DAOs and a real versioned migration (v2→v3 converts `daysMask` to recurrence rules). Room's annotation processor is unavailable offline; the runtime contract is identical, but there is no compile-time query verification. |
+| DataStore | Linked and available; settings still read through `Prefs` (SharedPreferences) with a StateFlow change feed. Migrating the backing store is a mechanical follow-up. |
 | PDF ingestion | Text extraction for digitally generated, Flate-compressed PDFs including hex strings. Scanned PDFs yield nothing and the UI says so. No OCR. |
 | Dynamic colour | Material You wallpaper extraction is not wired up; the app ships a fixed brand palette in light and dark. |
 | Localization | English only; strings are fully externalized and ready to translate. |

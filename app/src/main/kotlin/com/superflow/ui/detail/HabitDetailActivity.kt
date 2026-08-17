@@ -52,7 +52,7 @@ class HabitDetailActivity : ScrollActivity() {
 
         // Today
         content.addView(section("TODAY"))
-        val today = repo.checkIn(h.id, Dates.today())
+        val today = repo.checkIn(h.id, com.superflow.core.time.SfTime.format(repo.clock.today()))
         val todayCard = layoutInflater.inflate(R.layout.item_text_card, content, false)
         todayCard.findViewById<TextView>(R.id.text_title).text = when {
             today == null -> "Not recorded yet"
@@ -108,23 +108,14 @@ class HabitDetailActivity : ScrollActivity() {
         content.addView(section("LAST 14 DAYS"))
         val histCard = layoutInflater.inflate(R.layout.item_text_card, content, false)
         histCard.findViewById<TextView>(R.id.text_title).text =
-            Capabilities.daysLabel(h.daysMask) + (if (h.cueTime.isNotBlank()) " · ${h.cueTime}" else "")
+            Capabilities.daysLabel(h) + (if (h.cueTime.isNotBlank()) " · ${h.cueTime}" else "")
         histCard.findViewById<TextView>(R.id.text_body).visible(false)
         val strip = HistoryStrip(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dpi(24)
             ).also { it.topMargin = dpi(12) }
         }
-        val checkIns = repo.checkInsOf(h.id).associateBy { it.date }
-        strip.setStates(Dates.lastDays(14).map { d ->
-            when {
-                !h.runsOn(Dates.isoDayOfWeek(d)) -> -3
-                checkIns[d]?.isSuccess == true -> 1
-                checkIns[d]?.result == CheckInResult.SKIPPED -> -2
-                checkIns[d]?.isMiss == true -> -1
-                else -> 0
-            }
-        })
+        strip.setStates(Insights.historyStates(repo, h, 14))
         (histCard.findViewById<TextView>(R.id.text_title).parent as LinearLayout).addView(strip)
         content.addView(histCard)
 

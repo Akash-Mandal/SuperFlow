@@ -1,4 +1,4 @@
-import com.superflow.domain.Capabilities
+import com.superflow.core.schedule.Recurrence
 import com.superflow.util.extractJson
 
 var pass = 0; var fail = 0
@@ -7,25 +7,24 @@ fun eq(n: String, a: Any?, b: Any?) = check("$n  ($a == $b)", a == b)
 
 fun main() {
     println("Day parsing")
-    eq("daily", Capabilities.parseDays("daily"), 0b1111111)
-    eq("empty defaults daily", Capabilities.parseDays(""), 0b1111111)
-    eq("everyday", Capabilities.parseDays("everyday"), 0b1111111)
-    eq("weekdays", Capabilities.parseDays("weekdays"), 0b0011111)
-    eq("weekends", Capabilities.parseDays("weekends"), 0b1100000)
-    eq("mon,wed,fri", Capabilities.parseDays("mon,wed,fri"), 0b0010101)
-    eq("monday tuesday", Capabilities.parseDays("monday tuesday"), 0b0000011)
-    eq("sat and sun", Capabilities.parseDays("sat and sun"), 0b1100000)
-    eq("junk defaults daily", Capabilities.parseDays("blah"), 0b1111111)
+    eq("daily", Recurrence.parse("daily").encode(), "WEEKLY:1,2,3,4,5,6,7")
+    eq("empty defaults daily", Recurrence.parse("").encode(), "WEEKLY:1,2,3,4,5,6,7")
+    eq("everyday", Recurrence.parse("everyday").encode(), "WEEKLY:1,2,3,4,5,6,7")
+    eq("weekdays", Recurrence.parse("weekdays").encode(), "WEEKLY:1,2,3,4,5")
+    eq("weekends", Recurrence.parse("weekends").encode(), "WEEKLY:6,7")
+    eq("mon,wed,fri", Recurrence.parse("mon,wed,fri").encode(), "WEEKLY:1,3,5")
+    eq("monday tuesday", Recurrence.parse("monday tuesday").encode(), "WEEKLY:1,2")
+    eq("sat and sun", Recurrence.parse("sat and sun").encode(), "WEEKLY:6,7")
+    eq("junk defaults daily", Recurrence.parse("blah").encode(), "WEEKLY:1,2,3,4,5,6,7")
 
-    println("Day labels round-trip")
-    eq("label daily", Capabilities.daysLabel(0b1111111), "Every day")
-    eq("label weekdays", Capabilities.daysLabel(0b0011111), "Weekdays")
-    eq("label weekends", Capabilities.daysLabel(0b1100000), "Weekends")
-    eq("label mwf", Capabilities.daysLabel(0b0010101), "Mon, Wed, Fri")
-    // round trip through the lowercase/no-space form the designer saves
-    for (m in listOf(0b1111111, 0b0011111, 0b1100000, 0b0010101, 0b0000001)) {
-        val label = Capabilities.daysLabel(m).lowercase().replace(" ", "")
-        eq("roundtrip $m", Capabilities.parseDays(label), m)
+    println("Recurrence labels round-trip")
+    eq("label daily", Recurrence.parse("daily").label(), "Every day")
+    eq("label weekdays", Recurrence.parse("weekdays").label(), "Weekdays")
+    eq("label weekends", Recurrence.parse("weekends").label(), "Weekends")
+    eq("label mwf", Recurrence.parse("mon,wed,fri").label(), "Mon, Wed, Fri")
+    for (spec in listOf("daily", "weekdays", "weekends", "mon,wed,fri", "mon", "3x a week", "every 4 days")) {
+        val encoded = Recurrence.parse(spec).encode()
+        eq("roundtrip $spec", Recurrence.decode(encoded).encode(), encoded)
     }
 
     println("JSON extraction")

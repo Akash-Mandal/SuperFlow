@@ -3,9 +3,15 @@ package com.superflow.data
 import android.content.Context
 import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.superflow.core.schedule.Recurrence
+import com.superflow.core.schedule.Schedule
+import com.superflow.core.time.SfTime
+import com.superflow.core.time.SuperFlowClock
+import com.superflow.core.time.SystemClock
 import com.superflow.data.db.*
 import com.superflow.data.model.*
-import com.superflow.util.Dates
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,7 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * ViewModels observe to recompute their UI state. The manual UI and the AI
  * tool layer both call these same functions, so behaviour cannot drift.
  */
-class Repository private constructor(context: Context) {
+class Repository private constructor(context: Context, val clock: SuperFlowClock) {
 
     private val database = SuperFlowDatabase.get(context)
     private val db: SupportSQLiteDatabase get() = database.db
@@ -29,10 +35,17 @@ class Repository private constructor(context: Context) {
 
     companion object {
         @Volatile private var instance: Repository? = null
+
         fun get(context: Context): Repository =
             instance ?: synchronized(this) {
-                instance ?: Repository(context.applicationContext).also { instance = it }
+                instance ?: Repository(context.applicationContext, SystemClock()).also {
+                    instance = it
+                }
             }
+
+        /** Test seam: inject a fixed clock. */
+        fun createForTest(context: Context, clock: SuperFlowClock) =
+            Repository(context.applicationContext, clock)
     }
 
     fun invalidate() {
@@ -134,7 +147,9 @@ class Repository private constructor(context: Context) {
         "standardVersion" to h.standardVersion, "stretchVersion" to h.stretchVersion,
         "frictionPlan" to h.frictionPlan, "environmentPrep" to h.environmentPrep,
         "reward" to h.reward, "recoveryPlan" to h.recoveryPlan,
-        "daysMask" to h.daysMask, "reminderEnabled" to h.reminderEnabled,
+        "recurrenceRule" to h.recurrenceRule, "scheduleVersion" to h.scheduleVersion,
+        "startDate" to h.startDate, "endDate" to h.endDate,
+        "reminderEnabled" to h.reminderEnabled,
         "protectedRoutine" to h.protectedRoutine, "colorSeed" to h.colorSeed,
         "orderIndex" to h.orderIndex, "status" to h.status.name, "createdAt" to h.createdAt
     ))
@@ -147,29 +162,44 @@ class Repository private constructor(context: Context) {
         invalidate()
     }
 
-    fun habitsForDay(date: String): List<Habit> {
-        val dow = Dates.isoDayOfWeek(date)
-        return habits().filter { it.status == Status.ACTIVE && it.runsOn(dow) }
-    }
+    fun scheduleOf(habit: Habit): Schedule = Schedule(
+        recurrence = Recurrence.decode(habit.recurrenceRule),
+        localTime = SfTime.parseTime(habit.cueTime),
+        zoneId = clock.zone(),
+        startDate = SfTime.parseDate(habit.startDate)
+            ?: java.time.Instant.ofEpochMilli(habit.createdAt)
+                .atZone(clock.zone()).toLocalDate(),
+        endDate = habit.endDate?.let { SfTime.parseDate(it) },
+        version = habit.scheduleVersion,
+        enabled = habit.status == Status.ACTIVE
+    )
+
+    fun habitsForDay(date: LocalDate): List<Habit> =
+        habits().filter { it.status == Status.ACTIVE && scheduleOf(it).activeOn(date) }
 
     /** Today's habits joined with their check-ins, ready for the list adapter. */
-    fun todayHabits(date: String): List<TodayHabit> {
-        val checkIns = checkInsFor(date).associateBy { it.habitId }
+    fun todayHabits(date: LocalDate): List<TodayHabit> {
+        val iso = SfTime.format(date)
+        val checkIns = checkInsFor(iso).associateBy { it.habitId }
         val returning = returnCandidates(date).map { it.id }.toSet()
-        return habitsForDay(date).map { h ->
-            TodayHabit(h, checkIns[h.id], h.id in returning)
-        }
+        return habitsForDay(date).map { h -> TodayHabit(h, checkIns[h.id], h.id in returning) }
     }
 
-    /** Habits missed at their previous scheduled opportunity. */
-    fun returnCandidates(date: String): List<Habit> =
-        habitsForDay(date).filter { h ->
-            if (checkIn(h.id, date) != null) return@filter false
-            var prev = Dates.plusDays(date, -1)
-            var guard = 0
-            while (guard++ < 14 && !h.runsOn(Dates.isoDayOfWeek(prev))) prev = Dates.plusDays(prev, -1)
-            checkIn(h.id, prev)?.isMiss == true
+    /** Habits missed at their previous real opportunity: the never-miss-twice trigger. */
+    fun returnCandidates(date: LocalDate): List<Habit> {
+        val allPauses = pauses()
+        return habitsForDay(date).filter { h ->
+            val series = com.superflow.core.schedule.Opportunities.series(
+                habit = h,
+                schedule = scheduleOf(h),
+                checkIns = checkInsOf(h.id).associateBy { LocalDate.parse(it.date) },
+                pauses = allPauses.filter { it.habitId == null || it.habitId == h.id },
+                dates = SfTime.lastDays(30, date),
+                today = date
+            )
+            com.superflow.core.schedule.Opportunities.needsReturn(series, date)
         }
+    }
 
     /* ------------------------------------------------------------ check-in */
 
@@ -296,6 +326,33 @@ class Repository private constructor(context: Context) {
         ))
     }
 
+    /* --------------------------------------------------------------- pause */
+
+    fun pauses(): List<PauseWindow> =
+        query("SELECT * FROM pause ORDER BY startDate DESC").mapAll(Rows::pause)
+
+    fun savePause(p: PauseWindow) = insert("pause", contentValuesOf(
+        "id" to p.id, "habitId" to p.habitId, "startDate" to p.startDate,
+        "endDate" to p.endDate, "reason" to p.reason, "createdAt" to p.createdAt
+    ))
+
+    fun deletePause(id: String) = delete("pause", "id=?", arrayOf(id))
+
+    /* ------------------------------------------------------------- profile */
+
+    fun profile(): UserProfile =
+        query("SELECT * FROM profile WHERE id='local'").mapAll(Rows::profile).firstOrNull()
+            ?: UserProfile(
+                zoneId = clock.zone().id,
+                locale = java.util.Locale.getDefault().toLanguageTag()
+            )
+
+    fun saveProfile(p: UserProfile) = insert("profile", contentValuesOf(
+        "id" to p.id, "displayName" to p.displayName, "locale" to p.locale,
+        "zoneId" to p.zoneId, "weekStart" to p.weekStart,
+        "createdAt" to p.createdAt, "updatedAt" to System.currentTimeMillis()
+    ))
+
     /* --------------------------------------------------------------- audit */
 
     fun audit(limit: Int = 300): List<AuditEntry> =
@@ -390,7 +447,7 @@ class Repository private constructor(context: Context) {
     fun deleteAllData() {
         for (t in listOf("identity", "goal", "sys", "habit", "checkin", "focus", "obstacle",
             "scorecard", "flow", "flowstep", "review", "energy", "audit", "aimsg",
-            "bp_project", "bp_source", "bp_req", "bp_version")) {
+            "bp_project", "bp_source", "bp_req", "bp_version", "pause", "profile")) {
             db.delete(t, null, null)
         }
         invalidate()

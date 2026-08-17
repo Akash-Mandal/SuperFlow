@@ -28,7 +28,8 @@ import com.superflow.domain.Insights
 import com.superflow.ui.common.BarChart
 import com.superflow.ui.common.HeatmapView
 import com.superflow.ui.common.visible
-import com.superflow.util.Dates
+import com.superflow.core.time.SfTime
+import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -95,16 +96,16 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
 
         // Weekly bar chart
         val daily = Insights.dailyCounts(repo, 7)
-        val today = Dates.today()
+        val today = repo.clock.today()
         rows.add(InsightRow.Chart(
             "Last 7 days", "Repetitions per day.",
             daily.map { (date, count) ->
-                BarChart.Bar(Dates.dayLetter(date), count, date == today)
+                BarChart.Bar(SfTime.dayLetter(date), count, date == today)
             }
         ))
 
         // 30-day totals
-        val window = Dates.lastDays(30)
+        val window = SfTime.lastDays(30, today).map { SfTime.format(it) }.toSet()
         val checkIns = repo.checkIns().filter { it.date in window }
         val reps = checkIns.count { it.isSuccess }
         val misses = checkIns.count { it.isMiss }
@@ -120,12 +121,13 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
 
         // Year heatmap of overall activity
         val cells = ArrayList<Float>()
-        val heatDays = Dates.lastDays(126)
-        val byDate = repo.checkInsBetween(heatDays.first(), heatDays.last())
+        val heatDays = SfTime.lastDays(126, today)
+        val byDate = repo.checkInsBetween(
+            SfTime.format(heatDays.first()), SfTime.format(heatDays.last()))
             .filter { it.isSuccess }
             .groupingBy { it.date }.eachCount()
         val peak = (byDate.values.maxOrNull() ?: 1).coerceAtLeast(1)
-        for (d in heatDays) cells.add((byDate[d] ?: 0).toFloat() / peak)
+        for (d in heatDays) cells.add((byDate[SfTime.format(d)] ?: 0).toFloat() / peak)
         rows.add(InsightRow.Heatmap(
             "Consistency map", "The last 18 weeks. Darker means more repetitions that day.", cells
         ))
@@ -149,7 +151,7 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
             rows.add(InsightRow.HabitStat(
                 s.habit.id, s.habit.title, s.consistency30,
                 "${s.repetitions} reps · run of ${s.currentRun} · best ${s.bestRun}" +
-                        (s.lastDone?.let { " · last ${Dates.shortDay(it)}" } ?: ""),
+                        (s.lastDone?.let { " · last ${SfTime.parseDate(it)?.let(SfTime::shortDay) ?: it}" } ?: ""),
                 if (s.consistency30 in 1..39)
                     "Try shrinking this one. A smaller version you actually do beats a bigger one you skip."
                 else null

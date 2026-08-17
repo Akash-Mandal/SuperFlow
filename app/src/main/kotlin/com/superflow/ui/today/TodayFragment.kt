@@ -22,6 +22,8 @@ import com.superflow.data.model.Checkpoint
 import com.superflow.data.model.FocusItem
 import com.superflow.data.model.Habit
 import com.superflow.data.model.Level
+import com.superflow.core.time.Greeting
+import com.superflow.core.time.SfTime
 import com.superflow.ui.MainActivity
 import com.superflow.ui.common.snack
 import com.superflow.ui.designer.HabitDesignerActivity
@@ -91,8 +93,12 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
                     model.state.collect { state ->
-                        greeting.text = state.greeting
-                        dateTitle.text = Dates.humanDay(state.date)
+                        greeting.text = when (state.greeting) {
+                            Greeting.MORNING -> getString(R.string.good_morning)
+                            Greeting.AFTERNOON -> getString(R.string.good_afternoon)
+                            Greeting.EVENING -> getString(R.string.good_evening)
+                        }
+                        dateTitle.text = SfTime.humanDay(state.date)
                         adapter.submitList(state.rows)
                     }
                 }

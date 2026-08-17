@@ -29,6 +29,8 @@ import com.superflow.data.model.Level
 import com.superflow.data.model.TrackType
 import com.superflow.domain.Actor
 import com.superflow.domain.Capabilities
+import com.superflow.core.schedule.Recurrence
+import com.superflow.core.time.SfTime
 import com.superflow.domain.CommandBus
 import com.superflow.notify.Reminders
 import com.superflow.ui.common.snack
@@ -58,7 +60,7 @@ class HabitDesignerActivity : AppCompatActivity() {
     private val values = HashMap<String, String>()
     private var mode = HabitMode.BUILD
     private var trackType = TrackType.BINARY
-    private var daysMask = 0b1111111
+    private var recurrence: Recurrence = Recurrence.EVERY_DAY
     private var reminder = false
     private var protectedRoutine = false
 
@@ -105,7 +107,7 @@ class HabitDesignerActivity : AppCompatActivity() {
         editing = h
         mode = h.mode
         trackType = h.trackType
-        daysMask = h.daysMask
+        recurrence = Recurrence.decode(h.recurrenceRule)
         reminder = h.reminderEnabled
         protectedRoutine = h.protectedRoutine
         values["title"] = h.title
@@ -191,41 +193,67 @@ class HabitDesignerActivity : AppCompatActivity() {
         field("anchorText", "Or after this existing routine", "breakfast")
         hint("Habit stacking: \"After [something reliable], I will [this].\"")
 
-        label("WHICH DAYS?")
-        val names = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-        val group = ChipGroup(this).apply {
-            isSingleSelection = false
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+        label("HOW OFTEN?")
+        val flexible = recurrence as? Recurrence.TimesPerWeek
+        chips(listOf(
+            "Set days" to (flexible == null),
+            "Times a week" to (flexible != null)
+        )) { index ->
+            recurrence = if (index == 0) Recurrence.EVERY_DAY else Recurrence.TimesPerWeek(3)
+            render()
         }
-        names.forEachIndexed { i, name ->
-            group.addView(Chip(this).apply {
-                text = name
-                isCheckable = true
-                isChecked = (daysMask shr i) and 1 == 1
-                setEnsureMinTouchTargetSize(false)
-                setOnCheckedChangeListener { _, checked ->
-                    daysMask = if (checked) daysMask or (1 shl i) else daysMask and (1 shl i).inv()
-                    if (daysMask == 0) { daysMask = 1 shl i; isChecked = true }
-                }
-            })
-        }
-        stepContent.addView(group)
 
-        val presets = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        listOf("Daily" to 0b1111111, "Weekdays" to 0b0011111, "Weekends" to 0b1100000)
-            .forEach { (label, mask) ->
+        if (flexible != null) {
+            // A weekly quota: any day counts, so a flexible habit never
+            // generates a false miss for "the wrong day".
+            label("HOW MANY TIMES A WEEK?")
+            val counts = (1..7).map { "$it×" to (flexible.times == it) }
+            chips(counts) { index -> recurrence = Recurrence.TimesPerWeek(index + 1); render() }
+            hint("Any day counts toward the quota. Missing a particular day is not a miss.")
+        } else {
+            val selected = (recurrence as? Recurrence.Weekly)?.days
+                ?: setOf(1, 2, 3, 4, 5, 6, 7)
+            val names = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+            val group = ChipGroup(this).apply {
+                isSingleSelection = false
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+            val chosen = selected.toMutableSet()
+            names.forEachIndexed { i, name ->
+                val day = i + 1
+                group.addView(Chip(this).apply {
+                    text = name
+                    isCheckable = true
+                    isChecked = day in chosen
+                    setEnsureMinTouchTargetSize(false)
+                    setOnCheckedChangeListener { _, checked ->
+                        if (checked) chosen.add(day) else chosen.remove(day)
+                        if (chosen.isEmpty()) { chosen.add(day); isChecked = true }
+                        recurrence = Recurrence.Weekly(chosen.toSet())
+                    }
+                })
+            }
+            stepContent.addView(group)
+
+            val presets = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            listOf(
+                "Daily" to Recurrence.EVERY_DAY,
+                "Weekdays" to Recurrence.WEEKDAYS,
+                "Weekends" to Recurrence.WEEKENDS
+            ).forEach { (label, rule) ->
                 presets.addView(MaterialButton(
                     this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle
                 ).apply {
                     text = label
                     layoutParams = LinearLayout.LayoutParams(0,
                         LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also { it.marginEnd = dp(6) }
-                    setOnClickListener { daysMask = mask; render() }
+                    setOnClickListener { recurrence = rule; render() }
                 })
             }
-        stepContent.addView(presets)
+            stepContent.addView(presets)
+        }
     }
 
     private fun want() {
@@ -308,7 +336,7 @@ class HabitDesignerActivity : AppCompatActivity() {
         val summary = layoutInflater.inflate(R.layout.item_text_card, stepContent, false)
         summary.findViewById<TextView>(R.id.text_title).text = "Summary"
         summary.findViewById<TextView>(R.id.text_body).text = buildString {
-            append("Days: ${Capabilities.daysLabel(daysMask)}\n")
+            append("Schedule: ${recurrence.label()}\n")
             append("Mode: ${if (mode == HabitMode.BUILD) "Build" else "Reduce"}\n")
             append("Tracking: ${trackType.name.lowercase()}\n")
             append("Reminder: ${if (reminder) "on at ${h.cueTime.ifBlank { "no time set" }}" else "off"}\n")
@@ -388,7 +416,7 @@ class HabitDesignerActivity : AppCompatActivity() {
         edit.setText(values["cueTime"].orEmpty())
         edit.isFocusable = false
         edit.setOnClickListener {
-            val minutes = Dates.minutesOfDay(values["cueTime"].orEmpty()).coerceAtLeast(7 * 60)
+            val minutes = SfTime.minutesOfDay(values["cueTime"].orEmpty()).coerceAtLeast(7 * 60)
             val picker = MaterialTimePicker.Builder()
                 .setTimeFormat(TimeFormat.CLOCK_24H)
                 .setHour(minutes / 60).setMinute(minutes % 60)
@@ -462,7 +490,7 @@ class HabitDesignerActivity : AppCompatActivity() {
         standardVersion = v("standardVersion").ifBlank { v("title") },
         stretchVersion = v("stretchVersion"), frictionPlan = v("frictionPlan"),
         environmentPrep = v("environmentPrep"), reward = v("reward"),
-        recoveryPlan = v("recoveryPlan"), daysMask = daysMask,
+        recoveryPlan = v("recoveryPlan"), recurrenceRule = recurrence.encode(),
         reminderEnabled = reminder, protectedRoutine = protectedRoutine
     )
 
@@ -496,7 +524,7 @@ class HabitDesignerActivity : AppCompatActivity() {
             "recoveryPlan" to v("recoveryPlan"), "unit" to v("unit"),
             "targetCount" to (v("targetCount").toIntOrNull() ?: 1),
             "mode" to mode.name, "trackType" to trackType.name,
-            "days" to Capabilities.daysLabel(daysMask).lowercase().replace(" ", ""),
+            "days" to recurrence.encode(),
             "reminder" to reminder, "protected" to protectedRoutine
         )
         val res = if (editing == null) bus.execute("create_habit", args, Actor.USER)

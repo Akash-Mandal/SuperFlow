@@ -1,5 +1,6 @@
 import com.superflow.data.model.*
-import com.superflow.util.Dates
+import com.superflow.core.time.SfTime
+import java.time.LocalDate
 
 var pass = 0
 var fail = 0
@@ -9,36 +10,7 @@ fun check(name: String, cond: Boolean) {
 fun eq(name: String, a: Any?, b: Any?) = check("$name  ($a == $b)", a == b)
 
 fun main() {
-    println("Dates")
-    eq("isoDayOfWeek Monday", Dates.isoDayOfWeek("2026-08-17"), 1)
-    eq("isoDayOfWeek Sunday", Dates.isoDayOfWeek("2026-08-16"), 7)
-    eq("plusDays across month", Dates.plusDays("2026-08-31", 1), "2026-09-01")
-    eq("plusDays negative", Dates.plusDays("2026-01-01", -1), "2025-12-31")
-    eq("lastDays size", Dates.lastDays(7).size, 7)
-    eq("lastDays ends today", Dates.lastDays(3, "2026-08-17").last(), "2026-08-17")
-    eq("lastDays starts", Dates.lastDays(3, "2026-08-17").first(), "2026-08-15")
-    eq("startOfWeek", Dates.startOfWeek("2026-08-19"), "2026-08-17")
-    eq("minutesOfDay", Dates.minutesOfDay("07:30"), 450)
-    eq("minutesOfDay invalid", Dates.minutesOfDay("25:00"), -1)
-    eq("minutesOfDay junk", Dates.minutesOfDay("abc"), -1)
-    check("isValidTime ok", Dates.isValidTime("23:59"))
-    check("isValidTime bad", !Dates.isValidTime("7:5x"))
-    eq("bucket morning", Dates.bucketOf("07:30"), "Morning")
-    eq("bucket day", Dates.bucketOf("13:00"), "Day")
-    eq("bucket evening", Dates.bucketOf("20:00"), "Evening")
-    eq("bucket none", Dates.bucketOf(""), "Anytime")
-
-    println("Habit scheduling")
-    val daily = Habit(title = "Walk", daysMask = 0b1111111)
-    check("daily runs Monday", daily.runsOn(1))
-    check("daily runs Sunday", daily.runsOn(7))
-    val weekdays = Habit(title = "Work", daysMask = 0b0011111)
-    check("weekdays runs Friday", weekdays.runsOn(5))
-    check("weekdays not Saturday", !weekdays.runsOn(6))
-    check("weekdays not Sunday", !weekdays.runsOn(7))
-    val weekends = Habit(title = "Rest", daysMask = 0b1100000)
-    check("weekends runs Sat", weekends.runsOn(6))
-    check("weekends not Wed", !weekends.runsOn(3))
+    println("Ladder and contract focus (dates and scheduling live in CoreTest)")
 
     println("Habit ladder")
     val h = Habit(title = "Walk", tinyStart = "Put on shoes", minimumVersion = "Walk to corner",

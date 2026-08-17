@@ -66,7 +66,10 @@ object Rows {
         minimumVersion = c.str("minimumVersion"), standardVersion = c.str("standardVersion"),
         stretchVersion = c.str("stretchVersion"), frictionPlan = c.str("frictionPlan"),
         environmentPrep = c.str("environmentPrep"), reward = c.str("reward"),
-        recoveryPlan = c.str("recoveryPlan"), daysMask = c.int("daysMask"),
+        recoveryPlan = c.str("recoveryPlan"),
+        recurrenceRule = c.str("recurrenceRule").ifBlank { "WEEKLY:1,2,3,4,5,6,7" },
+        scheduleVersion = c.int("scheduleVersion").coerceAtLeast(1),
+        startDate = c.str("startDate"), endDate = c.strOrNull("endDate"),
         reminderEnabled = c.bool("reminderEnabled"), protectedRoutine = c.bool("protectedRoutine"),
         colorSeed = c.int("colorSeed"), orderIndex = c.int("orderIndex"),
         status = Status.valueOf(c.str("status").ifBlank { "ACTIVE" }), createdAt = c.lng("createdAt")
@@ -132,6 +135,16 @@ object Rows {
         c.str("id"), c.str("projectId"), c.str("text"), c.strOrNull("sourceId"),
         c.str("citation"), RequirementStatus.valueOf(c.str("status").ifBlank { "ACCEPTED" }),
         c.bool("assumption"), c.str("plannedCommand"), c.str("note"), c.int("orderIndex")
+    )
+
+    fun pause(c: Cursor) = PauseWindow(
+        c.str("id"), c.strOrNull("habitId"), c.str("startDate"), c.str("endDate"),
+        c.str("reason"), c.lng("createdAt")
+    )
+
+    fun profile(c: Cursor) = UserProfile(
+        c.str("id"), c.str("displayName"), c.str("locale"), c.str("zoneId"),
+        c.int("weekStart").let { if (it in 1..7) it else 1 }, c.lng("createdAt"), c.lng("updatedAt")
     )
 
     fun version(c: Cursor) = BlueprintVersion(

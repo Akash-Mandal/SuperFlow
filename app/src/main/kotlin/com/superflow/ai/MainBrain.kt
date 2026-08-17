@@ -3,7 +3,7 @@ package com.superflow.ai
 import com.superflow.data.Prefs
 import com.superflow.data.Repository
 import com.superflow.domain.Insights
-import com.superflow.util.Dates
+import com.superflow.core.time.SfTime
 import com.superflow.util.extractJson
 import org.json.JSONArray
 import org.json.JSONObject
@@ -27,7 +27,10 @@ object MainBrain {
     /** Context Broker: assembles only the sections the user has permitted. */
     fun buildContext(repo: Repository, prefs: Prefs): String {
         val sb = StringBuilder()
-        sb.append("Today is ${Dates.humanDay(Dates.today())} (${Dates.today()}), time ${Dates.nowTime()}.\n")
+        val today = repo.clock.today()
+        val iso = SfTime.format(today)
+        sb.append("Today is ${SfTime.humanDay(today)} ($iso), " +
+                "time ${SfTime.formatTime(repo.clock.nowTime())}, zone ${repo.clock.zone().id}.\n")
         if (prefs.contextIncludeHabits) {
             repo.identities().takeIf { it.isNotEmpty() }?.let { list ->
                 sb.append("\nIdentities:\n")
@@ -44,12 +47,12 @@ object MainBrain {
             repo.habits().takeIf { it.isNotEmpty() }?.let { list ->
                 sb.append("\nHabits:\n")
                 list.forEach { h ->
-                    val ci = repo.checkIn(h.id, Dates.today())
+                    val ci = repo.checkIn(h.id, iso)
                     sb.append("- ${h.title} [id=${h.id}] tiny=\"${h.tinyStart}\" " +
                             "time=${h.cueTime.ifBlank { "-" }} today=${ci?.result?.name ?: "open"}\n")
                 }
             }
-            repo.focusFor(Dates.today()).takeIf { it.isNotEmpty() }?.let { list ->
+            repo.focusFor(iso).takeIf { it.isNotEmpty() }?.let { list ->
                 sb.append("\nDaily Focus: ")
                 sb.append(list.joinToString(", ") { "${it.title}${if (it.done) " (done)" else ""}" })
                 sb.append('\n')

@@ -337,7 +337,8 @@ class SettingsFragment : Fragment() {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
                     val dir = File(requireContext().cacheDir, "exports").apply { mkdirs() }
-                    File(dir, "superflow-${Dates.today()}.json").writeText(json)
+                    File(dir, "superflow-${com.superflow.core.time.SfTime.format(repo.clock.today())}.json")
+                        .writeText(json)
                 }.isSuccess
             }
             val share = Intent(Intent.ACTION_SEND).apply {

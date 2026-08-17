@@ -135,7 +135,7 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
             val stats = Insights.forHabit(repo, h)
             rows.add(JourneyRow.Entity(
                 h.id, "habit", h.title,
-                Capabilities.daysLabel(h.daysMask) +
+                Capabilities.daysLabel(h) +
                         (if (h.cueTime.isNotBlank()) " · ${h.cueTime}" else "") +
                         " · ${stats.repetitions} reps · ${stats.consistency30}%",
                 if (h.mode == HabitMode.REDUCE) com.superflow.R.drawable.ic_shield

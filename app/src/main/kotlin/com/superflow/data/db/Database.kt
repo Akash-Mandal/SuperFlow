@@ -16,7 +16,7 @@ class SuperFlowDatabase private constructor(context: Context) {
 
     companion object {
         const val NAME = "superflow.db"
-        const val VERSION = 2
+        const val VERSION = 3
 
         @Volatile private var instance: SuperFlowDatabase? = null
 
@@ -68,7 +68,8 @@ object Schema {
                 benefit TEXT, temptationBundle TEXT, reframe TEXT,
                 tinyStart TEXT, minimumVersion TEXT, standardVersion TEXT, stretchVersion TEXT,
                 frictionPlan TEXT, environmentPrep TEXT, reward TEXT, recoveryPlan TEXT,
-                daysMask INTEGER, reminderEnabled INTEGER, protectedRoutine INTEGER,
+                recurrenceRule TEXT, scheduleVersion INTEGER, startDate TEXT, endDate TEXT,
+                reminderEnabled INTEGER, protectedRoutine INTEGER,
                 colorSeed INTEGER, orderIndex INTEGER, status TEXT, createdAt INTEGER)"""
         )
         db.execSQL(
@@ -134,6 +135,16 @@ object Schema {
                 status TEXT, assumption INTEGER, plannedCommand TEXT, note TEXT, orderIndex INTEGER)"""
         )
         db.execSQL(
+            """CREATE TABLE pause(
+                id TEXT PRIMARY KEY, habitId TEXT, startDate TEXT, endDate TEXT,
+                reason TEXT, createdAt INTEGER)"""
+        )
+        db.execSQL(
+            """CREATE TABLE profile(
+                id TEXT PRIMARY KEY, displayName TEXT, locale TEXT, zoneId TEXT,
+                weekStart INTEGER, createdAt INTEGER, updatedAt INTEGER)"""
+        )
+        db.execSQL(
             """CREATE TABLE bp_version(
                 id TEXT PRIMARY KEY, projectId TEXT, version INTEGER, label TEXT,
                 ledgerJson TEXT, createdAt INTEGER)"""
@@ -141,6 +152,35 @@ object Schema {
     }
 
     fun upgrade(db: SupportSQLiteDatabase, old: Int, new: Int) {
+        if (old < 3) {
+            // daysMask -> recurrenceRule, plus schedule versioning and pauses.
+            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN recurrenceRule TEXT") }
+            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN scheduleVersion INTEGER DEFAULT 1") }
+            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN startDate TEXT") }
+            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN endDate TEXT") }
+            runCatching {
+                db.query("SELECT id, daysMask FROM habit").use { c ->
+                    while (c.moveToNext()) {
+                        val id = c.getString(0)
+                        val mask = if (c.isNull(1)) 127 else c.getInt(1)
+                        val days = (1..7).filter { (mask shr (it - 1)) and 1 == 1 }
+                        val rule = if (days.isEmpty()) "WEEKLY:1,2,3,4,5,6,7"
+                        else "WEEKLY:" + days.joinToString(",")
+                        db.execSQL("UPDATE habit SET recurrenceRule=? WHERE id=?", arrayOf(rule, id))
+                    }
+                }
+            }
+            runCatching {
+                db.execSQL("""CREATE TABLE IF NOT EXISTS pause(
+                    id TEXT PRIMARY KEY, habitId TEXT, startDate TEXT, endDate TEXT,
+                    reason TEXT, createdAt INTEGER)""")
+            }
+            runCatching {
+                db.execSQL("""CREATE TABLE IF NOT EXISTS profile(
+                    id TEXT PRIMARY KEY, displayName TEXT, locale TEXT, zoneId TEXT,
+                    weekStart INTEGER, createdAt INTEGER, updatedAt INTEGER)""")
+            }
+        }
         if (old < 2) {
             runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN colorSeed INTEGER DEFAULT 0") }
             runCatching { db.execSQL("ALTER TABLE bp_project ADD COLUMN parentVersionId TEXT") }
