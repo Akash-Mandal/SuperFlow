@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SuperFlow</string>
+    <string name="tagline">Shape your system. Become your future self.</string>
+    <string name="habit">Habit</string>
+    <string name="habit_designer">Habit Designer</string>
+    <string name="blueprint_studio">Blueprint Studio</string>
+    <string name="ai_engine">AI Engine</string>
+    <string name="activity_trail">Activity</string>
+    <string name="review">Review</string>
+    <string name="habit_scorecard">Habit Scorecard</string>
+    <string name="flows">Flows</string>
+    <string name="recovery_center">Recovery Center</string>
+    <string name="tab_today">Today</string>
+    <string name="tab_journey">Journey</string>
+    <string name="tab_insights">Insights</string>
+    <string name="tab_ai">AI</string>
+    <string name="tab_settings">Settings</string>
+</resources>

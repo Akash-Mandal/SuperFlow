@@ -1,0 +1,13 @@
+# Build outputs
+build/
+out/
+*.apk
+*.dex
+*.ap_
+*.jks
+*.keystore
+local.properties
+.gradle/
+
+# Toolchain (fetched separately, see docs/BUILD.md)
+toolchain/

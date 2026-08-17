@@ -1,0 +1,315 @@
+package com.superflow.ai
+
+import com.superflow.data.Level
+import com.superflow.data.Repo
+import com.superflow.domain.Capabilities
+import com.superflow.util.Dates
+import com.superflow.util.jsonOf
+import org.json.JSONArray
+import org.json.JSONObject
+
+/**
+ * The Local Coordinator Mini-AI.
+ *
+ * Deterministic, offline, no network. It handles the common commands directly
+ * so the app is fully controllable by text with AI providers disabled, and it
+ * is the universal fallback whenever the Cloud Main Brain is unavailable.
+ */
+object Coordinator {
+
+    data class Plan(
+        val command: String,
+        val args: JSONObject,
+        val confidence: Double,
+        val reply: String? = null
+    )
+
+    /** Returns a deterministic plan, or null when the cloud brain is needed. */
+    fun interpret(text: String, repo: Repo): Plan? {
+        val raw = text.trim()
+        val s = raw.lowercase()
+        if (s.isBlank()) return null
+
+        /* ------------------------------------------------- conversation */
+        if (s in setOf("hi", "hello", "hey", "yo")) {
+            return Plan("noop", JSONObject(), 1.0,
+                "Hello. Tell me what to change and I will do it - check in a habit, plan tomorrow, " +
+                        "design something new, or ask how you are doing.")
+        }
+        if (s.contains("what can you do") || s.contains("help") && s.length < 24) {
+            return Plan("noop", JSONObject(), 1.0, helpText())
+        }
+
+        /* ------------------------------------------------------ queries */
+        if (matches(s, "how am i doing", "how is it going", "my progress", "show progress", "insights"))
+            return Plan("get_insights", jsonOf("days" to 30), 0.95)
+
+        if (matches(s, "what's today", "whats today", "today", "summary", "what do i have today",
+                "today summary", "what is on today"))
+            return Plan("today_summary", JSONObject(), 0.9)
+
+        if (matches(s, "list habits", "show habits", "my habits", "what habits"))
+            return Plan("list_habits", JSONObject(), 0.95)
+
+        if (s.startsWith("search ") || s.startsWith("find "))
+            return Plan("search", jsonOf("query" to raw.substringAfter(' ').trim()), 0.9)
+
+        /* ------------------------------------------------- daily actions */
+        if (matches(s, "plan tomorrow", "plan for tomorrow", "prepare tomorrow"))
+            return Plan("plan_tomorrow", JSONObject(), 0.95)
+
+        if (matches(s, "minimum mode", "low energy day", "hard day", "bad day", "reduce today"))
+            return Plan("enter_minimum_mode", JSONObject(), 0.9)
+
+        if (matches(s, "morning checkpoint")) return Plan("run_checkpoint", jsonOf("checkpoint" to "MORNING"), 0.95)
+        if (matches(s, "midday checkpoint")) return Plan("run_checkpoint", jsonOf("checkpoint" to "MIDDAY"), 0.95)
+        if (matches(s, "evening checkpoint")) return Plan("run_checkpoint", jsonOf("checkpoint" to "EVENING"), 0.95)
+
+        /* ------------------------------------------------------- energy */
+        Regex("(?:my )?energy (?:is |= )?([1-5])").find(s)?.let {
+            return Plan("log_energy", jsonOf("energy" to it.groupValues[1].toInt()), 0.9)
+        }
+
+        /* ----------------------------------------------------- check-ins */
+        val level = when {
+            s.contains("tiny") -> Level.TINY
+            s.contains("minimum") || s.contains("minimal") -> Level.MINIMUM
+            s.contains("stretch") -> Level.STRETCH
+            else -> Level.STANDARD
+        }
+        val dateWord = when {
+            s.contains("yesterday") -> "yesterday"
+            else -> "today"
+        }
+
+        if (startsAny(s, "skip ", "skipping ")) {
+            val name = stripLeading(raw, listOf("skip", "skipping"))
+            repo.findHabit(name)?.let {
+                return Plan("skip_habit", jsonOf("habit" to it.id, "date" to dateWord), 0.85)
+            }
+        }
+
+        if (startsAny(s, "missed ", "i missed ", "didn't do ", "did not do ")) {
+            val name = stripLeading(raw, listOf("i missed", "missed", "didn't do", "did not do"))
+            repo.findHabit(name)?.let {
+                return Plan("mark_missed", jsonOf("habit" to it.id, "date" to dateWord), 0.85)
+            }
+        }
+
+        if (startsAny(s, "done ", "did ", "i did ", "completed ", "finished ", "check in ",
+                "checkin ", "check off ", "mark ", "log ", "i completed ")) {
+            val name = stripLeading(raw, listOf("i completed", "check in", "checkin", "check off",
+                "completed", "finished", "i did", "done", "did", "mark", "log"))
+                .removePrefix("my ").removeSuffix(" done").trim()
+            val cleaned = name.replace(Regex("\\b(tiny|minimum|minimal|standard|stretch|today|yesterday)\\b"), "")
+                .trim().trim(',', '.', '-')
+            repo.findHabit(cleaned.ifBlank { name })?.let {
+                return Plan("check_in", jsonOf("habit" to it.id, "level" to level.name, "date" to dateWord), 0.85)
+            }
+        }
+
+        /* -------------------------------------------------- daily focus */
+        if (startsAny(s, "focus on ", "my focus is ", "set focus ", "focus:")) {
+            val rest = stripLeading(raw, listOf("focus on", "my focus is", "set focus", "focus:"))
+            val items = rest.split(",", " and ", ";").map { it.trim() }.filter { it.isNotBlank() }
+            if (items.isNotEmpty() && items.size <= 3) {
+                val arr = JSONArray()
+                items.forEach { arr.put(it) }
+                return Plan("set_daily_focus", jsonOf("items" to arr), 0.85)
+            }
+        }
+
+        /* ------------------------------------------------ habit creation */
+        if (startsAny(s, "create habit ", "add habit ", "new habit ", "track ")) {
+            val rest = stripLeading(raw, listOf("create habit", "add habit", "new habit", "track"))
+            val parsed = parseHabitPhrase(rest)
+            if (parsed != null) return Plan("create_habit", parsed, 0.8)
+        }
+
+        // "I want to meditate every morning at 7:00"
+        if (startsAny(s, "i want to ", "help me ", "start ")) {
+            val rest = stripLeading(raw, listOf("i want to", "help me", "start"))
+            if (rest.length in 3..80 && !rest.contains("?")) {
+                val parsed = parseHabitPhrase(rest)
+                if (parsed != null) return Plan("create_habit", parsed, 0.6)
+            }
+        }
+
+        /* ---------------------------------------------------- archive etc */
+        if (startsAny(s, "archive ", "pause ")) {
+            val name = stripLeading(raw, listOf("archive", "pause"))
+            repo.findHabit(name)?.let { return Plan("archive_habit", jsonOf("habit" to it.id), 0.85) }
+        }
+        if (startsAny(s, "delete habit ", "remove habit ")) {
+            val name = stripLeading(raw, listOf("delete habit", "remove habit"))
+            repo.findHabit(name)?.let { return Plan("delete_habit", jsonOf("habit" to it.id), 0.85) }
+        }
+
+        /* ------------------------------------------------- obstacle plan */
+        Regex("if (.+?),? then (.+)").find(raw)?.let { m ->
+            val ifText = m.groupValues[1].trim()
+            val thenText = m.groupValues[2].trim()
+            val habit = repo.habits().firstOrNull { ifText.lowercase().contains(it.title.lowercase()) }
+                ?: repo.habits().firstOrNull()
+            if (habit != null) {
+                return Plan("add_obstacle_plan",
+                    jsonOf("habit" to habit.id, "ifText" to ifText, "thenText" to thenText), 0.7)
+            }
+        }
+
+        /* ---------------------------------------------------- scorecard */
+        if (startsAny(s, "scorecard ")) {
+            val rest = stripLeading(raw, listOf("scorecard"))
+            val verdict = when {
+                rest.lowercase().contains("unhelpful") || rest.lowercase().contains("bad") -> -1
+                rest.lowercase().contains("helpful") || rest.lowercase().contains("good") -> 1
+                else -> 0
+            }
+            return Plan("add_scorecard_entry", jsonOf("routine" to rest, "verdict" to verdict), 0.75)
+        }
+
+        return null
+    }
+
+    /** Deterministic offline coach cards when no model is configured. */
+    fun coachCard(repo: Repo): String {
+        val stats = com.superflow.domain.Insights.allStats(repo)
+        val date = Dates.today()
+        val open = repo.habitsForDay(date).filter { repo.checkIn(it.id, date) == null }
+        return when {
+            stats.isEmpty() ->
+                "Start with one habit you could do in two minutes even on your worst day. " +
+                        "The size is the point: small enough to survive a bad week."
+            open.isNotEmpty() -> {
+                val h = open.first()
+                val tiny = h.tinyStart.ifBlank { h.title }
+                "Smallest next step: $tiny. If that is all you do today, the system still held."
+            }
+            stats.any { it.missesInARow >= 2 } -> {
+                val s = stats.first { it.missesInARow >= 2 }
+                "\"${s.habit.title}\" has slipped a few times. Shrink it until it feels almost too easy, " +
+                        "then let it grow back on its own."
+            }
+            else ->
+                "Everything scheduled is handled. Consider preparing one thing for tomorrow " +
+                        "so the future version of you starts with less friction."
+        }
+    }
+
+    private fun helpText(): String = """
+        I can run anything the buttons can, because we share the same commands.
+        
+        Try:
+        - "done meditation" or "tiny walk"
+        - "skip reading" / "missed journaling"
+        - "focus on write, walk, call mum"
+        - "plan tomorrow" / "minimum mode"
+        - "energy 2"
+        - "create habit walk 10 minutes at 07:30 daily"
+        - "if it rains, then stretch indoors"
+        - "how am I doing" / "list habits"
+        
+        With a Cloud Main Brain configured I can also handle open-ended requests
+        and build a whole workspace from your documents in Blueprint Studio.
+    """.trimIndent()
+
+    /* ------------------------------------------------------------ parsing */
+
+    private fun matches(s: String, vararg phrases: String): Boolean =
+        phrases.any { s == it || s.startsWith("$it ") || s.contains(it) }
+
+    private fun startsAny(s: String, vararg prefixes: String): Boolean =
+        prefixes.any { s.startsWith(it) }
+
+    private fun stripLeading(raw: String, prefixes: List<String>): String {
+        var out = raw.trim()
+        for (p in prefixes.sortedByDescending { it.length }) {
+            if (out.lowercase().startsWith(p.lowercase())) {
+                out = out.substring(p.length).trim()
+                break
+            }
+        }
+        return out.trim().trim(':', '-', ',').trim()
+    }
+
+    /** "walk 10 minutes at 07:30 in the park daily" -> create_habit args. */
+    fun parseHabitPhrase(phrase: String): JSONObject? {
+        var text = phrase.trim()
+        if (text.isBlank()) return null
+
+        var cueTime = ""
+        Regex("\\bat (\\d{1,2}[:.]\\d{2})\\b").find(text)?.let {
+            cueTime = it.groupValues[1].replace('.', ':')
+            if (cueTime.length == 4) cueTime = "0$cueTime"
+            text = text.replace(it.value, "").trim()
+        }
+        if (cueTime.isBlank()) {
+            Regex("\\bat (\\d{1,2})\\s?(am|pm)\\b", RegexOption.IGNORE_CASE).find(text)?.let {
+                var hour = it.groupValues[1].toInt()
+                if (it.groupValues[2].lowercase() == "pm" && hour < 12) hour += 12
+                if (it.groupValues[2].lowercase() == "am" && hour == 12) hour = 0
+                cueTime = String.format("%02d:00", hour)
+                text = text.replace(it.value, "").trim()
+            }
+        }
+
+        var days = ""
+        for (word in listOf("every day", "everyday", "daily", "weekdays", "weekends")) {
+            if (text.lowercase().contains(word)) {
+                days = if (word == "every day" || word == "everyday") "daily" else word
+                text = Regex(word, RegexOption.IGNORE_CASE).replace(text, "").trim()
+            }
+        }
+        Regex("\\bon ((?:mon|tue|wed|thu|fri|sat|sun)[a-z]*(?:\\s*,?\\s*(?:and\\s*)?(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*)*)",
+            RegexOption.IGNORE_CASE).find(text)?.let {
+            days = it.groupValues[1]
+            text = text.replace(it.value, "").trim()
+        }
+
+        var place = ""
+        Regex("\\bin (?:the )?([a-z ]{3,20})$", RegexOption.IGNORE_CASE).find(text.trim())?.let {
+            place = it.groupValues[1].trim()
+            text = text.replace(it.value, "").trim()
+        }
+
+        var anchor = ""
+        Regex("\\bafter ([a-z ]{3,30})", RegexOption.IGNORE_CASE).find(text)?.let {
+            anchor = it.groupValues[1].trim()
+            text = text.replace(it.value, "").trim()
+        }
+
+        val title = text.trim().trim(',', '.', '-').ifBlank { return null }
+        if (title.length > 70) return null
+
+        // A tiny start is mandatory in SuperFlow; derive a sensible default.
+        val tiny = when {
+            title.lowercase().startsWith("read") -> "Open the book and read one page"
+            title.lowercase().contains("walk") -> "Put on your shoes and step outside"
+            title.lowercase().contains("run") -> "Put on your running shoes"
+            title.lowercase().contains("meditat") -> "Sit down and take three breaths"
+            title.lowercase().contains("write") || title.lowercase().contains("journal") ->
+                "Write one sentence"
+            title.lowercase().contains("water") -> "Fill the glass"
+            title.lowercase().contains("stretch") -> "Do one stretch"
+            title.lowercase().contains("gym") || title.lowercase().contains("workout") ->
+                "Pack the bag"
+            else -> "Start for two minutes"
+        }
+
+        return jsonOf(
+            "title" to title.replaceFirstChar { it.uppercase() },
+            "tinyStart" to tiny,
+            "cueTime" to cueTime,
+            "cuePlace" to place,
+            "anchorText" to anchor,
+            "days" to days,
+            "standardVersion" to title.replaceFirstChar { it.uppercase() }
+        )
+    }
+
+    /** Manifest text used in the cloud system prompt. */
+    fun toolCatalog(): String = Capabilities.all().joinToString("\n") { c ->
+        "- ${c.name}(${c.args.joinToString(", ") { "${it.first}: ${it.second}" }}) — ${c.summary}" +
+                if (c.destructive) " [destructive]" else ""
+    }
+}
