@@ -60,8 +60,41 @@ def main() -> int:
     out.append("}")
     out.append("")
 
+    # Library code (Material, AppCompat) references its own R class. aapt2 merges
+    # every symbol into one table, so mirroring the same ids under those package
+    # names is correct and avoids --extra-packages plumbing.
+    extra_packages = ["com.google.android.material", "androidx.appcompat"]
+    for extra in extra_packages:
+        out.append("")
+        out.append("package %s" % extra if False else "")
     with open(dst, "w", encoding="utf-8") as fh:
         fh.write("\n".join(out))
+
+    # Each extra package must live in its own file (one package per Kotlin file).
+    import os as _os
+    base = _os.path.dirname(dst)
+    for extra in extra_packages:
+        lines = [
+            "// Generated from aapt2 R.txt. Do not edit.",
+            "@file:Suppress(\"unused\", \"ObjectPropertyName\", \"MayBeConstant\")",
+            "",
+            "package %s" % extra,
+            "",
+            "object R {",
+        ]
+        for rtype in sorted(set(list(ints.keys()) + list(arrays.keys()))):
+            lines.append("    object %s {" % rtype)
+            for name, value in sorted(ints.get(rtype, [])):
+                lines.append("        const val %s: Int = %s" % (name, value))
+            for name, items in sorted(arrays.get(rtype, [])):
+                joined = ", ".join(items) if items else ""
+                lines.append("        val %s: IntArray = intArrayOf(%s)" % (name, joined))
+            lines.append("    }")
+        lines.append("}")
+        lines.append("")
+        fname = _os.path.join(base, "Res_%s.kt" % extra.replace(".", "_"))
+        with open(fname, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines))
 
     total = sum(len(v) for v in ints.values()) + sum(len(v) for v in arrays.values())
     print("    generated %d symbols across %d types" % (total, len(set(list(ints) + list(arrays)))))

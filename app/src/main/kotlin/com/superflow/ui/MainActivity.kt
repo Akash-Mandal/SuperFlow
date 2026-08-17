@@ -19,6 +19,7 @@ import com.superflow.notify.Reminders
 import com.superflow.ui.coach.CoachFragment
 import com.superflow.ui.insights.InsightsFragment
 import com.superflow.ui.journey.JourneyFragment
+import com.superflow.ui.onboarding.OnboardingActivity
 import com.superflow.ui.settings.SettingsFragment
 import com.superflow.ui.today.TodayFragment
 import com.superflow.widget.TodayWidget

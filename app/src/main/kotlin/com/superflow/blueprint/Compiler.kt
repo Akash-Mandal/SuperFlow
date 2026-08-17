@@ -114,7 +114,7 @@ object Compiler {
         return listOf(
             "i want", "i need", "i should", "i will", "every day", "daily", "each morning",
             "each evening", "habit", "goal", "routine", "stop ", "start ", "quit ",
-            "identity", "become", "track", "reduce", "practice", "practise"
+            "identity", "becom", "track", "reduce", "practice", "practise"
         ).any { s.contains(it) }
     }
 
@@ -190,7 +190,8 @@ object Compiler {
     private fun guessArea(text: String): String {
         val s = text.lowercase()
         return when {
-            listOf("health", "fit", "walk", "run", "gym", "sleep", "eat").any { s.contains(it) } -> "HEALTH"
+            listOf("health", "fit", "walk", "run", "gym", "sleep", "eat", "body")
+                .any { s.contains(it) } -> "HEALTH"
             listOf("learn", "study", "read", "course", "language").any { s.contains(it) } -> "LEARNING"
             listOf("family", "friend", "partner", "relationship").any { s.contains(it) } -> "RELATIONSHIPS"
             listOf("work", "career", "job", "business").any { s.contains(it) } -> "WORK"

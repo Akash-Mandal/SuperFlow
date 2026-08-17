@@ -1,6 +1,6 @@
 import com.superflow.ai.Coordinator
 import com.superflow.blueprint.Compiler
-import com.superflow.data.*
+import com.superflow.data.model.*
 import org.json.JSONObject
 
 var pass = 0; var fail = 0

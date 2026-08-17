@@ -25,7 +25,7 @@ It also integrates a practical self-discipline system: Plan Ahead/Do Now, up to 
 
 ## Project status
 
-The app is **built and shipping as a signed APK**. The Android source lives in `app/`, and the build is driven by `tools/build_apk.sh`.
+The app is **built and shipping as a signed APK**, on real Android architecture.
 
 ```bash
 tools/build_apk.sh release   # -> build/outputs/superflow-release.apk
@@ -34,16 +34,29 @@ tools/run_tests.sh           # 103 logic assertions
 
 | | |
 |---|---|
-| Package | `com.superflow` 1.0.0 |
+| Package | `com.superflow` 2.0.0 |
 | minSdk / targetSdk | 26 / 34 |
-| Size | ~1.1 MB, v2+v3 signed |
-| Runtime dependencies | none — Android framework only |
+| Size | ~7.5 MB, v2+v3 signed |
+| Stack | Material 3, AppCompat, ConstraintLayout, RecyclerView, Fragment, ViewPager2, ViewModel/LiveData, Coroutines, androidx.sqlite, WorkManager, Lottie |
 | Capabilities | 45 registered commands shared by the UI and the AI |
 
-SuperFlow is written against the Android framework alone: Views instead of Compose, SQLite instead of Room, `AlarmManager` instead of WorkManager, `HttpURLConnection` instead of Retrofit. The build environment had no access to Google Maven, Maven Central or Gradle, so the app carries no third-party runtime dependencies and is compiled directly with `aapt2`, `kotlinc`, `dx` and `apksigner`. See **[BUILD.md](docs/BUILD.md)** for the toolchain and **[IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md)** for an honest feature-by-feature account of what is implemented, partial and not built.
+SuperFlow is a full AndroidX application: MVVM with `ViewModel` + `StateFlow`,
+`RecyclerView` + `DiffUtil` lists, Material 3 theming with a complete dark mode,
+edge-to-edge layouts, collapsing toolbars, bottom-sheet editors, custom animated
+charts, haptics, a home-screen widget and voice control.
+
+It is built **without Gradle**, because the build environment cannot reach
+Google Maven, Maven Central or the Gradle distribution servers. The script in
+`tools/` drives `aapt2`, `kotlinc`, `dx` and `apksigner` directly against a
+local set of 71 pre-exploded AARs. See **[BUILD.md](docs/BUILD.md)** for the
+toolchain and the five non-obvious problems that had to be solved, and
+**[IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md)** for an honest
+feature-by-feature account.
 
 ## Product plans
 
+- **[Build and toolchain guide](docs/BUILD.md)** — how the APK is produced
+- **[Implementation status](docs/IMPLEMENTATION_STATUS.md)** — what actually shipped
 - **[Build and toolchain guide](docs/BUILD.md)** — how the APK is produced
 - **[Implementation status](docs/IMPLEMENTATION_STATUS.md)** — what actually shipped
 - **[SuperFlow Grand Product and Engineering Plan](docs/GRAND_PLAN.md)**

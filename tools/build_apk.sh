@@ -123,16 +123,51 @@ echo "    $(echo "$KT_SRC" | wc -l) source files"
   -Xsuppress-version-warnings \
   -classpath "$CP" \
   -d "$BUILD/classes" \
-  $KT_SRC "$BUILD/gen/Res.kt" 2>&1 | grep -vE "^(warning|info):" || true
+  $KT_SRC "$BUILD/gen"/Res*.kt 2>&1 | grep -vE "^(warning|info):" || true
 
 [ -d "$BUILD/classes/com/superflow" ] || { echo "FATAL: Kotlin compilation failed" >&2; exit 1; }
 
 # ---------------------------------------------------------------------- dex
 echo "==> [5/7] dexing (multidex)"
+# Newer base artifacts (activity, lifecycle) already bundle some classes that
+# the older -ktx artifacts also carry. The -ktx jars must stay intact on the
+# COMPILE classpath (their .kotlin_module files are what make top-level
+# extensions resolvable), so the overlap is removed here, at dex time only.
+DEDUP="$BUILD/dedup"
+mkdir -p "$DEDUP"
 DEX_IN=("$BUILD/classes" "$KOTLIN_STDLIB")
+DEX_LIST=""
 for lib in "${LIBS[@]}"; do
   j="$JARS_DIR/$lib.jar"
-  [ -f "$j" ] && DEX_IN+=("$j")
+  [ -f "$j" ] && DEX_LIST="$DEX_LIST $j"
+done
+python3 - "$DEDUP" $DEX_LIST <<'PYEOF'
+import sys, zipfile, os, shutil
+out_dir = sys.argv[1]
+jars = sys.argv[2:]
+seen = set()
+for jar in jars:
+    name = os.path.basename(jar)
+    dest = os.path.join(out_dir, name)
+    with zipfile.ZipFile(jar) as z:
+        entries = z.namelist()
+        dupes = [e for e in entries if e.endswith('.class') and e in seen]
+        for e in entries:
+            if e.endswith('.class'):
+                seen.add(e)
+        if not dupes:
+            shutil.copyfile(jar, dest)
+            continue
+        drop = set(dupes)
+        with zipfile.ZipFile(dest, 'w', zipfile.ZIP_DEFLATED) as o:
+            for e in entries:
+                if e in drop:
+                    continue
+                o.writestr(e, z.read(e))
+PYEOF
+for lib in "${LIBS[@]}"; do
+  d="$DEDUP/$lib.jar"
+  [ -f "$d" ] && DEX_IN+=("$d")
 done
 java -Xmx1600m -cp "$DX" com.android.dx.command.Main \
   --dex --min-sdk-version="$MIN_SDK" --multi-dex \

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/status_card"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="@dimen/card_gap"
+    style="@style/Widget.SuperFlow.Card.Accent">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="@dimen/card_padding">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical">
+            <ImageView android:layout_width="18dp" android:layout_height="18dp"
+                android:layout_marginEnd="8dp" android:src="@drawable/ic_shield"
+                app:tint="?attr/colorOnPrimaryContainer" />
+            <TextView android:id="@+id/status_title" android:layout_width="0dp"
+                android:layout_height="wrap_content" android:layout_weight="1"
+                android:textAppearance="@style/Text.SuperFlow.TitleMedium"
+                android:textColor="?attr/colorOnPrimaryContainer" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/status_action"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" />
+        </LinearLayout>
+        <TextView android:id="@+id/status_body" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp"
+            android:textAppearance="@style/Text.SuperFlow.BodyMedium"
+            android:textColor="?attr/colorOnPrimaryContainer" android:alpha="0.85" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

@@ -1,55 +1,65 @@
 # Building SuperFlow
 
-SuperFlow builds into a signed Android APK **without Gradle and without Maven
-access**. This was a hard constraint of the environment the app was first built
-in: `dl.google.com`, `maven.google.com`, `repo1.maven.org`, `services.gradle.org`
-and `plugins.gradle.org` were all unreachable, so the usual
-`Gradle + AndroidX + Compose + Room + Hilt` stack could not be resolved.
+SuperFlow is a **full AndroidX / Material 3 application**. It is built without
+Gradle, because the build environment cannot reach Google Maven, Maven Central,
+`services.gradle.org` or `plugins.gradle.org`. Instead the script drives the
+Android build tools directly, against a local set of pre-exploded AARs.
 
-The app is therefore written against the **Android framework only** — no
-third-party runtime dependencies at all — and is compiled by a small script
-that drives the Android build tools directly.
+The result is a normal Android app — real `AppCompatActivity`, `Fragment`,
+`ViewModel`, `RecyclerView`, `ViewPager2`, Material 3 components, coroutines,
+`androidx.sqlite`, WorkManager, Lottie — not a framework-only app.
 
-## Consequences of the no-dependency design
+## Dependencies
 
-| Planned | Shipped instead | Why |
-|---|---|---|
-| Jetpack Compose + Material 3 | Android Views + a hand-written design system (`ui/Design.kt`) | Compose artifacts come from Google Maven |
-| Room | `SQLiteOpenHelper` + a typed repository (`data/Db.kt`, `data/Repo.kt`) | Room is a Maven artifact; the repository boundary is preserved |
-| DataStore | `SharedPreferences`, with secrets in a separate excluded file | same |
-| Hilt | Explicit singletons with `get(context)` accessors | same |
-| WorkManager | `AlarmManager` + `BroadcastReceiver` | same |
-| Retrofit / Ktor | `HttpURLConnection` (`ai/MainBrain.kt`) | same |
-| Kotlinx Serialization | `org.json` (ships in the framework) + `domain/Serial.kt` | same |
+71 libraries, listed in dependency order in [`tools/libs.txt`](../tools/libs.txt):
 
-The architectural boundaries from the Grand Plan are kept as **packages**
-rather than Gradle modules, which the plan explicitly allows.
+| Area | Libraries |
+|---|---|
+| UI | Material **1.13.0**, AppCompat 1.7.1, ConstraintLayout 2.2.1, RecyclerView 1.4.0, ViewPager2, CoordinatorLayout, SwipeRefresh, CardView, Transition |
+| Architecture | Fragment 1.6.1, Activity 1.11.0, Lifecycle/ViewModel/LiveData 2.6.2 (+ `-ktx`), SavedState, Startup |
+| Async | Kotlin Coroutines 1.8.1 (core + android) |
+| Data | `androidx.sqlite` 2.1.0 + framework, Room runtime, Gson |
+| Background | WorkManager 2.7.0 |
+| Motion | Lottie 6.6.10, DynamicAnimation |
+| Net | OkHttp 5.1.0, Okio |
 
 ## Toolchain
 
-`tools/build_apk.sh` expects these components under `$SUPERFLOW_TOOLCHAIN`
-(default `~/toolchain`):
+Expected under `$SUPERFLOW_TOOLCHAIN` (default `~/toolchain`):
 
 ```
 toolchain/
-├── jdk/                        JDK 25 runtime (PyPI: jdk4py)
-├── kotlinc/                    Kotlin 2.4.x compiler (npm: kotlin-compiler)
-├── bin/aapt2                   Android Asset Packaging Tool 2 (npm: aaptjs3)
-├── lib/dx.jar                  AOSP dexer (LineageOS/android_prebuilts_build-tools)
+├── jdk/                        JDK 25 runtime            (PyPI: jdk4py)
+├── kotlinc/                    Kotlin 2.4.x compiler     (npm: kotlin-compiler)
+├── bin/aapt2                   Android Asset Packaging 2 (npm: aaptjs3)
+├── lib/dx.jar                  AOSP dexer                (LineageOS prebuilts)
 ├── lib/apksigner.jar           APK signer
-├── lib/kotlin-stdlib-clean.jar Kotlin stdlib with META-INF/versions stripped
-└── platforms/android-34.jar    API 34 android.jar (Sable/android-platforms)
+├── lib/kotlin-stdlib-clean.jar Kotlin stdlib, META-INF/versions stripped
+├── platforms/android-34.jar    API 34 android.jar        (Sable/android-platforms)
+├── androidlibs/<lib>/          Exploded AAR: res/, AndroidManifest.xml
+└── libjars/<lib>.jar           That AAR's classes.jar
 ```
 
-Two details matter:
+## Five problems this build had to solve
 
-- **`kotlin-stdlib-clean.jar`** — the stock `kotlin-stdlib.jar` contains
-  `META-INF/versions/9/module-info.class`, which the AOSP `dx` dexer rejects
-  with `unknown tag byte`. The clean jar is the same stdlib with `META-INF`
-  removed.
-- **`minSdk 26`** — `dx` refuses to translate `invokedynamic` (used throughout
-  the Kotlin stdlib) below API 26. This matches the Grand Plan's stated
-  `minSdk 26` policy anyway.
+1. **`META-INF/versions/**` breaks `dx`** (`unknown tag byte`). Every jar has
+   those multi-release directories stripped.
+2. **`aapt2` styleable conflicts.** Passing library resources positionally makes
+   Material and AppCompat collide on `styleable/SearchView`. They must be passed
+   as ordered `-R` overlays, least specific first.
+3. **The full transitive resource closure is required** — drawerlayout, cardview
+   and friends, or Material's styles fail to resolve.
+4. **`.kotlin_module` files must survive.** Stripping all of `META-INF` from the
+   `-ktx` artifacts silently removes the module metadata Kotlin needs to resolve
+   top-level extensions, and `viewModels()` / `viewModelScope` /
+   `repeatOnLifecycle` stop resolving with a confusing "unresolved reference".
+5. **Duplicate classes at dex time.** Newer `activity`/`lifecycle` artifacts
+   bundle classes the older `-ktx` artifacts also carry. The `-ktx` jars stay
+   intact on the *compile* classpath (see #4); the overlap is removed only in a
+   dex-time staging copy.
+
+`minSdk` is **26** because `dx` refuses `invokedynamic` below that — which
+matches the Grand Plan's stated policy anyway.
 
 ## Build
 
@@ -58,19 +68,19 @@ tools/build_apk.sh release     # -> build/outputs/superflow-release.apk
 tools/build_apk.sh debug       # -> build/outputs/superflow-debug.apk
 ```
 
-Pipeline:
+Pipeline: compile library resources (cached) → `aapt2 link` with ordered
+overlays → generate Kotlin `R` objects from `R.txt` → `kotlinc` → `dx --multi-dex`
+→ package → sign (v1+v2+v3).
 
-1. `aapt2 compile` — compile resources
-2. `aapt2 link` — link resources, emit `R.txt` and the base APK
-3. `gen_res.py` — translate `R.txt` into a Kotlin `R` object (kotlinc cannot
-   consume aapt2's generated `R.java` here)
-4. `kotlinc` — compile all Kotlin sources against `android.jar`
-5. `dx` — dex the classes together with the Kotlin stdlib
-6. `apksigner` — sign with v1 + v2 + v3 schemes
+Signing keys are generated on first run into `build/` and are git-ignored.
+Override with `SUPERFLOW_KEYSTORE`, `SUPERFLOW_KEYSTORE_PASS`, `SUPERFLOW_KEY_ALIAS`.
 
-Signing keys are generated on first run into `build/` and are **git-ignored**.
-Override with `SUPERFLOW_KEYSTORE`, `SUPERFLOW_KEYSTORE_PASS` and
-`SUPERFLOW_KEY_ALIAS`.
+### Generated R classes
+
+`kotlinc` cannot consume aapt2's Java `R.java`, so `tools/gen_res.py` turns
+`R.txt` into Kotlin objects — including `styleable` int arrays, and mirrors of
+the same ids under `com.google.android.material` and `androidx.appcompat`, which
+is what those libraries' own code links against.
 
 ## Tests
 
@@ -78,34 +88,26 @@ Override with `SUPERFLOW_KEYSTORE`, `SUPERFLOW_KEYSTORE_PASS` and
 tools/run_tests.sh
 ```
 
-Three suites, 103 assertions, covering the framework-independent logic:
+103 assertions over the framework-independent logic: dates and scheduling,
+the habit ladder, contract generation, day-mask parsing, JSON extraction from
+messy model output, natural-language habit parsing, prompt-injection detection,
+and Blueprint requirement extraction with citations and conflicts.
 
-- **LogicTest** (45) — dates, day-of-week maths, scheduling masks, the habit
-  ladder and its fallbacks, contract generation, time validation
-- **ParseTest** (25) — day-spec parsing and label round-tripping, JSON
-  extraction from fenced/prose-wrapped/nested/escaped model output
-- **AiTest** (33) — natural-language habit parsing (12/24-hour times, anchors,
-  places, day lists), prompt-injection detection, Blueprint requirement
-  extraction, source citation, conflict detection and coverage reporting
-
-Because `android.jar` is a stub whose methods throw, `tools/test/JsonShim.kt`
-provides a real `org.json` for the desktop JVM only. It is never compiled into
-the APK.
+`tools/test/JsonShim.kt` supplies a real `org.json` for the desktop JVM (the
+stub in `android.jar` throws). It is never compiled into the APK.
 
 ## Output
 
 | | |
 |---|---|
-| Package | `com.superflow` |
-| Version | 1.0.0 (code 1) |
+| Package | `com.superflow` 2.0.0 (code 2) |
 | minSdk / targetSdk | 26 / 34 |
-| Size | ~1.1 MB |
+| Size | ~7.5 MB, 934 files, 2 dex |
 | Signatures | v2 + v3 verified |
-| Runtime dependencies | none |
+| App classes | 311 |
 
 ## AAB
 
-Producing an Android App Bundle requires `bundletool` and Google's build
-tooling, which were not reachable from the build environment. The release APK
-contains the complete feature set described in the plans; the AAB packaging
-step is the only distribution artifact still outstanding.
+Producing an Android App Bundle needs `bundletool`, which was not reachable.
+The release APK carries the complete feature set; AAB packaging is the only
+distribution artifact still outstanding.

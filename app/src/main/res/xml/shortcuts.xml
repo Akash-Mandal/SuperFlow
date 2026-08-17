@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="coach"
+        android:enabled="true"
+        android:icon="@drawable/ic_sparkle"
+        android:shortcutShortLabel="@string/ask_superflow"
+        android:shortcutLongLabel="@string/ask_superflow">
+        <intent android:action="android.intent.action.VIEW"
+            android:targetPackage="com.superflow"
+            android:targetClass="com.superflow.ui.MainActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="designer"
+        android:enabled="true"
+        android:icon="@drawable/ic_add"
+        android:shortcutShortLabel="@string/new_habit"
+        android:shortcutLongLabel="@string/habit_designer">
+        <intent android:action="android.intent.action.VIEW"
+            android:targetPackage="com.superflow"
+            android:targetClass="com.superflow.ui.designer.HabitDesignerActivity" />
+    </shortcut>
+</shortcuts>

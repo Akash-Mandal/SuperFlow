@@ -1,114 +1,142 @@
 # SuperFlow — Implementation Status
 
-Built from the product plans in this repository into a working, signed Android
-APK. This document records honestly what is implemented, what is partial, and
-what is not built, so the plans and the code can be compared without guesswork.
+A full AndroidX / Material 3 Android application built from the product plans in
+this repository. This document records honestly what is implemented, what is
+partial, and what is not built.
 
-**Build:** `com.superflow` 1.0.0 · minSdk 26 · targetSdk 34 · ~1.1 MB ·
-v2+v3 signed · no third-party runtime dependencies · 103 logic tests passing.
+**Build:** `com.superflow` 2.0.0 · minSdk 26 · targetSdk 34 · ~7.5 MB ·
+v2+v3 signed · 71 AndroidX/Material libraries · 311 app classes ·
+103 logic assertions passing.
 
 ---
 
-## Architecture as shipped
+## Architecture
 
 ```
 app/src/main/kotlin/com/superflow/
-├── data/          Models, SQLite schema, Repo, Prefs
-├── domain/        CommandBus, Capabilities (45), Serial, Insights
-├── ai/            Coordinator (local), MainBrain (cloud), Agent, Snapshots
-├── blueprint/     Compiler — Intent Compiler and Requirement Ledger
-├── notify/        Reminders, checkpoints, boot rescheduling
-└── ui/            Design system, 5 tabs, 9 activities
+├── data/
+│   ├── model/       Domain models
+│   ├── db/          androidx.sqlite schema, DAOs, row mappers
+│   ├── Repository   Reactive repo exposing a StateFlow revision
+│   └── Prefs        Settings + AI config; secrets in a separate excluded file
+├── domain/          CommandBus, 45 Capabilities, Serial, Insights
+├── ai/              Coordinator (local), MainBrain (cloud), Agent, Snapshots, VoiceInput
+├── blueprint/       Intent Compiler, Requirement Ledger, PdfText
+├── notify/          Reminders, checkpoints, boot rescheduling
+├── widget/          Home-screen widget
+└── ui/
+    ├── common/      Design helpers, ProgressRing, BarChart, HeatmapView, HistoryStrip
+    ├── today/ journey/ insights/ coach/ settings/    (five tabs, MVVM)
+    ├── designer/ detail/ recovery/ scorecard/ flows/ review/
+    ├── blueprint/ engine/ activity/ onboarding/
+    └── sheets/      Material bottom-sheet editors
 ```
 
-The central design decision from the Grand Plan is preserved exactly: **one
-shared command bus**. Every mutation in the app — from a button tap, a
-notification action, an AI tool call, or a Blueprint execution — goes through
-`CommandBus.execute()`, receives the same validation, writes the same audit
-entry, and gets the same undo payload. Manual/AI parity is structural, not
-aspirational: there is no second code path for the AI to drift from.
+**Real Android architecture:** `AppCompatActivity` + `Fragment` + `ViewPager2`,
+`ViewModel` per screen, `StateFlow` state, `RecyclerView` + `ListAdapter` +
+`DiffUtil` for every list, coroutines for all IO, `androidx.sqlite` persistence,
+`AlarmManager`/`BroadcastReceiver` for reminders, `AppWidgetProvider` for the
+widget, `SpeechRecognizer` for voice.
+
+**The spine is the shared command bus.** A button tap, a notification action, an
+AI tool call and a Blueprint execution all flow through `CommandBus.execute()` —
+one validation path, one audit entry, one undo mechanism. There is no second
+code path for AI to drift from.
+
+---
+
+## UI and UX
+
+- **Material 3 throughout** — tonal colour system, `MaterialCardView`,
+  `BottomNavigationView` with active indicator, `ExtendedFloatingActionButton`
+  that shrinks on scroll, chips, `MaterialSwitch`, `MaterialTimePicker`,
+  `MaterialAlertDialog`, bottom sheets, `LinearProgressIndicator`, Snackbars
+  with Undo.
+- **Full dark theme** plus system/light/dark switching at runtime.
+- **Edge-to-edge** with correct system-bar and IME inset handling.
+- **Collapsing toolbars** with parallax headers and lift-on-scroll.
+- **Custom animated charts** — an animated progress ring, a rounded bar chart,
+  an 18-week consistency heatmap, and a compact 14-day history strip per habit.
+- **Motion** — staggered list entry animations, DiffUtil item animations,
+  animated chart reveals.
+- **Haptics** on check-in and completion, user-disableable.
+- Warm, paper-like palette; a miss uses amber, never a punitive red.
 
 ---
 
 ## Implemented
 
 ### Core growth loop
-- Identity → Goal → System → Habit → Check-in → Review, fully modelled and editable
-- Guest-first onboarding, 8 steps, skippable, no account wall
-- Habit Designer: Meaning / Notice / Want / Start / Feel + plain-language contract
-- Four laws and their inversions (Build and Reduce modes)
-- Habit Ladder: Tiny / Minimum / Standard / Stretch with sensible fallbacks
-- Binary, count and duration tracking
-- Time, place and anchor cues; habit stacking; day-of-week scheduling
-- Tiny Start required and auto-derived when the AI creates a habit
+Identity → Goal → System → Habit → Check-in → Review, fully modelled and
+editable; guest-first 8-step onboarding; Habit Designer with six sections
+(Meaning / Notice / Want / Start / Feel / Contract) covering the four laws and
+their inversions; Tiny/Minimum/Standard/Stretch ladder; binary, count and
+duration tracking; time, place and anchor cues; habit stacking; day-of-week
+scheduling; a required Tiny Start with automatic suggestion.
 
 ### Today
-- Daily Focus, capped at three, with suggest-from-habits
-- Timeline bucketed Morning / Day / Evening / Anytime
-- Per-card check-in at any ladder level, intentional skip, missed
-- **Return today** card driven by the never-miss-twice rule
-- Morning/midday/evening checkpoints, energy logging 1–5
-- Plan Tomorrow, Minimum Mode with protected-routine exclusions
+Animated progress ring; identity card with vote count; **Return today** cards
+driven by the never-miss-twice rule; Daily Focus capped at three with
+suggest-from-habits; per-habit check-in at any ladder level plus skip and
+missed; 14-day history strip on each card; morning/midday/evening checkpoints;
+energy slider; Plan Tomorrow; Minimum Mode with protected-routine exclusions.
 
 ### Journey
-- Full CRUD for identities, goals, systems, habits
-- Obstacle Plans (if-then), Habit Scorecard, Flow Builder, Reviews
-- Archive/restore preserving history
+Full CRUD for identities, goals, systems and habits via bottom-sheet editors
+with chip-based linking; Obstacle Plans; Habit Scorecard; Flow Builder;
+Reviews; archive/restore preserving history.
 
 ### Insights
-- 7-day bar chart, 30-day totals, per-habit consistency
-- Repetitions, current run, best run, recoveries after a miss
-- Identity evidence ledger (votes per identity)
-- Energy pattern **with an explicit small-sample caveat**
-- Redesign suggestions for habits missed twice in a row
-- Runs are computed only over scheduled days; intentional skips do not break them
-
-### Recovery
-- Return-today cards, Minimum Mode, shrink-to-tiny, recovery plans
-- Reduce-mode slip handling with a professional-help pointer
+7-day bar chart; 30-day totals; 18-week heatmap; per-habit consistency bars;
+identity evidence ledger; recoveries-after-a-miss; redesign candidates; energy
+pattern **with an explicit small-sample caveat**; reduce-mode progress.
 
 ### AI
-- **Local Coordinator** — deterministic, offline, no network. Handles check-ins,
-  skips, misses, focus, planning, energy, creation, archive/delete, obstacle
-  plans, scorecard, queries and help. The app is fully controllable by text
-  with every AI provider disabled.
-- **Cloud Main Brain** — any OpenAI-compatible endpoint (hosted, LAN, or
-  self-hosted). Provider-neutral via `HttpURLConnection`.
-- **Routing** — local first, cloud for open-ended work, deterministic fallback
-  on any provider failure.
-- **Full Control** — one activation, then no repeated app-local confirmations,
-  including destructive and multi-step work.
+- **Local Coordinator** — deterministic, offline. The app is fully controllable
+  by text with every provider disabled.
+- **Cloud Main Brain** — any OpenAI-compatible endpoint (hosted, LAN, self-hosted).
+- **Voice control** via `SpeechRecognizer`, routed through the same commands.
+- **Full Control** — one activation, then no repeated app-local confirmations.
 - **Policy Engine** — deterministic code, not the model, decides what may run.
-- **Safety** — automatic snapshots before multi-step/destructive runs, full
-  Activity trail, per-action undo, grouped undo, deterministic Stop,
-  verification against the real database rather than model text.
-- **Context Broker** — user-toggled sections, viewable context receipt.
-- Budgets (including unlimited), temperature/token/timeout controls, diagnostics.
+- **Safety** — automatic snapshots, full Activity trail, per-action and grouped
+  undo, deterministic Stop, verification against the real database.
+- Context Broker with a viewable receipt; budgets including unlimited.
 
 ### Blueprint Studio
-- Multi-source projects: pasted text, imported text/Markdown, basic PDF extraction
-- Main and per-source instructions; user instructions outrank document content
-- Deterministic offline requirement extraction with `file:Lnn` citations
-- Requirement Ledger with 8 statuses, accept/reject, duplicate conflict detection
-- **Prompt-injection isolation** — sources are data; embedded instructions that
-  try to change rules, permissions or safety behaviour are detected and rejected
-  as visible ledger rows rather than silently dropped
-- Execution as one undoable group, after a snapshot
-- **Verification against actual app state**, with gaps reported as gaps
-- Coverage report, current-setup audit, Markdown Design Pack export
+Multi-source ingestion (paste, text/Markdown import, PDF text extraction);
+deterministic offline requirement extraction with `file:Lnn` citations;
+**prompt-injection isolation** surfacing embedded instructions as visible
+rejected rows; **cloud refinement** of the ledger when a provider is configured;
+execution as one undoable group after a snapshot; verification against actual
+app state; **amendment history with version diffing**; coverage report; setup
+audit; Markdown Design Pack export.
+
+### Platform integration
+Home-screen widget with one-tap tiny check-in; notification actions
+(Done / Tiny / Skip); quiet hours and a daily reminder budget; boot
+rescheduling; app shortcuts; `superflow://` deep link; share-sheet export and
+progress summary.
 
 ### Data and privacy
-- Local SQLite is the source of truth; works fully offline
-- JSON export/import, delete-all-data
-- API keys in a separate preference file, excluded from backup, export, prompts,
-  logs and context receipts
-- Crash reporting off by default
-- Notification permission requested only at the reminder step
+Local SQLite is the source of truth; JSON export/import; delete-all-data;
+API keys in a separate preference file excluded from backup, export, prompts and
+logs; crash reporting off by default; notification permission requested only at
+the reminder step.
 
-### Reminders
-- Per-habit reminders with Done / Tiny / Skip action buttons
-- Quiet hours, total daily reminder budget, checkpoint notifications
-- Rescheduled after reboot; suppressed if the habit is already handled
+---
+
+## Previously omitted, now implemented
+
+| Feature | Status |
+|---|---|
+| Voice control | Done — `SpeechRecognizer`, same command path as typing |
+| Home-screen widget | Done — progress, next tiny action, one-tap check-in |
+| Dark theme | Done — full M3 dark palette + runtime switching |
+| Share-sheet summary | Done — private text recap |
+| Blueprint amendments / branching | Done — versioned ledger snapshots with diff |
+| Cloud refinement of the ledger | Done — bounded, only known safe commands accepted |
+| App shortcuts / deep links | Done |
+| Real Material components | Done — this was the headline gap |
 
 ---
 
@@ -116,37 +144,19 @@ aspirational: there is no second code path for the AI to drift from.
 
 | Area | State |
 |---|---|
-| PDF ingestion | Text extraction for digitally generated, Flate-compressed PDFs. Scanned PDFs yield nothing and the UI says so and asks for pasted text. No OCR. |
-| Voice control | Not implemented. All AI control is text. |
-| Blueprint amendments/branching | Recompiling bumps the version and replaces the ledger. No branch/merge or diff-between-versions UI. |
-| Cloud refinement of the ledger | Extraction is deterministic and offline. A configured Main Brain is not yet used to re-rank or enrich requirements. |
-| Localization | English only; strings are centralized but not translated. |
-| Dark theme | Single warm light theme. |
+| Room | Uses `androidx.sqlite` (Room's own support layer) with hand-written DAOs. Room's annotation processor is unavailable offline; the runtime contract is identical, but there is no compile-time query verification. |
+| PDF ingestion | Text extraction for digitally generated, Flate-compressed PDFs including hex strings. Scanned PDFs yield nothing and the UI says so. No OCR. |
+| Dynamic colour | Material You wallpaper extraction is not wired up; the app ships a fixed brand palette in light and dark. |
+| Localization | English only; strings are fully externalized and ready to translate. |
+| Navigation component | Uses `ViewPager2` + explicit Activities rather than a nav graph. |
 
 ## Not built
 
-- Optional account, cloud sync, and the managed AI proxy backend
-- Home-screen widget, app links, share-sheet accountability summary
-- Local on-device model runtime (the Local Coordinator is rules-based, which
-  the plan designates as the universal fallback)
-- Android instrumentation/UI tests (no emulator was available)
-- AAB packaging (requires `bundletool`, unreachable in the build environment)
-
----
-
-## Test coverage
-
-`tools/run_tests.sh` — 103 assertions, all passing:
-
-- **LogicTest** (45) — dates across month/year boundaries, ISO day-of-week,
-  scheduling masks, ladder fallbacks, contract generation, time validation
-- **ParseTest** (25) — day-spec parsing, label round-trips, JSON extracted from
-  fenced, prose-wrapped, nested and escaped model output
-- **AiTest** (33) — 12/24-hour time parsing, anchors, places, day lists,
-  injection detection, Blueprint extraction, citations, conflicts, coverage
-
-Not covered by automated tests: Android UI behaviour, SQLite persistence, alarm
-delivery, and live provider calls. These need an emulator or device.
+- Optional account, cloud sync, managed AI proxy backend
+- On-device model runtime (the Local Coordinator is rules-based, which the plan
+  designates as the universal fallback)
+- Android instrumentation / UI tests — no emulator was available
+- AAB packaging — requires `bundletool`, unreachable in this environment
 
 ---
 
@@ -159,12 +169,16 @@ Verified using v2 scheme (APK Signature Scheme v2): true
 Verified using v3 scheme (APK Signature Scheme v3): true
 
 $ aapt2 dump badging build/outputs/superflow-release.apk
-package: name='com.superflow' versionCode='1' versionName='1.0.0'
+package: name='com.superflow' versionCode='2' versionName='2.0.0'
 minSdkVersion:'26'  targetSdkVersion:'34'
-launchable-activity: name='com.superflow.ui.MainActivity'
 ```
 
-The APK has not been executed on a device or emulator — none was available in
-the build environment. It compiles, dexes, packages and verifies correctly, and
-its framework-independent logic is covered by the suites above, but first-run
-behaviour on real hardware is unverified.
+Present in the dex, confirmed by inspection: `MaterialCardView`,
+`BottomNavigationView`, `BottomSheetDialogFragment`, `ListAdapter`,
+`ViewPager2`, `ViewModel`, `MutableStateFlow`, `SupportSQLiteDatabase`,
+`ConstraintLayout`, `LottieAnimationView`, and all 311 SuperFlow classes.
+
+**The APK has not been executed on a device or emulator** — none was available.
+It compiles, links, dexes, packages and verifies, and its framework-independent
+logic is covered by the test suites, but runtime behaviour on real hardware is
+unverified. That is the first thing to check on a device.
