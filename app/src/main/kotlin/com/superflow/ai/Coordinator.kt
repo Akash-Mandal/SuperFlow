@@ -1,6 +1,7 @@
 package com.superflow.ai
 
 import com.superflow.data.Repository
+import com.superflow.data.model.Habit
 import com.superflow.data.model.Level
 import com.superflow.domain.Capabilities
 import com.superflow.util.jsonOf
@@ -23,7 +24,22 @@ object Coordinator {
         val reply: String? = null
     )
 
-    fun interpret(text: String, repo: Repository): Plan? {
+    /**
+     * The only repository surface [interpret] needs. Seam so the pure
+     * parsing/routing logic is unit-testable without an Android context.
+     */
+    class Lookup(
+        val resolve: (String) -> Habit?,
+        val all: () -> List<Habit>
+    ) {
+        companion object {
+            fun from(repo: Repository) = Lookup({ repo.findHabit(it) }, { repo.habits() })
+        }
+    }
+
+    fun interpret(text: String, repo: Repository): Plan? = interpret(text, Lookup.from(repo))
+
+    fun interpret(text: String, lookup: Lookup): Plan? {
         val raw = text.trim()
         val s = raw.lowercase()
         if (s.isBlank()) return null
@@ -74,27 +90,31 @@ object Coordinator {
 
         if (startsAny(s, "skip ", "skipping ")) {
             val name = stripLeading(raw, listOf("skip", "skipping"))
-            repo.findHabit(name)?.let {
+            lookup.resolve(name)?.let {
                 return Plan("skip_habit", jsonOf("habit" to it.id, "date" to dateWord), 0.85)
             }
         }
 
         if (startsAny(s, "missed ", "i missed ", "didn't do ", "did not do ")) {
             val name = stripLeading(raw, listOf("i missed", "missed", "didn't do", "did not do"))
-            repo.findHabit(name)?.let {
+            lookup.resolve(name)?.let {
                 return Plan("mark_missed", jsonOf("habit" to it.id, "date" to dateWord), 0.85)
             }
         }
 
+        // Level words are valid sentence starters too: the help card
+        // advertises "tiny walk", so "tiny walk" must check in at Tiny.
         if (startsAny(s, "done ", "did ", "i did ", "completed ", "finished ", "check in ",
-                "checkin ", "check off ", "mark ", "log ", "i completed ")) {
+            "checkin ", "check off ", "mark ", "log ", "i completed ",
+            "tiny ", "minimum ", "minimal ", "stretch ")) {
             val name = stripLeading(raw, listOf("i completed", "check in", "checkin", "check off",
-                "completed", "finished", "i did", "done", "did", "mark", "log"))
+                "completed", "finished", "i did", "done", "did", "mark", "log",
+                "tiny", "minimum", "minimal", "stretch"))
                 .removePrefix("my ").removeSuffix(" done").trim()
             val cleaned = name
                 .replace(Regex("\\b(tiny|minimum|minimal|standard|stretch|today|yesterday)\\b"), "")
                 .trim().trim(',', '.', '-')
-            repo.findHabit(cleaned.ifBlank { name })?.let {
+            lookup.resolve(cleaned.ifBlank { name })?.let {
                 return Plan("check_in",
                     jsonOf("habit" to it.id, "level" to level.name, "date" to dateWord), 0.85)
             }
@@ -124,18 +144,18 @@ object Coordinator {
 
         if (startsAny(s, "archive ", "pause ")) {
             val name = stripLeading(raw, listOf("archive", "pause"))
-            repo.findHabit(name)?.let { return Plan("archive_habit", jsonOf("habit" to it.id), 0.85) }
+            lookup.resolve(name)?.let { return Plan("archive_habit", jsonOf("habit" to it.id), 0.85) }
         }
         if (startsAny(s, "delete habit ", "remove habit ")) {
             val name = stripLeading(raw, listOf("delete habit", "remove habit"))
-            repo.findHabit(name)?.let { return Plan("delete_habit", jsonOf("habit" to it.id), 0.85) }
+            lookup.resolve(name)?.let { return Plan("delete_habit", jsonOf("habit" to it.id), 0.85) }
         }
 
         Regex("if (.+?),? then (.+)").find(raw)?.let { m ->
             val ifText = m.groupValues[1].trim()
             val thenText = m.groupValues[2].trim()
-            val habit = repo.habits().firstOrNull { ifText.lowercase().contains(it.title.lowercase()) }
-                ?: repo.habits().firstOrNull()
+            val habit = lookup.all().firstOrNull { ifText.lowercase().contains(it.title.lowercase()) }
+                ?: lookup.all().firstOrNull()
             if (habit != null) {
                 return Plan("add_obstacle_plan",
                     jsonOf("habit" to habit.id, "ifText" to ifText, "thenText" to thenText), 0.7)

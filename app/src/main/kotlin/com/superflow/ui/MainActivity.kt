@@ -87,6 +87,8 @@ class MainActivity : AppCompatActivity() {
 
         handleIntent(intent)
         requestNotificationPermissionIfNeeded()
+        // Both are non-blocking: they run on the serialized background lane
+        // (see AppBackground) and must not delay the first frame.
         Reminders.rescheduleAll(this)
         TodayWidget.refresh(this)
     }
@@ -112,15 +114,23 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        // Debounced + backgrounded: covers the "user goes home" case without
+        // doing database work on the main thread on every pause.
         TodayWidget.refresh(this)
     }
 
     private fun requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= 33 && prefs.remindersEnabled) {
-            val perm = android.Manifest.permission.POST_NOTIFICATIONS
-            if (checkSelfPermission(perm) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                notificationPermission.launch(perm)
-            }
+        if (Build.VERSION.SDK_INT < 33) return
+        // The system prompt is shown at most once per install (unless the
+        // user resets app data or revokes access in settings); re-prompting
+        // on every cold start is hostile and it also keeps the dialog on the
+        // first-frame path.
+        if (prefs.notifPermissionAsked) return
+        if (!prefs.remindersEnabled) return
+        val perm = android.Manifest.permission.POST_NOTIFICATIONS
+        if (checkSelfPermission(perm) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            prefs.notifPermissionAsked = true
+            notificationPermission.launch(perm)
         }
     }
 

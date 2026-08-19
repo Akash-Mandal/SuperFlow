@@ -84,28 +84,46 @@ class DataManagementFragment : Fragment() {
 
         // Data overview
         container.addView(section("YOUR DATA"))
-        val counts = repo.counts()
-        val totalItems = counts.values.sum()
-        val dbSize = try {
-            val dbFile = requireContext().getDatabasePath("superflow.db")
-            if (dbFile.exists()) "${dbFile.length() / 1024} KB" else "unknown"
-        } catch (e: Exception) { "unknown" }
-
+        val recordsRow = infoRow("Total records", "…")
+        val dbRow = infoRow("Database size", "…")
+        val snapshotsRow = infoRow("Snapshots", "…")
         container.addView(group(listOf(
-            infoRow("Total records", "$totalItems items across ${counts.size} tables"),
-            infoRow("Database size", dbSize),
-            infoRow("Snapshots", "${com.superflow.ai.Snapshots.list(requireContext()).size} saved"),
+            recordsRow,
+            dbRow,
+            snapshotsRow,
             infoRow("Policy version", "v${DataPolicy.POLICY_VERSION} — all-inclusive")
         )))
+        // counts() is twelve COUNT queries and the snapshot list is a file
+        // scan; this screen re-renders on every resume, so keep the reads off
+        // the render thread and fill the rows when they land.
+        val ctx = requireContext()
+        lifecycleScope.launch {
+            val counts = withContext(Dispatchers.IO) { repo.counts() }
+            if (!isAdded) return@launch
+            setSub(recordsRow, "${counts.values.sum()} items across ${counts.size} tables")
+            setSub(dbRow, withContext(Dispatchers.IO) {
+                try {
+                    val dbFile = ctx.getDatabasePath("superflow.db")
+                    if (dbFile.exists()) "${dbFile.length() / 1024} KB" else "unknown"
+                } catch (e: Exception) { "unknown" }
+            })
+            setSub(snapshotsRow,
+                "${withContext(Dispatchers.IO) { com.superflow.ai.Snapshots.list(ctx).size }} saved")
+        }
 
         // Data manifest
         container.addView(action(R.drawable.ic_info, "View data manifest",
             "See exactly what's included in exports") {
-            MaterialAlertDialogBuilder(requireContext())
-                .setTitle("Data Manifest")
-                .setMessage(DataPolicy.manifest(repo))
-                .setPositiveButton(R.string.close, null)
-                .show()
+            // manifest() runs counts() once per category; off the UI thread.
+            lifecycleScope.launch {
+                val report = withContext(Dispatchers.IO) { DataPolicy.manifest(repo) }
+                if (!isAdded) return@launch
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Data Manifest")
+                    .setMessage(report)
+                    .setPositiveButton(R.string.close, null)
+                    .show()
+            }
         })
 
         // Export
@@ -212,9 +230,13 @@ class DataManagementFragment : Fragment() {
                     .setMessage("All messages will be deleted. This cannot be undone.")
                     .setNegativeButton(R.string.cancel, null)
                     .setPositiveButton(R.string.delete) { _, _ ->
-                        repo.clearMessages()
-                        view?.snack("AI conversation cleared")
-                        render()
+                        // Database wipe: off the render thread.
+                        lifecycleScope.launch {
+                            withContext(Dispatchers.IO) { repo.clearMessages() }
+                            if (!isAdded) return@launch
+                            view?.snack("AI conversation cleared")
+                            render()
+                        }
                     }.show()
             },
             actionRow("Clear activity trail",
@@ -224,9 +246,12 @@ class DataManagementFragment : Fragment() {
                     .setMessage("The audit log and undo history will be deleted. Existing data is unaffected.")
                     .setNegativeButton(R.string.cancel, null)
                     .setPositiveButton(R.string.delete) { _, _ ->
-                        repo.clearAudit()
-                        view?.snack("Activity trail cleared")
-                        render()
+                        lifecycleScope.launch {
+                            withContext(Dispatchers.IO) { repo.clearAudit() }
+                            if (!isAdded) return@launch
+                            view?.snack("Activity trail cleared")
+                            render()
+                        }
                     }.show()
             },
             actionRow("Delete all data",
@@ -237,11 +262,17 @@ class DataManagementFragment : Fragment() {
                             "Consider exporting first.\n\nAPI keys will also be removed.")
                     .setNegativeButton(R.string.cancel, null)
                     .setPositiveButton(R.string.delete) { _, _ ->
-                        repo.deleteAllData()
-                        prefs.resetAll()
-                        com.superflow.ai.Snapshots.clear(requireContext())
-                        view?.snack("All data deleted")
-                        render()
+                        lifecycleScope.launch {
+                            val ctx = requireContext()
+                            withContext(Dispatchers.IO) {
+                                repo.deleteAllData()
+                                prefs.resetAll()
+                                com.superflow.ai.Snapshots.clear(ctx)
+                            }
+                            if (!isAdded) return@launch
+                            view?.snack("All data deleted")
+                            render()
+                        }
                     }.show()
             }
         )))
@@ -494,6 +525,10 @@ class DataManagementFragment : Fragment() {
             }
         }
         return card
+    }
+
+    private fun setSub(row: View, text: String) {
+        row.findViewById<TextView>(R.id.action_sub)?.text = text
     }
 
     private fun infoRow(title: String, value: String): View {

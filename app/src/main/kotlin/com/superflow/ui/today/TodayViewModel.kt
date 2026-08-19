@@ -105,16 +105,21 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         val iso = SfTime.format(date)
         val rows = ArrayList<TodayRow>()
 
-        val (done, total) = Insights.dayProgress(repo, date)
+        // One read pass for the whole screen: identities, habits, check-ins
+        // and pauses each queried once, instead of per-habit queries per
+        // render (which made tab switches stutter with several habits).
+        val snap = repo.snapshot()
+
+        val (done, total) = Insights.dayProgress(snap, repo, date)
         rows.add(TodayRow.Progress(done, total, progressMessage(done, total)))
 
-        repo.identities().firstOrNull()?.let { identity ->
-            val votes = Insights.identityEvidence(repo)
+        snap.identities.firstOrNull()?.let { identity ->
+            val votes = Insights.identityEvidence(snap)
                 .firstOrNull { it.first == identity.statement }?.second ?: 0
             rows.add(TodayRow.IdentityCard(identity.statement, votes))
         }
 
-        val returning = repo.returnCandidates(date)
+        val returning = Insights.returnCandidates(snap, repo, date)
         if (returning.isNotEmpty()) rows.add(TodayRow.Returning(returning))
 
         rows.add(TodayRow.Focus(repo.focusFor(iso)))
@@ -125,7 +130,7 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
             rows.add(TodayRow.Checkpoints(energy))
         }
 
-        val todayHabits = repo.todayHabits(date)
+        val todayHabits = repo.todayHabits(snap, date)
         if (todayHabits.isEmpty()) {
             rows.add(TodayRow.Empty(
                 "No habits scheduled",
@@ -139,7 +144,9 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
             for (key in DayBucket.values()) {
                 val list = buckets[key] ?: continue
                 rows.add(TodayRow.Section(key.label))
-                list.forEach { rows.add(TodayRow.HabitRow(it, historyFor(it.habit))) }
+                list.forEach {
+                    rows.add(TodayRow.HabitRow(it, Insights.historyStates(snap, repo, it.habit, 14, date)))
+                }
             }
         }
 
@@ -157,9 +164,6 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         done < total -> "Momentum is real. One more when you are ready."
         else -> "Every action today was a vote for who you are becoming."
     }
-
-    /** 14-day state strip, derived from the opportunity series. */
-    private fun historyFor(habit: Habit): List<Int> = Insights.historyStates(repo, habit, 14)
 
     private fun currentCheckpoint(): Checkpoint =
         when (SfTime.greetingFor(repo.clock.nowTime())) {

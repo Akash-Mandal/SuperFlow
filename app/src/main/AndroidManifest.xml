@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  The package/namespace lives in app/build.gradle.kts (AGP 8 forbids
+  `package` in the manifest). The androidx.startup InitializationProvider is
+  NOT declared here on purpose: the manifest merger contributes it from the
+  work-runtime AAR with the correct `${applicationId}`-resolved authority.
+  Hand-declaring it (as the old Gradle-less pipeline did) is how the original
+  launch crash with an unresolved authority happened.
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.superflow">
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -62,12 +69,6 @@
             android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.blueprint.BlueprintActivity" android:exported="false"
             android:windowSoftInputMode="adjustResize" />
-
-        <provider
-            android:name="androidx.startup.InitializationProvider"
-            android:authorities="${applicationId}.androidx-startup"
-            android:exported="false"
-            tools:node="merge" />
 
         <receiver android:name=".notify.ReminderReceiver" android:exported="false" />
 

@@ -1,17 +1,17 @@
 package com.superflow.notify
 
 import android.app.AlarmManager
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.graphics.drawable.Icon
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.superflow.AppBackground
 import com.superflow.R
 import com.superflow.data.Prefs
 import com.superflow.data.Repository
@@ -30,8 +30,13 @@ import java.util.Calendar
  *
  * Quiet hours, a total daily budget, action buttons and no guilt language.
  * A reminder invites; it never scolds.
+ *
+ * [rescheduleAll] is safe to call from any thread and any lifecycle: it hops
+ * to a single serialized background lane, coalescing bursts into one run.
  */
 object Reminders {
+
+    private const val TAG = "Reminders"
 
     const val CHANNEL_HABITS = "superflow_habits"
     const val CHANNEL_CHECKPOINTS = "superflow_checkpoints"
@@ -57,63 +62,112 @@ object Reminders {
         )
     }
 
-    fun inQuietHours(prefs: Prefs, hhmm: String): Boolean {
+    /**
+     * Pure quiet-hours predicate (unit-tested): `hhmm` is silent when it
+     * falls inside the quiet window, which may wrap midnight (22:00-07:00).
+     * Unparseable input is treated as "not quiet".
+     */
+    fun quietHoursActive(hhmm: String, from: String, to: String): Boolean {
         val t = Dates.minutesOfDay(hhmm)
-        val from = Dates.minutesOfDay(prefs.quietFrom)
-        val to = Dates.minutesOfDay(prefs.quietTo)
-        if (t < 0 || from < 0 || to < 0) return false
-        return if (from <= to) t in from..to else (t >= from || t <= to)
+        val f = Dates.minutesOfDay(from)
+        val e = Dates.minutesOfDay(to)
+        if (t < 0 || f < 0 || e < 0) return false
+        return if (f <= e) t in f..e else (t >= f || t <= e)
     }
 
+    fun inQuietHours(prefs: Prefs, hhmm: String): Boolean =
+        quietHoursActive(hhmm, prefs.quietFrom, prefs.quietTo)
+
+    /* ------------------------------------------------- reschedule (async) */
+
+    @Volatile private var inFlight = false
+    @Volatile private var pending = false
+
+    /**
+     * Non-blocking reschedule from any caller (activities, workers,
+     * receivers, boot). Runs on the serialized AppBackground lane; calls made
+     * while a run is in flight are coalesced into exactly one follow-up run,
+     * so a burst (onCreate + onPause + receiver) cannot stack N alarm passes.
+     */
     fun rescheduleAll(context: Context) {
-        ensureChannels(context)
-        val prefs = Prefs.get(context)
-        val repo = Repository.get(context)
-        val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-
-        for (i in 0 until 64) pendingFor(context, i, null)?.let { am.cancel(it) }
-        TodayWidget.refresh(context)
-        if (!prefs.remindersEnabled) return
-
-        var budget = prefs.reminderBudget
-        var slot = 0
-
-        val habits = repo.habits()
-            .filter { it.reminderEnabled && it.cueTime.isNotBlank() && Dates.isValidTime(it.cueTime) }
-            .sortedBy { Dates.minutesOfDay(it.cueTime) }
-        for (h in habits) {
-            if (budget <= 0) break
-            if (inQuietHours(prefs, h.cueTime)) continue
-            val intent = Intent(context, ReminderReceiver::class.java).apply {
-                putExtra("kind", "habit")
-                putExtra("habitId", h.id)
-                putExtra("title", h.title)
-                putExtra("tiny", h.tinyStart)
+        val ctx = context.applicationContext
+        pending = true
+        if (inFlight) return
+        inFlight = true
+        AppBackground.launch {
+            try {
+                do {
+                    pending = false
+                    rescheduleAllInternal(ctx)
+                } while (pending)
+            } finally {
+                inFlight = false
             }
-            schedule(context, am, slot++, h.cueTime, intent)
-            budget--
         }
+    }
 
-        if (prefs.checkpointsEnabled) {
-            val cps = listOf(
-                Checkpoint.MORNING to prefs.morningCheckpoint,
-                Checkpoint.MIDDAY to prefs.middayCheckpoint,
-                Checkpoint.EVENING to prefs.eveningCheckpoint
-            )
-            for ((cp, time) in cps) {
-                if (!Dates.isValidTime(time) || inQuietHours(prefs, time)) continue
+    /** Synchronous variant for workers and tests that must observe completion. */
+    fun rescheduleAllNow(context: Context) {
+        val ctx = context.applicationContext
+        AppBackground.await { rescheduleAllInternal(ctx) }
+    }
+
+    private fun CoroutineScope.rescheduleAllInternal(context: Context) {
+        try {
+            ensureChannels(context)
+            val prefs = Prefs.get(context)
+            val repo = Repository.get(context)
+            val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                ?: return
+
+            for (i in 0 until MAX_SLOTS) pendingFor(context, i, null)?.let { am.cancel(it) }
+            TodayWidget.refresh(context)
+            if (!prefs.remindersEnabled) return
+
+            var budget = prefs.reminderBudget
+            var slot = 0
+
+            val habits = repo.habits()
+                .filter { it.reminderEnabled && it.cueTime.isNotBlank() && Dates.isValidTime(it.cueTime) }
+                .sortedBy { Dates.minutesOfDay(it.cueTime) }
+            for (h in habits) {
+                if (budget <= 0) break
+                if (inQuietHours(prefs, h.cueTime)) continue
                 val intent = Intent(context, ReminderReceiver::class.java).apply {
-                    putExtra("kind", "checkpoint")
-                    putExtra("checkpoint", cp.name)
+                    putExtra("kind", "habit")
+                    putExtra("habitId", h.id)
+                    putExtra("title", h.title)
+                    putExtra("tiny", h.tinyStart)
                 }
-                schedule(context, am, slot++, time, intent)
+                schedule(context, am, slot++, h.cueTime, intent)
+                budget--
             }
+
+            if (prefs.checkpointsEnabled) {
+                val cps = listOf(
+                    Checkpoint.MORNING to prefs.morningCheckpoint,
+                    Checkpoint.MIDDAY to prefs.middayCheckpoint,
+                    Checkpoint.EVENING to prefs.eveningCheckpoint
+                )
+                for ((cp, time) in cps) {
+                    if (!Dates.isValidTime(time) || inQuietHours(prefs, time)) continue
+                    val intent = Intent(context, ReminderReceiver::class.java).apply {
+                        putExtra("kind", "checkpoint")
+                        putExtra("checkpoint", cp.name)
+                    }
+                    schedule(context, am, slot++, time, intent)
+                }
+            }
+        } catch (e: Exception) {
+            // Reminders are optional: a scheduling failure must never take
+            // the app down, but it is not silent either.
+            Log.w(TAG, "Reminder reschedule failed", e)
         }
     }
 
     private fun schedule(context: Context, am: AlarmManager, slot: Int, hhmm: String, intent: Intent) {
         val minutes = Dates.minutesOfDay(hhmm)
-        if (minutes < 0 || slot >= 64) return
+        if (minutes < 0 || slot >= MAX_SLOTS) return
         val cal = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, minutes / 60)
             set(Calendar.MINUTE, minutes % 60)
@@ -122,19 +176,29 @@ object Reminders {
             if (timeInMillis <= System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR, 1)
         }
         val pi = pendingFor(context, slot, intent) ?: return
-        runCatching {
+        try {
             am.setInexactRepeating(AlarmManager.RTC_WAKEUP, cal.timeInMillis,
                 AlarmManager.INTERVAL_DAY, pi)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Not allowed to schedule reminder for slot $slot", e)
         }
     }
 
     private fun pendingFor(context: Context, slot: Int, intent: Intent?): PendingIntent? {
         val base = intent ?: Intent(context, ReminderReceiver::class.java)
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        return runCatching {
-            PendingIntent.getBroadcast(context, 7000 + slot, base, flags)
-        }.getOrNull()
+        return try {
+            PendingIntent.getBroadcast(context, BASE_REQUEST + slot, base, flags)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not build pending intent for slot $slot", e)
+            null
+        }
     }
+
+    private const val BASE_REQUEST = 7000
+    private const val MAX_SLOTS = 64
+
+    /* ------------------------------------------------------------- notify */
 
     fun notify(
         context: Context,
@@ -159,7 +223,13 @@ object Reminders {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(open)
         actions.forEach { builder.addAction(it) }
-        runCatching { NotificationManagerCompat.from(context).notify(id, builder.build()) }
+        try {
+            NotificationManagerCompat.from(context).notify(id, builder.build())
+        } catch (e: SecurityException) {
+            // POST_NOTIFICATIONS denied on Android 13+: the user chose that;
+            // reminders simply will not surface. Log for supportability.
+            Log.w(TAG, "Not permitted to show notification $id", e)
+        }
     }
 
     fun action(
@@ -182,14 +252,36 @@ object Reminders {
 /** Delivers reminders and handles their action buttons. */
 class ReminderReceiver : BroadcastReceiver() {
 
+    private companion object {
+        private const val TAG = "ReminderReceiver"
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
+        // onReceive runs on the main thread; the body does database writes and
+        // notification work, so it runs on the serialized background lane.
+        val ctx = context.applicationContext
+        AppBackground.launch {
+            try {
+                handle(ctx, intent)
+            } catch (e: Exception) {
+                Log.w(TAG, "Reminder delivery failed", e)
+            }
+        }
+    }
+
+    private fun handle(context: Context, intent: Intent) {
         val prefs = Prefs.get(context)
         when (intent.getStringExtra("kind")) {
             "habit" -> {
                 val habitId = intent.getStringExtra("habitId") ?: return
                 val title = intent.getStringExtra("title") ?: "Your habit"
                 val tiny = intent.getStringExtra("tiny").orEmpty()
-                if (!prefs.remindersEnabled || Reminders.inQuietHours(prefs, SfTime.formatTime(java.time.LocalTime.now()))) return
+                if (!prefs.remindersEnabled) return
+                if (Reminders.quietHoursActive(
+                        SfTime.formatTime(java.time.LocalTime.now()),
+                        prefs.quietFrom, prefs.quietTo
+                    )
+                ) return
                 val repo = Repository.get(context)
                 if (repo.checkIn(habitId, SfTime.format(repo.clock.today())) != null) return
                 val id = habitId.hashCode() and 0xFFFF
@@ -233,7 +325,7 @@ class ReminderReceiver : BroadcastReceiver() {
                     "skip" -> bus.execute("skip_habit", jsonOf("habit" to habitId), Actor.USER)
                 }
                 NotificationManagerCompat.from(context).cancel(habitId.hashCode() and 0xFFFF)
-                TodayWidget.refresh(context)
+                TodayWidget.refresh(context, force = true)
             }
         }
     }
@@ -243,7 +335,8 @@ class ReminderReceiver : BroadcastReceiver() {
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED ||
-            intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            intent.action == Intent.ACTION_MY_PACKAGE_REPLACED
+        ) {
             Reminders.rescheduleAll(context)
         }
     }

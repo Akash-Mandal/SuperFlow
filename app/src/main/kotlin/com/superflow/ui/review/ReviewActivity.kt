@@ -97,15 +97,16 @@ class ReviewActivity : ScrollActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).also { it.topMargin = dpi(8) }
             setOnClickListener {
-                val res = bus.execute("create_review", jsonOf(
+                runCommand(bus, "create_review", jsonOf(
                     "kind" to kind.name,
                     "whatWorked" to answers["whatWorked"].orEmpty(),
                     "whatDidnt" to answers["whatDidnt"].orEmpty(),
                     "systemChange" to answers["systemChange"].orEmpty(),
                     "identityEvidence" to answers["identityEvidence"].orEmpty()
-                ), Actor.USER)
-                findViewById<View>(R.id.root).snack(res.message)
-                if (res.ok) { answers.clear(); rebuild() }
+                )) { res ->
+                    findViewById<View>(R.id.root).snack(res.message)
+                    if (res.ok) { answers.clear(); rebuild() }
+                }
             }
         })
 

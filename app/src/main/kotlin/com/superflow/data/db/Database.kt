@@ -2,21 +2,29 @@ package com.superflow.data.db
 
 import android.content.ContentValues
 import android.content.Context
+import android.util.Log
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 
 /**
  * Persistence built on androidx.sqlite (the same support layer Room generates
- * against). Room's annotation processor is unavailable in this build
- * environment, so DAOs are written by hand against SupportSQLiteDatabase
- * rather than generated - the runtime contract is identical.
+ * against). DAOs are written by hand against SupportSQLiteDatabase; the
+ * runtime contract is identical to generated code.
+ *
+ * WAL journal mode is enabled on every open: with rollback-journal mode, a
+ * writer holds an exclusive lock that stalls concurrent reads on the main
+ * thread; WAL lets readers and a single writer proceed in parallel, which is
+ * what keeps check-ins and screen refreshes from stuttering each other. WAL
+ * does not change the on-disk data format, so existing user data is
+ * untouched.
  */
 class SuperFlowDatabase private constructor(context: Context) {
 
     companion object {
         const val NAME = "superflow.db"
         const val VERSION = 3
+        private const val TAG = "SuperFlowDb"
 
         @Volatile private var instance: SuperFlowDatabase? = null
 
@@ -35,6 +43,18 @@ class SuperFlowDatabase private constructor(context: Context) {
                     Schema.upgrade(db, old, new)
                 override fun onConfigure(db: SupportSQLiteDatabase) {
                     db.setForeignKeyConstraintsEnabled(false)
+                    // Idempotent and cheap; applied before any read/write.
+                    try {
+                        db.query("PRAGMA journal_mode=WAL").use { c ->
+                            if (c.moveToFirst() && c.getInt(0) != 2) {
+                                Log.w(TAG, "journal_mode=WAL not applied: ${c.getString(0)}")
+                            }
+                        }
+                        db.execSQL("PRAGMA synchronous=NORMAL")
+                    } catch (e: Exception) {
+                        // Degraded but safe: default journal mode still works.
+                        Log.w(TAG, "Could not enable WAL mode", e)
+                    }
                 }
             })
             .build()
@@ -151,46 +171,82 @@ object Schema {
         )
     }
 
+    /**
+     * Runs the migration chain in ascending order (v1 -> v2 -> v3).
+     *
+     * A failed step is logged loudly (tag [TAG]) and skipped rather than
+     * crashing the app into a startup loop: the read layer tolerates missing
+     * columns (see the Cursor helpers), and the user's data stays intact. A
+     * migration failure must be visible in logcat, not silent.
+     */
     fun upgrade(db: SupportSQLiteDatabase, old: Int, new: Int) {
-        if (old < 3) {
-            // daysMask -> recurrenceRule, plus schedule versioning and pauses.
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN recurrenceRule TEXT") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN scheduleVersion INTEGER DEFAULT 1") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN startDate TEXT") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN endDate TEXT") }
-            runCatching {
-                db.query("SELECT id, daysMask FROM habit").use { c ->
-                    while (c.moveToNext()) {
-                        val id = c.getString(0)
-                        val mask = if (c.isNull(1)) 127 else c.getInt(1)
-                        val days = (1..7).filter { (mask shr (it - 1)) and 1 == 1 }
-                        val rule = if (days.isEmpty()) "WEEKLY:1,2,3,4,5,6,7"
-                        else "WEEKLY:" + days.joinToString(",")
-                        db.execSQL("UPDATE habit SET recurrenceRule=? WHERE id=?", arrayOf(rule, id))
-                    }
+        Log.i(TAG, "Migrating $NAME from version $old to $new")
+        if (old < 2) migrateToV2(db)
+        if (old < 3) migrateToV3(db)
+    }
+
+    /** v2: colour seeds, blueprint parent versions and the version table. */
+    private fun migrateToV2(db: SupportSQLiteDatabase) {
+        addColumn(db, "habit", "ALTER TABLE habit ADD COLUMN colorSeed INTEGER DEFAULT 0")
+        addColumn(db, "bp_project", "ALTER TABLE bp_project ADD COLUMN parentVersionId TEXT")
+        guard(db, "v2 create bp_version") {
+            db.execSQL(
+                """CREATE TABLE IF NOT EXISTS bp_version(
+                    id TEXT PRIMARY KEY, projectId TEXT, version INTEGER, label TEXT,
+                    ledgerJson TEXT, createdAt INTEGER)"""
+            )
+        }
+    }
+
+    /** v3: daysMask -> recurrenceRule, schedule versioning, pauses, profile. */
+    private fun migrateToV3(db: SupportSQLiteDatabase) {
+        addColumn(db, "habit", "ALTER TABLE habit ADD COLUMN recurrenceRule TEXT")
+        addColumn(db, "habit", "ALTER TABLE habit ADD COLUMN scheduleVersion INTEGER DEFAULT 1")
+        addColumn(db, "habit", "ALTER TABLE habit ADD COLUMN startDate TEXT")
+        addColumn(db, "habit", "ALTER TABLE habit ADD COLUMN endDate TEXT")
+        guard(db, "v3 daysMask -> recurrenceRule conversion") {
+            db.query("SELECT id, daysMask FROM habit").use { c ->
+                while (c.moveToNext()) {
+                    val id = c.getString(0)
+                    val mask = if (c.isNull(1)) 127 else c.getInt(1)
+                    val days = (1..7).filter { (mask shr (it - 1)) and 1 == 1 }
+                    val rule = if (days.isEmpty()) "WEEKLY:1,2,3,4,5,6,7"
+                    else "WEEKLY:" + days.joinToString(",")
+                    db.execSQL("UPDATE habit SET recurrenceRule=? WHERE id=?", arrayOf(rule, id))
                 }
             }
-            runCatching {
-                db.execSQL("""CREATE TABLE IF NOT EXISTS pause(
-                    id TEXT PRIMARY KEY, habitId TEXT, startDate TEXT, endDate TEXT,
-                    reason TEXT, createdAt INTEGER)""")
-            }
-            runCatching {
-                db.execSQL("""CREATE TABLE IF NOT EXISTS profile(
-                    id TEXT PRIMARY KEY, displayName TEXT, locale TEXT, zoneId TEXT,
-                    weekStart INTEGER, createdAt INTEGER, updatedAt INTEGER)""")
-            }
         }
-        if (old < 2) {
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN colorSeed INTEGER DEFAULT 0") }
-            runCatching { db.execSQL("ALTER TABLE bp_project ADD COLUMN parentVersionId TEXT") }
-            runCatching {
-                db.execSQL(
-                    """CREATE TABLE IF NOT EXISTS bp_version(
-                        id TEXT PRIMARY KEY, projectId TEXT, version INTEGER, label TEXT,
-                        ledgerJson TEXT, createdAt INTEGER)"""
-                )
-            }
+        guard(db, "v3 create pause") {
+            db.execSQL(
+                """CREATE TABLE IF NOT EXISTS pause(
+                    id TEXT PRIMARY KEY, habitId TEXT, startDate TEXT, endDate TEXT,
+                    reason TEXT, createdAt INTEGER)"""
+            )
+        }
+        guard(db, "v3 create profile") {
+            db.execSQL(
+                """CREATE TABLE IF NOT EXISTS profile(
+                    id TEXT PRIMARY KEY, displayName TEXT, locale TEXT, zoneId TEXT,
+                    weekStart INTEGER, createdAt INTEGER, updatedAt INTEGER)"""
+            )
+        }
+    }
+
+    /** ALTER TABLE ADD COLUMN, tolerating (and silently) an already-present column. */
+    private fun addColumn(db: SupportSQLiteDatabase, table: String, sql: String) {
+        try {
+            db.execSQL(sql)
+        } catch (e: Exception) {
+            if (e.message.orEmpty().contains("duplicate column name", ignoreCase = true)) return
+            Log.e(TAG, "Migration ALTER on $table failed", e)
+        }
+    }
+
+    private fun guard(db: SupportSQLiteDatabase, step: String, block: () -> Unit) {
+        try {
+            block()
+        } catch (e: Exception) {
+            Log.e(TAG, "Migration step failed: $step", e)
         }
     }
 }

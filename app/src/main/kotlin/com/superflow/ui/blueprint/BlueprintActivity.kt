@@ -216,14 +216,14 @@ class BlueprintActivity : ScrollActivity() {
 
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         row.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Audit setup"
             layoutParams = LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             setOnClickListener { audit() }
         })
         row.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Design pack"
             layoutParams = LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -231,7 +231,7 @@ class BlueprintActivity : ScrollActivity() {
         })
         content.addView(row)
         content.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Delete mission"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT

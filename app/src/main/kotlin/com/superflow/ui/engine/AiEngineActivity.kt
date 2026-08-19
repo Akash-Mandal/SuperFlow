@@ -513,7 +513,7 @@ class AiEngineActivity : ScrollActivity() {
         val customPromptField = field("Full custom system prompt (overrides built-in)",
             prefs.customSystemPrompt, lines = 5)
         content.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Save custom prompt"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -528,7 +528,7 @@ class AiEngineActivity : ScrollActivity() {
             }
         })
         content.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "View built-in prompt"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -606,7 +606,7 @@ class AiEngineActivity : ScrollActivity() {
                 "Your provider's own rate limits and billing still apply. " +
                         "Calls this month: ${prefs.callsThisMonth}."))
             content.addView(MaterialButton(this, null,
-                com.google.android.material.R.attr.borderlessButtonStyle).apply {
+                androidx.appcompat.R.attr.borderlessButtonStyle).apply {
                 text = "Reset call counter"
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -646,7 +646,7 @@ class AiEngineActivity : ScrollActivity() {
             }
         })
         content.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Show context receipt"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -728,7 +728,7 @@ class AiEngineActivity : ScrollActivity() {
             })
         }
         content.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Take snapshot now"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -770,7 +770,7 @@ class AiEngineActivity : ScrollActivity() {
             }
         })
         content.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Stop AI"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -781,7 +781,7 @@ class AiEngineActivity : ScrollActivity() {
             }
         })
         content.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = getString(R.string.activity_trail)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT

@@ -1,6 +1,7 @@
 package com.superflow.work
 
 import android.content.Context
+import android.util.Log
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -47,10 +48,13 @@ class DailyRolloverWorker(
             val repo = Repository.get(applicationContext)
             val today = repo.clock.today()
             closeOut(repo, today.minusDays(1))
-            Reminders.rescheduleAll(applicationContext)
-            TodayWidget.refresh(applicationContext)
+            // rescheduleAllNow runs on the serialized background lane and
+            // completes before this worker reports done.
+            Reminders.rescheduleAllNow(applicationContext)
+            TodayWidget.refresh(applicationContext, force = true)
             Result.success()
         } catch (e: Exception) {
+            Log.w(TAG, "Daily rollover failed; will retry", e)
             Result.retry()
         }
     }
@@ -92,6 +96,7 @@ class DailyRolloverWorker(
     }
 
     companion object {
+        private const val TAG = "DailyRollover"
         const val NAME = "superflow_daily_rollover"
     }
 }
@@ -103,50 +108,73 @@ class ReminderRefreshWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result = try {
-        Reminders.rescheduleAll(applicationContext)
-        TodayWidget.refresh(applicationContext)
+        Reminders.rescheduleAllNow(applicationContext)
+        TodayWidget.refresh(applicationContext, force = true)
         Result.success()
     } catch (e: Exception) {
+        Log.w(TAG, "Reminder refresh failed; will retry", e)
         Result.retry()
     }
 
     companion object {
+        private const val TAG = "ReminderRefresh"
         const val NAME = "superflow_reminder_refresh"
     }
 }
 
 object BackgroundWork {
 
-    /** Enqueues the periodic jobs. Safe to call on every app start. */
+    private const val TAG = "BackgroundWork"
+
+    /**
+     * Enqueues the periodic jobs. Safe to call on every app start; must be
+     * called on a background thread (WorkManager's first getInstance opens
+     * its internal database). In a standard Gradle build WorkManager is
+     * initialized by the androidx.startup provider the manifest merger
+     * contributes, so there is exactly one initialization.
+     */
     fun schedule(context: Context) {
-        val manager = runCatching { WorkManager.getInstance(context) }.getOrNull() ?: return
+        val manager = try {
+            WorkManager.getInstance(context)
+        } catch (e: Exception) {
+            // Work is optional: the app is fully functional without the
+            // rollover job, but a failure must not vanish.
+            Log.w(TAG, "WorkManager unavailable; periodic jobs not scheduled", e)
+            return
+        }
 
         val rollover = PeriodicWorkRequestBuilder<DailyRolloverWorker>(6, TimeUnit.HOURS)
             .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(false).build())
             .setInitialDelay(Duration.ofMinutes(15))
             .build()
-        runCatching {
+        try {
             manager.enqueueUniquePeriodicWork(
                 DailyRolloverWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, rollover
             )
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not schedule daily rollover", e)
         }
 
         val refresh = PeriodicWorkRequestBuilder<ReminderRefreshWorker>(1, TimeUnit.DAYS)
             .setConstraints(Constraints.Builder().build())
             .build()
-        runCatching {
+        try {
             manager.enqueueUniquePeriodicWork(
                 ReminderRefreshWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, refresh
             )
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not schedule reminder refresh", e)
         }
     }
 
     fun cancel(context: Context) {
-        runCatching {
+        try {
             WorkManager.getInstance(context).apply {
                 cancelUniqueWork(DailyRolloverWorker.NAME)
                 cancelUniqueWork(ReminderRefreshWorker.NAME)
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not cancel periodic work", e)
         }
     }
 }

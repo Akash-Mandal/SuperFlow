@@ -20,6 +20,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
+import com.superflow.AppBackground
 import com.superflow.R
 import com.superflow.SuperFlowApp
 import com.superflow.data.Prefs
@@ -217,6 +218,8 @@ class SettingsFragment : Fragment() {
                     "habits, check-ins, reviews, AI conversation, settings, and more — is covered " +
                     "by export, import, and backup. Nothing is silently left out."
         ))
+
+
 
         // Privacy
         container.addView(section("PRIVACY"))

@@ -1,6 +1,8 @@
 package com.superflow.ui.designer
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -20,6 +22,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
+import com.superflow.AppBackground
 import com.superflow.R
 import com.superflow.ai.Coordinator
 import com.superflow.data.Repository
@@ -53,6 +56,8 @@ class HabitDesignerActivity : AppCompatActivity() {
     private lateinit var btnBack: MaterialButton
     private lateinit var btnNext: MaterialButton
     private lateinit var toolbar: MaterialToolbar
+
+    private val main = Handler(Looper.getMainLooper())
 
     private var editing: Habit? = null
     private var step = 0
@@ -280,7 +285,7 @@ class HabitDesignerActivity : AppCompatActivity() {
 
         field("tinyStart", "Tiny start — about two minutes", "Put on my shoes")
         val suggest = MaterialButton(
-            this, null, com.google.android.material.R.attr.borderlessButtonStyle
+            this, null, androidx.appcompat.R.attr.borderlessButtonStyle
         ).apply {
             text = "Suggest a tiny start"
             setOnClickListener {
@@ -527,13 +532,22 @@ class HabitDesignerActivity : AppCompatActivity() {
             "days" to recurrence.encode(),
             "reminder" to reminder, "protected" to protectedRoutine
         )
-        val res = if (editing == null) bus.execute("create_habit", args, Actor.USER)
-        else bus.execute("update_habit", args.put("habit", editing!!.id), Actor.USER)
-
-        if (res.ok) {
-            Reminders.rescheduleAll(this)
-            finish()
-        } else findViewById<View>(R.id.root).snack(res.message)
+        val target = editing?.id
+        // The write and the alarm re-arm are database work; keep them off the
+        // main thread and only finish/snack once the result is back.
+        AppBackground.launch {
+            val res = if (target == null) bus.execute("create_habit", args, Actor.USER)
+            else bus.execute("update_habit", args.put("habit", target), Actor.USER)
+            main.post {
+                if (isFinishing || isDestroyed) return@post
+                if (res.ok) {
+                    Reminders.rescheduleAll(this@HabitDesignerActivity)
+                    finish()
+                } else {
+                    findViewById<View>(R.id.root).snack(res.message)
+                }
+            }
+        }
     }
 
     private fun confirmExit() {
