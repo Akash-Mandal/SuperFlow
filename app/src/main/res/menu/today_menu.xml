@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item android:id="@+id/action_search" android:title="@string/search"
+        android:icon="@drawable/ic_search" app:showAsAction="ifRoom" />
     <item android:id="@+id/action_plan_tomorrow" android:title="@string/plan_tomorrow"
         android:icon="@drawable/ic_calendar" app:showAsAction="ifRoom" />
     <item android:id="@+id/action_minimum_mode" android:title="@string/minimum_mode"

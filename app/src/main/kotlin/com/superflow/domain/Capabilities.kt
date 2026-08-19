@@ -22,6 +22,7 @@ object Capabilities {
     fun all(): List<Capability> = buildList {
         addAll(identityCaps())
         addAll(habitCaps())
+        addAll(templateCaps())
         addAll(graduationCaps())
         addAll(checkInCaps())
         addAll(focusCaps())
@@ -345,6 +346,68 @@ object Capabilities {
             val id = c.bus.record(c.actor, "delete_obstacle_plan", "Removed an obstacle plan",
                 Serial.of(old), undoRestore("obstacle", Serial.of(old)), c.groupId)
             okResult("Obstacle plan removed", null, id)
+        }
+    )
+
+    /* -------------------------------------------------------- template layer */
+
+    private fun templateCaps() = listOf(
+        Capability("list_templates", "List the habit template library, optionally by life area",
+            listOf("area" to "string"), Risk.LOW) { c ->
+            val areaName = c.str("area").trim()
+            val templates = when {
+                areaName.isBlank() -> Templates.all()
+                LifeArea.values().any { it.name.equals(areaName, true) } ->
+                    Templates.byArea(LifeArea.from(areaName))
+                else -> return@Capability CommandResult.fail(
+                    "Unknown area: $areaName. Choose one of: " +
+                            Templates.areas().joinToString(", ") { it.name.lowercase() }
+                )
+            }
+            val text = buildString {
+                templates.groupBy { it.area }.forEach { (area, list) ->
+                    append(area.label).append(":\n")
+                    list.forEach { t ->
+                        append("· ${t.title} — ${t.standardVersion.ifBlank { t.title }} " +
+                                "(${t.estimatedMinutes}m, ${t.difficulty}/5)\n")
+                    }
+                }
+            }
+            okResult(text.trim().ifBlank { "No templates match." })
+        },
+
+        Capability("apply_template", "Create a habit from a library template",
+            listOf("template" to "id or title", "title" to "string (optional override)",
+                "identityId" to "string", "systemId" to "string"), Risk.LOW) { c ->
+            val t = Templates.find(c.str("template"))
+                ?: return@Capability CommandResult.fail("Template not found")
+            val title = c.str("title").trim().ifBlank { t.title }
+            val existing = c.repo.habits(true)
+            val h = Habit(
+                systemId = c.strOrNull("systemId") ?: c.repo.systems().firstOrNull()?.id,
+                identityId = c.strOrNull("identityId") ?: c.repo.identities().firstOrNull()?.id,
+                title = title,
+                benefit = t.benefit,
+                cueTime = t.cueTime, cuePlace = t.cuePlace, anchorText = t.anchorText,
+                tinyStart = t.tinyStart, minimumVersion = t.minimumVersion,
+                standardVersion = t.standardVersion.ifBlank { title },
+                stretchVersion = t.stretchVersion,
+                frictionPlan = t.frictionPlan, environmentPrep = t.environmentPrep,
+                reward = t.reward, recoveryPlan = t.recoveryPlan,
+                recurrenceRule = Recurrence.parse(t.schedule).encode(),
+                startDate = SfTime.format(c.repo.clock.today()),
+                colorSeed = existing.size % 6,
+                orderIndex = existing.size
+            )
+            c.repo.saveHabit(h)
+            t.obstacles.forEach { (ifText, thenText) ->
+                c.repo.saveObstacle(ObstaclePlan(habitId = h.id, ifText = ifText, thenText = thenText))
+            }
+            val id = c.bus.record(c.actor, "apply_template",
+                "Created \"$title\" from template \"${t.title}\"",
+                Serial.of(h), undoDelete("habit", h.id), c.groupId)
+            okResult("Created \"$title\" from the ${t.area.label} template.",
+                jsonOf("id" to h.id, "contract" to h.contract()), id)
         }
     )
 

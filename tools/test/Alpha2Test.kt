@@ -1,5 +1,7 @@
+import com.superflow.data.model.LifeArea
 import com.superflow.domain.Graduation
 import com.superflow.domain.Search
+import com.superflow.domain.Templates
 import com.superflow.util.levenshtein
 
 var pass = 0; var fail = 0
@@ -35,6 +37,15 @@ fun main() {
     check("89% does not", !Graduation.eligible(89, 66L, 10))
     check("tiny sample does not", !Graduation.eligible(90, 66L, 4))
     check("plenty over the bar", Graduation.eligible(100, 200L, 50))
+
+    println("Habit templates")
+    check("every life area has templates",
+        Templates.areas().all { Templates.byArea(it).isNotEmpty() })
+    check("a healthy-sized library", Templates.all().size >= 40)
+    eq("find by id", Templates.find("morning_walk")?.title, "Morning walk")
+    check("find by title", Templates.find("Read 20 minutes") != null)
+    check("unknown template is null", Templates.find("zzzz_zzzz") == null)
+    check("custom area excluded", Templates.areas().none { it == LifeArea.CUSTOM })
 
     println()
     println("passed=$pass failed=$fail")

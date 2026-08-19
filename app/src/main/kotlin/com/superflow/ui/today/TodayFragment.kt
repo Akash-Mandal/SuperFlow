@@ -69,6 +69,11 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
 
         toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                R.id.action_search -> {
+                    startActivity(Intent(requireContext(),
+                        com.superflow.ui.search.SearchActivity::class.java))
+                    true
+                }
                 R.id.action_plan_tomorrow -> { model.planTomorrow(); true }
                 R.id.action_minimum_mode -> { model.minimumMode(); true }
                 R.id.action_recovery -> {

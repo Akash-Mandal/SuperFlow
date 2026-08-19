@@ -29,6 +29,8 @@ import com.superflow.data.model.Level
 import com.superflow.data.model.TrackType
 import com.superflow.domain.Actor
 import com.superflow.domain.Capabilities
+import com.superflow.domain.HabitTemplate
+import com.superflow.domain.Templates
 import com.superflow.core.schedule.Recurrence
 import com.superflow.core.time.SfTime
 import com.superflow.domain.CommandBus
@@ -153,6 +155,19 @@ class HabitDesignerActivity : AppCompatActivity() {
         header("Step 1 of 6 · Meaning", "What is the habit?",
             "Name it as an action you can start, not an outcome you hope for.")
         field("title", "Habit", "Walk for 10 minutes")
+
+        if (editing == null) {
+            stepContent.addView(MaterialButton(
+                this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle
+            ).apply {
+                text = "Start from a template"
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                setOnClickListener { templatePicker() }
+            })
+            hint("A template fills the cue, ladder, reward and obstacle plans. You still own the contract.")
+        }
 
         label("BUILD OR REDUCE")
         chips(listOf("Build a habit" to (mode == HabitMode.BUILD),
@@ -351,6 +366,45 @@ class HabitDesignerActivity : AppCompatActivity() {
                 "No tiny start yet. Habits without one break during a hard week."
             ))
         }
+    }
+
+    /* ------------------------------------------------------------ templates */
+
+    private fun templatePicker() {
+        val areas = Templates.areas()
+        val areaNames = areas.map { it.label }.toTypedArray()
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle("Start from a template")
+            .setItems(areaNames) { _, which ->
+                val area = areas[which]
+                val templates = Templates.byArea(area)
+                val names = templates.map {
+                    "${it.title} · ${it.estimatedMinutes}m · ${it.difficulty}/5"
+                }.toTypedArray()
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                    .setTitle(area.label)
+                    .setItems(names) { _, i -> applyTemplate(templates[i]) }
+                    .show()
+            }
+            .show()
+    }
+
+    private fun applyTemplate(t: HabitTemplate) {
+        values["title"] = t.title
+        values["benefit"] = t.benefit
+        values["cueTime"] = t.cueTime
+        values["cuePlace"] = t.cuePlace
+        values["anchorText"] = t.anchorText
+        values["tinyStart"] = t.tinyStart
+        values["minimumVersion"] = t.minimumVersion
+        values["standardVersion"] = t.standardVersion
+        values["stretchVersion"] = t.stretchVersion
+        values["frictionPlan"] = t.frictionPlan
+        values["environmentPrep"] = t.environmentPrep
+        values["reward"] = t.reward
+        values["recoveryPlan"] = t.recoveryPlan
+        recurrence = Recurrence.parse(t.schedule)
+        render()
     }
 
     /* --------------------------------------------------------------- widgets */
