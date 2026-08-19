@@ -71,10 +71,17 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
         val rows = ArrayList<JourneyRow>()
         rows.add(JourneyRow.Tools)
 
+        // One snapshot covers identities, habits, check-ins and pauses; goals
+        // and systems are small tables read once.
+        val snap = repo.snapshot()
+        val goals = repo.goals()
+        val systems = repo.systems()
+        val habits = snap.activeHabits
+
         // Identities
         rows.add(JourneyRow.Header("Identities", "Add", "identity"))
-        val identities = repo.identities()
-        val evidence = Insights.identityEvidence(repo).associateBy { it.first }
+        val identities = snap.identities
+        val evidence = Insights.identityEvidence(snap).associateBy { it.first }
         if (identities.isEmpty()) {
             rows.add(JourneyRow.Empty("Who are you becoming?",
                 "An identity statement gives every habit a reason to exist.", "identity"))
@@ -90,18 +97,17 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
 
         // Goals
         rows.add(JourneyRow.Header("Goals", "Add", "goal"))
-        val goals = repo.goals()
         if (goals.isEmpty()) {
             rows.add(JourneyRow.Empty("What outcome would matter?",
                 "A goal sets direction. Your system does the work.", "goal"))
         }
         for (g in goals) {
-            val systems = repo.systems().count { it.goalId == g.id }
+            val systemCount = systems.count { it.goalId == g.id }
             rows.add(JourneyRow.Entity(
                 g.id, "goal", g.title,
                 buildString {
                     append(g.status.name.lowercase())
-                    append(" · $systems systems")
+                    append(" · $systemCount systems")
                     if (g.why.isNotBlank()) append(" · ${g.why.take(48)}")
                 },
                 com.superflow.R.drawable.ic_goal
@@ -110,40 +116,41 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
 
         // Systems
         rows.add(JourneyRow.Header("Systems", "Add", "system"))
-        val systems = repo.systems()
         if (systems.isEmpty()) {
             rows.add(JourneyRow.Empty("How will it actually happen?",
                 "A system is the repeatable process behind the goal.", "system"))
         }
+        val habitsBySystem = habits.groupBy { it.systemId }
+        val goalTitleById = goals.associate { it.id to it.title }
         for (s in systems) {
-            val habits = repo.habits().count { it.systemId == s.id }
+            val habitCount = habitsBySystem[s.id]?.size ?: 0
             rows.add(JourneyRow.Entity(
                 s.id, "system", s.title,
-                "$habits habits · goal: ${repo.goal(s.goalId)?.title ?: "none"}",
+                "$habitCount habits · goal: ${goalTitleById[s.goalId] ?: "none"}",
                 com.superflow.R.drawable.ic_system
             ))
         }
 
         // Habits
         rows.add(JourneyRow.Header("Habits", "Design", "habit"))
-        val habits = repo.habits()
         if (habits.isEmpty()) {
             rows.add(JourneyRow.Empty("Pick one small action",
                 "Every habit needs a version you can start in two minutes.", "habit"))
         }
+        val statsByHabit = Insights.allStats(snap, repo).associateBy { it.habit.id }
         for (h in habits) {
-            val stats = Insights.forHabit(repo, h)
+            val stats = statsByHabit[h.id]
             rows.add(JourneyRow.Entity(
                 h.id, "habit", h.title,
                 Capabilities.daysLabel(h) +
                         (if (h.cueTime.isNotBlank()) " · ${h.cueTime}" else "") +
-                        " · ${stats.repetitions} reps · ${stats.consistency30}%",
+                        " · ${stats?.repetitions ?: 0} reps · ${stats?.consistency30 ?: 0}%",
                 if (h.mode == HabitMode.REDUCE) com.superflow.R.drawable.ic_shield
                 else com.superflow.R.drawable.ic_bolt
             ))
         }
 
-        val archived = repo.habits(true).filter { it.status == Status.ARCHIVED }
+        val archived = snap.habits.filter { it.status == Status.ARCHIVED }
         if (archived.isNotEmpty()) {
             rows.add(JourneyRow.Header("Archived", null, "archived"))
             for (h in archived) {

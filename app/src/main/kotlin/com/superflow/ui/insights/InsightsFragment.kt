@@ -84,7 +84,9 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun build(): List<InsightRow> {
         val rows = ArrayList<InsightRow>()
-        val stats = Insights.allStats(repo)
+        val today = repo.clock.today()
+        val snap = repo.snapshot()
+        val stats = Insights.allStats(snap, repo, today)
 
         if (stats.isEmpty()) {
             rows.add(InsightRow.Text(
@@ -95,8 +97,7 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         // Weekly bar chart
-        val daily = Insights.dailyCounts(repo, 7)
-        val today = repo.clock.today()
+        val daily = Insights.dailyCounts(repo, 7, today)
         rows.add(InsightRow.Chart(
             "Last 7 days", "Repetitions per day.",
             daily.map { (date, count) ->
@@ -104,9 +105,9 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
             }
         ))
 
-        // 30-day totals
+        // 30-day totals (from the snapshot; no extra queries)
         val window = SfTime.lastDays(30, today).map { SfTime.format(it) }.toSet()
-        val checkIns = repo.checkIns().filter { it.date in window }
+        val checkIns = snap.checkIns.filter { it.date in window }
         val reps = checkIns.count { it.isSuccess }
         val misses = checkIns.count { it.isMiss }
         val skips = checkIns.count { it.result == CheckInResult.SKIPPED }
@@ -119,13 +120,13 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
             recoveries.toString(), "Recoveries"
         ))
 
-        // Year heatmap of overall activity
+        // Heatmap of overall activity (from the snapshot; no extra queries)
         val cells = ArrayList<Float>()
         val heatDays = SfTime.lastDays(126, today)
-        val byDate = repo.checkInsBetween(
-            SfTime.format(heatDays.first()), SfTime.format(heatDays.last()))
+        val byDate = snap.checkIns
             .filter { it.isSuccess }
-            .groupingBy { it.date }.eachCount()
+            .groupingBy { it.date }
+            .eachCount()
         val peak = (byDate.values.maxOrNull() ?: 1).coerceAtLeast(1)
         for (d in heatDays) cells.add((byDate[SfTime.format(d)] ?: 0).toFloat() / peak)
         rows.add(InsightRow.Heatmap(
@@ -133,7 +134,7 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
         ))
 
         // Identity evidence
-        val evidence = Insights.identityEvidence(repo)
+        val evidence = Insights.identityEvidence(snap)
         if (evidence.isNotEmpty()) {
             rows.add(InsightRow.Section("IDENTITY EVIDENCE"))
             for ((statement, votes, habits) in evidence) {
@@ -174,7 +175,7 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
         rows.add(InsightRow.Text("Energy pattern", Insights.energyPattern(repo)))
 
         // Reduce mode
-        val reduce = Insights.reduceModeProgress(repo)
+        val reduce = Insights.reduceModeProgress(snap)
         if (reduce.isNotEmpty()) {
             rows.add(InsightRow.Section("REDUCING"))
             for ((title, resisted, slipped) in reduce) {

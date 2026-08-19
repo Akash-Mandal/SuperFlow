@@ -20,6 +20,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
+import com.superflow.AppBackground
 import com.superflow.R
 import com.superflow.SuperFlowApp
 import com.superflow.data.Prefs
@@ -202,8 +203,27 @@ class SettingsFragment : Fragment() {
         )))
 
         // Data
-        val counts = repo.counts()
         container.addView(section("YOUR DATA"))
+        val deleteRow = action(R.drawable.ic_delete, getString(R.string.delete_all), null) {
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Delete all data?")
+                .setMessage("Every identity, goal, habit and check-in will be erased. " +
+                        "This cannot be undone from here.")
+                    .setNegativeButton(R.string.cancel, null)
+                    .setPositiveButton(R.string.delete) { _, _ ->
+                        // delete_all_data wipes every table; keep it off the
+                        // render thread and re-render when it lands.
+                        AppBackground.launch {
+                            bus.execute("delete_all_data", jsonOf("confirm" to true), Actor.USER)
+                            viewLifecycleOwner.lifecycleScope.launch {
+                                if (isAdded) {
+                                    view?.snack("All data deleted")
+                                    render()
+                                }
+                            }
+                        }
+                    }.show()
+        }
         container.addView(group(listOf(
             action(R.drawable.ic_upload, getString(R.string.export_data),
                 "Share a full JSON backup") { exportData() },
@@ -211,20 +231,16 @@ class SettingsFragment : Fragment() {
                 "Paste a previous export") { importData() },
             action(R.drawable.ic_share, "Share progress summary",
                 "A private, text-only recap") { shareSummary() },
-            action(R.drawable.ic_delete, getString(R.string.delete_all),
-                counts.entries.joinToString("  ") { "${it.key} ${it.value}" }) {
-                MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("Delete all data?")
-                    .setMessage("Every identity, goal, habit and check-in will be erased. " +
-                            "This cannot be undone from here.")
-                    .setNegativeButton(R.string.cancel, null)
-                    .setPositiveButton(R.string.delete) { _, _ ->
-                        bus.execute("delete_all_data", jsonOf("confirm" to true), Actor.USER)
-                        view?.snack("All data deleted")
-                        render()
-                    }.show()
-            }
+            deleteRow
         )))
+        // The counts are twelve COUNT queries; fetch them off the render pass.
+        val countsSub = deleteRow.findViewById<TextView>(R.id.action_sub)
+        lifecycleScope.launch {
+            val counts = withContext(Dispatchers.IO) { repo.counts() }
+            if (isAdded && countsSub != null) {
+                countsSub.text = counts.entries.joinToString("  ") { "${it.key} ${it.value}" }
+            }
+        }
 
         // Privacy
         container.addView(section("PRIVACY"))

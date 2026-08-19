@@ -52,6 +52,37 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         _revision.value = _revision.value + 1
     }
 
+    /**
+     * Immutable read snapshot: one query per table instead of one per habit.
+     *
+     * Screen builds and insight computations read the same handful of tables
+     * many times over (per-habit check-ins, pauses, habits); taking one
+     * snapshot per pass turns O(N) queries into O(1). Callers that must see
+     * concurrent writes simply take a fresh snapshot — the revision flow
+     * guarantees a rebuild after every mutation.
+     */
+    data class DataSnapshot(
+        val identities: List<Identity>,
+        /** All habits, archived included. */
+        val habits: List<Habit>,
+        /** Every check-in, newest first. */
+        val checkIns: List<CheckIn>,
+        val pauses: List<PauseWindow>
+    ) {
+        val activeHabits: List<Habit>
+            get() = habits.filter { it.status == Status.ACTIVE }
+
+        val checkInsByHabit: Map<String, List<CheckIn>>
+            get() = checkIns.groupBy { it.habitId }
+    }
+
+    fun snapshot(): DataSnapshot = DataSnapshot(
+        identities = identities(true),
+        habits = habits(true),
+        checkIns = checkIns(),
+        pauses = pauses()
+    )
+
     private fun query(sql: String, args: Array<Any?>? = null) =
         db.query(SimpleSQLiteQuery(sql, args))
 
@@ -177,29 +208,22 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     fun habitsForDay(date: LocalDate): List<Habit> =
         habits().filter { it.status == Status.ACTIVE && scheduleOf(it).activeOn(date) }
 
+    fun habitsForDay(snap: DataSnapshot, date: LocalDate): List<Habit> =
+        snap.activeHabits.filter { scheduleOf(it).activeOn(date) }
+
     /** Today's habits joined with their check-ins, ready for the list adapter. */
-    fun todayHabits(date: LocalDate): List<TodayHabit> {
+    fun todayHabits(date: LocalDate): List<TodayHabit> = todayHabits(snapshot(), date)
+
+    fun todayHabits(snap: DataSnapshot, date: LocalDate): List<TodayHabit> {
         val iso = SfTime.format(date)
-        val checkIns = checkInsFor(iso).associateBy { it.habitId }
-        val returning = returnCandidates(date).map { it.id }.toSet()
-        return habitsForDay(date).map { h -> TodayHabit(h, checkIns[h.id], h.id in returning) }
+        val dayCheckIns = snap.checkIns.filter { it.date == iso }.associateBy { it.habitId }
+        val returning = com.superflow.domain.Insights.returnCandidates(snap, this, date).map { it.id }.toSet()
+        return habitsForDay(snap, date).map { h -> TodayHabit(h, dayCheckIns[h.id], h.id in returning) }
     }
 
     /** Habits missed at their previous real opportunity: the never-miss-twice trigger. */
-    fun returnCandidates(date: LocalDate): List<Habit> {
-        val allPauses = pauses()
-        return habitsForDay(date).filter { h ->
-            val series = com.superflow.core.schedule.Opportunities.series(
-                habit = h,
-                schedule = scheduleOf(h),
-                checkIns = checkInsOf(h.id).associateBy { LocalDate.parse(it.date) },
-                pauses = allPauses.filter { it.habitId == null || it.habitId == h.id },
-                dates = SfTime.lastDays(30, date),
-                today = date
-            )
-            com.superflow.core.schedule.Opportunities.needsReturn(series, date)
-        }
-    }
+    fun returnCandidates(date: LocalDate): List<Habit> =
+        com.superflow.domain.Insights.returnCandidates(snapshot(), this, date)
 
     /* ------------------------------------------------------------ check-in */
 

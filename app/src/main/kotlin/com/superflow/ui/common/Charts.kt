@@ -3,13 +3,13 @@ package com.superflow.ui.common
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.util.AttributeSet
 import android.view.View
 import android.view.animation.DecelerateInterpolator
-import androidx.core.content.res.ResourcesCompat
 import com.google.android.material.R as MR
 import com.superflow.R
 
@@ -18,6 +18,12 @@ import com.superflow.R
  *
  * A charting library was not available offline, and these are small enough to
  * draw directly - which also keeps them perfectly on-theme and animated.
+ *
+ * Theme colours are resolved once when the view is created (and on
+ * re-attach), never per frame: `MaterialColors.getColor` is a theme
+ * attribute lookup, and resolving it for every bar on every animation frame
+ * measurably slowed the 700 ms entry animations. Theme changes recreate the
+ * hosting activity, so re-creation re-resolves the colours.
  */
 
 /** Circular progress ring used on the Today header. */
@@ -30,6 +36,11 @@ class ProgressRing @JvmOverloads constructor(
     private var progress = 0f
     private var animated = 0f
     private var animator: ValueAnimator? = null
+
+    private var colorSurfaceVariant = Color.GRAY
+    private var colorPrimary = Color.GRAY
+    private var colorOnSurface = Color.GRAY
+    private var colorOnSurfaceVariant = Color.GRAY
 
     private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -55,12 +66,25 @@ class ProgressRing @JvmOverloads constructor(
         val stroke = context.dpf(10f)
         trackPaint.strokeWidth = stroke
         arcPaint.strokeWidth = stroke
-        trackPaint.color = themeColor(MR.attr.colorSurfaceVariant)
-        arcPaint.color = themeColor(MR.attr.colorPrimary)
-        labelPaint.color = themeColor(MR.attr.colorOnSurface)
-        subPaint.color = themeColor(MR.attr.colorOnSurfaceVariant)
         labelPaint.textSize = context.sp(24f)
         subPaint.textSize = context.sp(12f)
+        refreshThemeColors()
+    }
+
+    private fun refreshThemeColors() {
+        colorSurfaceVariant = themeColor(MR.attr.colorSurfaceVariant)
+        colorPrimary = themeColor(MR.attr.colorPrimary)
+        colorOnSurface = themeColor(MR.attr.colorOnSurface)
+        colorOnSurfaceVariant = themeColor(MR.attr.colorOnSurfaceVariant)
+        trackPaint.color = colorSurfaceVariant
+        arcPaint.color = colorPrimary
+        labelPaint.color = colorOnSurface
+        subPaint.color = colorOnSurfaceVariant
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        refreshThemeColors()
     }
 
     fun setProgress(value: Float, animate: Boolean = true) {
@@ -121,6 +145,12 @@ class BarChart @JvmOverloads constructor(
     private var phase = 0f
     private var animator: ValueAnimator? = null
 
+    private var colorPrimary = Color.GRAY
+    private var colorSurface = Color.GRAY
+    private var colorSurfaceVariant = Color.GRAY
+    private var colorOnSurfaceVariant = Color.GRAY
+    private var blendedBar = Color.GRAY
+
     private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -132,12 +162,25 @@ class BarChart @JvmOverloads constructor(
     }
 
     init {
-        barPaint.color = themeColor(MR.attr.colorPrimary)
-        trackPaint.color = themeColor(MR.attr.colorSurfaceVariant)
-        labelPaint.color = themeColor(MR.attr.colorOnSurfaceVariant)
-        valuePaint.color = themeColor(MR.attr.colorOnSurfaceVariant)
         labelPaint.textSize = context.sp(11f)
         valuePaint.textSize = context.sp(11f)
+        refreshThemeColors()
+    }
+
+    private fun refreshThemeColors() {
+        colorPrimary = themeColor(MR.attr.colorPrimary)
+        colorSurfaceVariant = themeColor(MR.attr.colorSurfaceVariant)
+        colorOnSurfaceVariant = themeColor(MR.attr.colorOnSurfaceVariant)
+        colorSurface = themeColor(MR.attr.colorSurface)
+        blendedBar = blend(colorPrimary, colorSurface, 0.25f)
+        trackPaint.color = colorSurfaceVariant
+        labelPaint.color = colorOnSurfaceVariant
+        valuePaint.color = colorOnSurfaceVariant
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        refreshThemeColors()
     }
 
     fun setBars(list: List<Bar>, animate: Boolean = true) {
@@ -181,8 +224,7 @@ class BarChart @JvmOverloads constructor(
             val fraction = bar.value.toFloat() / maxValue
             val barH = chartH * fraction * phase
             if (bar.value > 0 && barH > 1f) {
-                barPaint.color = if (bar.highlighted) themeColor(MR.attr.colorPrimary)
-                else blend(themeColor(MR.attr.colorPrimary), themeColor(MR.attr.colorSurface), 0.25f)
+                barPaint.color = if (bar.highlighted) colorPrimary else blendedBar
                 canvas.drawRoundRect(
                     left, valueH + chartH - barH, right, valueH + chartH, radius, radius, barPaint
                 )
@@ -208,8 +250,28 @@ class HeatmapView @JvmOverloads constructor(
     private var cellSize = 0f
     private var gap = 0f
 
+    private var colorPrimary = Color.GRAY
+    private var colorSurfaceVariant = Color.GRAY
+    private var colorSurface = Color.GRAY
+    private var notScheduled = Color.GRAY
+    private var radius = 0f
+
     init {
         gap = context.dpf(3f)
+        radius = context.dpf(4f)
+        refreshThemeColors()
+    }
+
+    private fun refreshThemeColors() {
+        colorPrimary = themeColor(MR.attr.colorPrimary)
+        colorSurfaceVariant = themeColor(MR.attr.colorSurfaceVariant)
+        colorSurface = themeColor(MR.attr.colorSurface)
+        notScheduled = blend(colorSurfaceVariant, colorSurface, 0.5f)
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        refreshThemeColors()
     }
 
     fun setCells(values: List<Float>) {
@@ -229,18 +291,15 @@ class HeatmapView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         if (cells.isEmpty()) return
-        val base = themeColor(MR.attr.colorPrimary)
-        val emptyColor = themeColor(MR.attr.colorSurfaceVariant)
-        val radius = context.dpf(4f)
         for ((index, value) in cells.withIndex()) {
             val col = index / 7
             val row = index % 7
             val left = col * (cellSize + gap)
             val top = row * (cellSize + gap)
             cellPaint.color = when {
-                value < 0f -> blend(emptyColor, themeColor(MR.attr.colorSurface), 0.5f)
-                value == 0f -> emptyColor
-                else -> blend(base, emptyColor, 1f - (0.25f + 0.75f * value))
+                value < 0f -> notScheduled
+                value == 0f -> colorSurfaceVariant
+                else -> blend(colorPrimary, colorSurfaceVariant, 1f - (0.25f + 0.75f * value))
             }
             canvas.drawRoundRect(
                 left, top, left + cellSize, top + cellSize, radius, radius, cellPaint
@@ -259,6 +318,31 @@ class HistoryStrip @JvmOverloads constructor(
     /** One of: 1 success, 0 open, -1 missed, -2 skipped, -3 not scheduled. */
     private var states: List<Int> = emptyList()
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    private var colorPrimary = Color.GRAY
+    private var colorMissed = Color.GRAY
+    private var colorSkipped = Color.GRAY
+    private var colorNotScheduled = Color.GRAY
+    private var colorOpen = Color.GRAY
+
+    init {
+        refreshThemeColors()
+    }
+
+    private fun refreshThemeColors() {
+        colorPrimary = themeColor(MR.attr.colorPrimary)
+        colorMissed = context.getColor(R.color.state_missed)
+        colorSkipped = context.getColor(R.color.state_skipped)
+        colorNotScheduled = blend(
+            themeColor(MR.attr.colorSurfaceVariant), themeColor(MR.attr.colorSurface), 0.6f
+        )
+        colorOpen = themeColor(MR.attr.colorSurfaceVariant)
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        refreshThemeColors()
+    }
 
     fun setStates(list: List<Int>) {
         states = list
@@ -279,12 +363,11 @@ class HistoryStrip @JvmOverloads constructor(
         val radius = context.dpf(3f)
         for ((i, s) in states.withIndex()) {
             paint.color = when (s) {
-                1 -> themeColor(MR.attr.colorPrimary)
-                -1 -> context.getColor(R.color.state_missed)
-                -2 -> context.getColor(R.color.state_skipped)
-                -3 -> blend(themeColor(MR.attr.colorSurfaceVariant),
-                    themeColor(MR.attr.colorSurface), 0.6f)
-                else -> themeColor(MR.attr.colorSurfaceVariant)
+                1 -> colorPrimary
+                -1 -> colorMissed
+                -2 -> colorSkipped
+                -3 -> colorNotScheduled
+                else -> colorOpen
             }
             val left = i * (w + gap)
             canvas.drawRoundRect(left, 0f, left + w, height.toFloat(), radius, radius, paint)

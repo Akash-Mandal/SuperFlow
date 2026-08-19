@@ -1,6 +1,8 @@
 package com.superflow.ui.common
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
@@ -12,7 +14,12 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+import com.superflow.AppBackground
 import com.superflow.R
+import com.superflow.domain.Actor
+import com.superflow.domain.CommandBus
+import com.superflow.domain.CommandResult
+import org.json.JSONObject
 
 /**
  * Base for the secondary screens.
@@ -66,6 +73,29 @@ abstract class ScrollActivity : AppCompatActivity() {
     protected fun rebuild() {
         content.removeAllViews()
         buildContent()
+    }
+
+    protected val mainHandler = Handler(Looper.getMainLooper())
+
+    /**
+     * Runs a [CommandBus] command on the background lane (it performs
+     * database writes) and applies [onResult] on the main thread. Subclasses
+     * pair this with [rebuild] so the list refreshes when the write lands.
+     */
+    protected fun runCommand(
+        bus: CommandBus,
+        command: String,
+        args: JSONObject,
+        actor: Actor = Actor.USER,
+        onResult: (CommandResult) -> Unit = {}
+    ) {
+        AppBackground.launch {
+            val res = bus.execute(command, args, actor)
+            mainHandler.post {
+                if (isFinishing || isDestroyed) return@post
+                onResult(res)
+            }
+        }
     }
 
     /* ------------------------------------------------------- content helpers */

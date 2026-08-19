@@ -86,8 +86,9 @@ class ScorecardActivity : ScrollActivity() {
     private fun dpi(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private fun exec(command: String, args: org.json.JSONObject) {
-        val res = bus.execute(command, args, Actor.USER)
-        if (!res.ok) findViewById<View>(R.id.root).snack(res.message)
-        rebuild()
+        runCommand(bus, command, args) { res ->
+            if (!res.ok) findViewById<View>(R.id.root).snack(res.message)
+            rebuild()
+        }
     }
 }

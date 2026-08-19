@@ -6,6 +6,8 @@ import com.superflow.core.schedule.OpportunityStatus
 import com.superflow.core.schedule.Recurrence
 import com.superflow.core.time.SfTime
 import com.superflow.data.Repository
+import com.superflow.data.Repository.DataSnapshot
+import com.superflow.data.model.CheckIn
 import com.superflow.data.model.CheckInResult
 import com.superflow.data.model.Habit
 import com.superflow.data.model.HabitMode
@@ -18,24 +20,53 @@ import java.time.LocalDate
  * Per the plan: streaks are never stored, planned skips and pauses never create
  * misses, flexible habits are judged against a weekly quota, and every
  * consistency figure carries its sample size so small samples can be disclosed.
+ *
+ * All public entry points take either a [Repository] (which takes one
+ * [Repository.snapshot] internally) or a preloaded [DataSnapshot], so a
+ * screen build reads each table exactly once.
  */
 object Insights {
 
     /** Builds the opportunity series for one habit over the last [days] days. */
     fun seriesFor(repo: Repository, habit: Habit, days: Int, today: LocalDate): List<Opportunity> {
-        val pauses = repo.pauses().filter { it.habitId == null || it.habitId == habit.id }
+        val snap = repo.snapshot()
+        return seriesFor(snap, repo, habit, days, today)
+    }
+
+    fun seriesFor(
+        snap: DataSnapshot,
+        repo: Repository,
+        habit: Habit,
+        days: Int,
+        today: LocalDate
+    ): List<Opportunity> {
+        val pauses = snap.pauses.filter { it.habitId == null || it.habitId == habit.id }
+        val checkIns = snap.checkInsByHabit[habit.id].orEmpty().associateBy { LocalDate.parse(it.date) }
         return Opportunities.series(
             habit = habit,
             schedule = repo.scheduleOf(habit),
-            checkIns = repo.checkInsOf(habit.id).associateBy { LocalDate.parse(it.date) },
+            checkIns = checkIns,
             pauses = pauses,
             dates = SfTime.lastDays(days, today),
             today = today
         )
     }
 
-    fun forHabit(repo: Repository, habit: Habit, today: LocalDate = repo.clock.today()): HabitStats {
-        val longSeries = seriesFor(repo, habit, 365, today)
+    fun forHabit(repo: Repository, habit: Habit, today: LocalDate = repo.clock.today()): HabitStats =
+        forHabit(repo.snapshot(), repo, habit, today)
+
+    fun forHabit(snap: DataSnapshot, repo: Repository, habit: Habit, today: LocalDate): HabitStats {
+        val pauses = snap.pauses.filter { it.habitId == null || it.habitId == habit.id }
+        val checkIns = snap.checkInsByHabit[habit.id].orEmpty()
+        val checkInsByDate = checkIns.associateBy { LocalDate.parse(it.date) }
+        val longSeries = Opportunities.series(
+            habit = habit,
+            schedule = repo.scheduleOf(habit),
+            checkIns = checkInsByDate,
+            pauses = pauses,
+            dates = SfTime.lastDays(365, today),
+            today = today
+        )
         val window = longSeries.filter { !it.date.isBefore(today.minusDays(29)) }
         val recurrence = Recurrence.decode(habit.recurrenceRule)
 
@@ -46,10 +77,10 @@ object Insights {
         }
         val consistency = if (opportunities == 0) 0 else (hits * 100) / opportunities
 
-        val allCheckIns = repo.checkInsOf(habit.id)
+        val successes = checkIns.filter { it.isSuccess }
         return HabitStats(
             habit = habit,
-            repetitions = allCheckIns.count { it.isSuccess },
+            repetitions = successes.size,
             currentRun = Opportunities.currentRun(longSeries, today),
             bestRun = Opportunities.bestRun(longSeries),
             consistency30 = consistency,
@@ -57,23 +88,31 @@ object Insights {
             recoveries = Opportunities.recoveries(longSeries),
             missesInARow = Opportunities.missesInARow(longSeries, today),
             needsReturn = Opportunities.needsReturn(longSeries, today),
-            lastDone = allCheckIns.filter { it.isSuccess }.maxByOrNull { it.date }?.date
+            lastDone = successes.maxByOrNull { it.date }?.date
         )
     }
 
     fun allStats(repo: Repository, today: LocalDate = repo.clock.today()): List<HabitStats> =
-        repo.habits().map { forHabit(repo, it, today) }
+        allStats(repo.snapshot(), repo, today)
+
+    fun allStats(snap: DataSnapshot, repo: Repository, today: LocalDate): List<HabitStats> =
+        snap.activeHabits.map { forHabit(snap, repo, it, today) }
 
     /** Done vs scheduled for one day. */
-    fun dayProgress(repo: Repository, date: LocalDate = repo.clock.today()): Pair<Int, Int> {
-        val scheduled = repo.habitsForDay(date)
-        val checkIns = repo.checkInsFor(SfTime.format(date)).associateBy { it.habitId }
+    fun dayProgress(repo: Repository, date: LocalDate = repo.clock.today()): Pair<Int, Int> =
+        dayProgress(repo.snapshot(), repo, date)
+
+    fun dayProgress(snap: DataSnapshot, repo: Repository, date: LocalDate): Pair<Int, Int> {
+        val scheduled = snap.activeHabits.filter { repo.scheduleOf(it).activeOn(date) }
+        val iso = SfTime.format(date)
+        val checkIns = snap.checkIns.filter { it.date == iso }.associateBy { it.habitId }
         val done = scheduled.count { checkIns[it.id]?.isSuccess == true }
         return done to scheduled.size
     }
 
     fun todaySummary(repo: Repository, date: LocalDate = repo.clock.today()): String {
-        val (done, total) = dayProgress(repo, date)
+        val snap = repo.snapshot()
+        val (done, total) = dayProgress(snap, repo, date)
         if (total == 0) {
             return "Nothing is scheduled for ${SfTime.humanDay(date)}. A quiet day is allowed."
         }
@@ -84,17 +123,19 @@ object Insights {
         if (focus.isNotEmpty()) {
             val fdone = focus.count { it.done }
             sb.append(" Daily Focus $fdone/${focus.size}: ")
-            sb.append(focus.joinToString(", ") { (if (it.done) "[x] " else "[ ] ") + it.title })
+            sb.append(focus.joinToString(", ") { (if (it.done) "[x] " else " [ ] ") + it.title })
             sb.append('.')
         }
-        val checkIns = repo.checkInsFor(iso).associateBy { it.habitId }
-        val open = repo.habitsForDay(date).filter { checkIns[it.id] == null }
+        val checkIns = snap.checkIns.filter { it.date == iso }.associateBy { it.habitId }
+        val open = snap.activeHabits
+            .filter { repo.scheduleOf(it).activeOn(date) }
+            .filter { checkIns[it.id] == null }
         if (open.isNotEmpty()) {
             sb.append(" Still open: ").append(open.take(4).joinToString(", ") { it.title })
             if (open.size > 4) sb.append(" and ${open.size - 4} more")
             sb.append('.')
         }
-        val returning = repo.returnCandidates(date)
+        val returning = returnCandidates(snap, repo, date)
         if (returning.isNotEmpty()) {
             sb.append(" Return today: ").append(returning.joinToString(", ") { it.title }).append('.')
         }
@@ -106,11 +147,12 @@ object Insights {
         days: Int = 30,
         today: LocalDate = repo.clock.today()
     ): String {
-        val stats = allStats(repo, today)
+        val snap = repo.snapshot()
+        val stats = allStats(snap, repo, today)
         if (stats.isEmpty()) return "No habits yet. Create one and the insights will fill in."
 
         val window = SfTime.lastDays(days, today).map { SfTime.format(it) }.toSet()
-        val checkIns = repo.checkIns().filter { it.date in window }
+        val checkIns = snap.checkIns.filter { it.date in window }
         val successes = checkIns.count { it.isSuccess }
         val misses = checkIns.count { it.isMiss }
         val skips = checkIns.count { it.result == CheckInResult.SKIPPED }
@@ -136,7 +178,7 @@ object Insights {
         }
 
         sb.append("\nIdentity evidence:\n")
-        for (i in repo.identities()) {
+        for (i in snap.identities) {
             val votes = stats.filter { it.habit.identityId == i.id }.sumOf { it.repetitions }
             sb.append("· ${i.statement}: $votes votes\n")
         }
@@ -145,11 +187,18 @@ object Insights {
 
     /** Identity evidence ledger: statement, votes, linked habit count. */
     fun identityEvidence(repo: Repository): List<Triple<String, Int, Int>> =
-        repo.identities().map { i ->
-            val linked = repo.habits(true).filter { it.identityId == i.id }
-            val votes = linked.sumOf { h -> repo.checkInsOf(h.id).count { it.isSuccess } }
+        identityEvidence(repo.snapshot())
+
+    fun identityEvidence(snap: DataSnapshot): List<Triple<String, Int, Int>> {
+        val votesByHabit = snap.checkInsByHabit.mapValues { entry ->
+            entry.value.count { it.isSuccess }
+        }
+        return snap.identities.map { i ->
+            val linked = snap.habits.filter { it.identityId == i.id }
+            val votes = linked.sumOf { votesByHabit[it.id] ?: 0 }
             Triple(i.statement, votes, linked.size)
         }
+    }
 
     /** Energy pattern, always disclosing the sample size. */
     fun energyPattern(repo: Repository): String {
@@ -182,14 +231,19 @@ object Insights {
     }
 
     fun reduceModeProgress(repo: Repository): List<Triple<String, Int, Int>> =
-        repo.habits().filter { it.mode == HabitMode.REDUCE }.map { h ->
-            val cis = repo.checkInsOf(h.id)
+        reduceModeProgress(repo.snapshot())
+
+    fun reduceModeProgress(snap: DataSnapshot): List<Triple<String, Int, Int>> {
+        val byHabit = snap.checkInsByHabit
+        return snap.activeHabits.filter { it.mode == HabitMode.REDUCE }.map { h ->
+            val cis = byHabit[h.id].orEmpty()
             Triple(
                 h.title,
                 cis.count { it.result == CheckInResult.RESISTED },
                 cis.count { it.result == CheckInResult.SLIPPED }
             )
         }
+    }
 
     /** Per-habit day states for the history strip. */
     fun historyStates(
@@ -197,7 +251,15 @@ object Insights {
         habit: Habit,
         days: Int = 14,
         today: LocalDate = repo.clock.today()
-    ): List<Int> = seriesFor(repo, habit, days, today).map {
+    ): List<Int> = historyStates(repo.snapshot(), repo, habit, days, today)
+
+    fun historyStates(
+        snap: DataSnapshot,
+        repo: Repository,
+        habit: Habit,
+        days: Int = 14,
+        today: LocalDate
+    ): List<Int> = seriesFor(snap, repo, habit, days, today).map {
         when (it.status) {
             OpportunityStatus.COMPLETED -> 1
             OpportunityStatus.MISSED -> -1
@@ -205,5 +267,33 @@ object Insights {
             OpportunityStatus.NOT_SCHEDULED, OpportunityStatus.PAUSED -> -3
             OpportunityStatus.PENDING -> 0
         }
+    }
+
+    /**
+     * Habits missed at their previous real opportunity: the never-miss-twice
+     * trigger. Snapshot-based so the Today screen does not re-query check-ins
+     * and pauses for every habit.
+     */
+    fun returnCandidates(
+        snap: DataSnapshot,
+        repo: Repository,
+        date: LocalDate
+    ): List<Habit> {
+        val dates = SfTime.lastDays(30, date)
+        return snap.activeHabits
+            .filter { repo.scheduleOf(it).activeOn(date) }
+            .filter { h ->
+                val pauses = snap.pauses.filter { it.habitId == null || it.habitId == h.id }
+                val checkIns = snap.checkInsByHabit[h.id].orEmpty().associateBy { LocalDate.parse(it.date) }
+                val series = Opportunities.series(
+                    habit = h,
+                    schedule = repo.scheduleOf(h),
+                    checkIns = checkIns,
+                    pauses = pauses,
+                    dates = dates,
+                    today = date
+                )
+                Opportunities.needsReturn(series, date)
+            }
     }
 }
