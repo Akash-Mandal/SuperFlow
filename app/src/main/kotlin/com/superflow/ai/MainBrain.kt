@@ -26,6 +26,7 @@ object MainBrain {
 
     /** Context Broker: assembles only the sections the user has permitted. */
     fun buildContext(repo: Repository, prefs: Prefs): String {
+        val maxChars = prefs.maxContextChars
         val sb = StringBuilder()
         val today = repo.clock.today()
         val iso = SfTime.format(today)
@@ -61,13 +62,62 @@ object MainBrain {
         if (prefs.contextIncludeInsights) {
             sb.append("\nInsights:\n").append(Insights.summaryText(repo, 30)).append('\n')
         }
+        if (prefs.contextIncludeReviews) {
+            val reviews = repo.reviews().takeLast(3)
+            if (reviews.isNotEmpty()) {
+                sb.append("\nRecent reviews:\n")
+                reviews.forEach { r ->
+                    sb.append("- ${r.periodLabel} (${r.kind.name.lowercase()}): ")
+                    if (r.systemChange.isNotBlank()) sb.append("changed: ${r.systemChange}; ")
+                    if (r.whatWorked.isNotBlank()) sb.append("worked: ${r.whatWorked.take(100)}")
+                    sb.append('\n')
+                }
+            }
+        }
+        if (prefs.contextIncludeObstacles) {
+            val obstacles = repo.habits().flatMap { h ->
+                repo.obstacles(h.id).map { o -> "${h.title}: if ${o.ifText} then ${o.thenText}" }
+            }
+            if (obstacles.isNotEmpty()) {
+                sb.append("\nObstacle plans:\n")
+                obstacles.take(10).forEach { sb.append("- $it\n") }
+            }
+        }
+        if (prefs.contextIncludeFlows) {
+            val flows = repo.flows()
+            if (flows.isNotEmpty()) {
+                sb.append("\nRoutines/Flows:\n")
+                flows.forEach { f ->
+                    val steps = repo.flowSteps(f.id).joinToString(" → ") { it.title }
+                    sb.append("- ${f.title}: $steps\n")
+                }
+            }
+        }
         if (prefs.contextIncludeMemory && prefs.memoryNotes.isNotBlank()) {
             sb.append("\nUser notes to remember:\n").append(prefs.memoryNotes).append('\n')
         }
-        return sb.toString()
+        // Explicit instructions (always included when set)
+        if (prefs.aiInstructions.isNotBlank()) {
+            sb.append("\nExplicit instructions from the user (highest priority):\n")
+                .append(prefs.aiInstructions).append('\n')
+        }
+        // Local structured memory
+        if (prefs.aiLocalMemory.isNotBlank()) {
+            sb.append("\nFacts the user wants you to remember:\n")
+                .append(prefs.aiLocalMemory).append('\n')
+        }
+        // Truncate to max context chars
+        val result = sb.toString()
+        return if (result.length > maxChars) result.take(maxChars) + "\n[truncated]" else result
     }
 
     fun systemPrompt(prefs: Prefs): String {
+        // Custom system prompt override
+        if (prefs.customSystemPrompt.isNotBlank()) {
+            val base = prefs.customSystemPrompt
+            return if (prefs.systemPromptSuffix.isNotBlank()) "$base\n\n${prefs.systemPromptSuffix}" else base
+        }
+
         val autonomy = if (prefs.fullControlActive())
             """
             FULL CONTROL IS ACTIVE. The user has already granted blanket permission for every
@@ -107,7 +157,9 @@ object MainBrain {
             - Daily Focus holds at most three actions.
             - When creating a habit always include a tinyStart.
             - You may emit several commands to complete a multi-step job in one turn.
-        """.trimIndent()
+        """.trimIndent().let { base ->
+            if (prefs.systemPromptSuffix.isNotBlank()) "$base\n\n${prefs.systemPromptSuffix}" else base
+        }
     }
 
     /** Blocking HTTP call. Callers run this off the main thread. */
@@ -119,7 +171,7 @@ object MainBrain {
         val url = buildUrl(prefs.baseUrl)
         val messages = JSONArray()
         messages.put(JSONObject().put("role", "system").put("content", systemText))
-        for ((role, content) in history.takeLast(10)) {
+        for ((role, content) in history.takeLast(prefs.conversationHistoryLimit)) {
             messages.put(JSONObject().put("role", role).put("content", content))
         }
         messages.put(JSONObject().put("role", "user").put("content", userText))
@@ -130,6 +182,36 @@ object MainBrain {
             .put("temperature", prefs.temperature / 100.0)
             .put("max_tokens", prefs.maxTokens)
 
+        // Top-p (nucleus sampling)
+        if (prefs.topP < 100) payload.put("top_p", prefs.topP / 100.0)
+
+        // Frequency and presence penalties
+        if (prefs.frequencyPenalty != 0) payload.put("frequency_penalty", prefs.frequencyPenalty / 100.0)
+        if (prefs.presencePenalty != 0) payload.put("presence_penalty", prefs.presencePenalty / 100.0)
+
+        // Seed for reproducibility
+        if (prefs.seed >= 0) payload.put("seed", prefs.seed)
+
+        // Stop sequences
+        if (prefs.stopSequences.isNotBlank()) {
+            val stops = prefs.stopSequences.split(",").map { it.trim() }.filter { it.isNotBlank() }
+            if (stops.size == 1) payload.put("stop", stops[0])
+            else if (stops.size > 1) {
+                val arr = JSONArray()
+                stops.forEach { arr.put(it) }
+                payload.put("stop", arr)
+            }
+        }
+
+        // Response format
+        when (prefs.responseFormat) {
+            "json" -> payload.put("response_format", JSONObject().put("type", "json_object"))
+            "text" -> payload.put("response_format", JSONObject().put("type", "text"))
+        }
+
+        // Streaming
+        if (prefs.streamingEnabled) payload.put("stream", true)
+
         return try {
             val conn = (URL(url).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -138,12 +220,60 @@ object MainBrain {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Authorization", "Bearer ${prefs.apiKey}")
+                // Organization ID (OpenAI-specific but harmless for others)
+                if (prefs.organizationId.isNotBlank()) {
+                    setRequestProperty("OpenAI-Organization", prefs.organizationId)
+                }
+                // Custom headers (format: "Header-Name: value\nHeader-Name2: value2")
+                if (prefs.customHeaders.isNotBlank()) {
+                    for (line in prefs.customHeaders.lines()) {
+                        val parts = line.split(":", limit = 2)
+                        if (parts.size == 2) {
+                            setRequestProperty(parts[0].trim(), parts[1].trim())
+                        }
+                    }
+                }
             }
-            OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { it.write(payload.toString()) }
-            val code = conn.responseCode
-            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-            val text = BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { it.readText() }
-            conn.disconnect()
+
+            // Request logging
+            if (prefs.requestLoggingEnabled) {
+                android.util.Log.d("SfAI", "→ ${payload.toString().take(2000)}")
+            }
+
+            var lastError: Exception? = null
+            var code = 0
+            var text = ""
+            val maxAttempts = prefs.retryCount + 1
+
+            for (attempt in 1..maxAttempts) {
+                try {
+                    OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { it.write(payload.toString()) }
+                    code = conn.responseCode
+                    val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                    text = BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { it.readText() }
+                    conn.disconnect()
+
+                    if (code in 200..299) break
+                    if (code in listOf(429, 500, 502, 503, 504) && attempt < maxAttempts) {
+                        Thread.sleep((attempt * 1000).toLong())  // Exponential backoff
+                        continue
+                    }
+                    break
+                } catch (e: Exception) {
+                    lastError = e
+                    if (attempt < maxAttempts) {
+                        Thread.sleep((attempt * 1000).toLong())
+                    }
+                }
+            }
+
+            if (prefs.requestLoggingEnabled) {
+                android.util.Log.d("SfAI", "← $code ${text.take(2000)}")
+            }
+
+            if (lastError != null && code == 0) {
+                return Reply(false, "", "Network error after $maxAttempts attempts: ${lastError.message ?: lastError.javaClass.simpleName}")
+            }
 
             if (code !in 200..299) {
                 val msg = extractJson(text)?.optJSONObject("error")?.optString("message")

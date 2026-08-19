@@ -202,45 +202,24 @@ class SettingsFragment : Fragment() {
                 prefs.celebrationsEnabled) { prefs.celebrationsEnabled = it }
         )))
 
-        // Data
+        // Data Management — all-inclusive
         container.addView(section("YOUR DATA"))
-        val deleteRow = action(R.drawable.ic_delete, getString(R.string.delete_all), null) {
-            MaterialAlertDialogBuilder(requireContext())
-                .setTitle("Delete all data?")
-                .setMessage("Every identity, goal, habit and check-in will be erased. " +
-                        "This cannot be undone from here.")
-                    .setNegativeButton(R.string.cancel, null)
-                    .setPositiveButton(R.string.delete) { _, _ ->
-                        // delete_all_data wipes every table; keep it off the
-                        // render thread and re-render when it lands.
-                        AppBackground.launch {
-                            bus.execute("delete_all_data", jsonOf("confirm" to true), Actor.USER)
-                            viewLifecycleOwner.lifecycleScope.launch {
-                                if (isAdded) {
-                                    view?.snack("All data deleted")
-                                    render()
-                                }
-                            }
-                        }
-                    }.show()
-        }
         container.addView(group(listOf(
-            action(R.drawable.ic_upload, getString(R.string.export_data),
-                "Share a full JSON backup") { exportData() },
-            action(R.drawable.ic_download, getString(R.string.import_data),
-                "Paste a previous export") { importData() },
-            action(R.drawable.ic_share, "Share progress summary",
-                "A private, text-only recap") { shareSummary() },
-            deleteRow
-        )))
-        // The counts are twelve COUNT queries; fetch them off the render pass.
-        val countsSub = deleteRow.findViewById<TextView>(R.id.action_sub)
-        lifecycleScope.launch {
-            val counts = withContext(Dispatchers.IO) { repo.counts() }
-            if (isAdded && countsSub != null) {
-                countsSub.text = counts.entries.joinToString("  ") { "${it.key} ${it.value}" }
+            action(R.drawable.ic_upload, "Data Management",
+                "Export, import, backup, integrity — all-inclusive data control") {
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.list, DataManagementFragment())
+                    .addToBackStack("data_management")
+                    .commit()
             }
-        }
+        )))
+        container.addView(note(
+            "The all-inclusion policy ensures every piece of data in the app — identities, goals, " +
+                    "habits, check-ins, reviews, AI conversation, settings, and more — is covered " +
+                    "by export, import, and backup. Nothing is silently left out."
+        ))
+
+
 
         // Privacy
         container.addView(section("PRIVACY"))

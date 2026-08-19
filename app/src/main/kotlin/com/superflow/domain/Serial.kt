@@ -248,6 +248,7 @@ object Serial {
         root.put("systems", arr(repo.systems().map { of(it) }))
         root.put("habits", arr(repo.habits(true).map { of(it) }))
         root.put("checkIns", arr(repo.checkIns().map { of(it) }))
+        root.put("focus", arr(repo.focusAll().map { of(it) }))
         root.put("obstacles", arr(repo.obstacles().map { of(it) }))
         root.put("scorecard", arr(repo.scorecard().map { of(it) }))
         root.put("flows", arr(repo.flows().map { of(it) }))
@@ -269,6 +270,7 @@ object Serial {
         root.optJSONArray("systems")?.objects()?.forEach { repo.saveSystem(system(it)) }
         root.optJSONArray("habits")?.objects()?.forEach { repo.saveHabit(habit(it)) }
         root.optJSONArray("checkIns")?.objects()?.forEach { repo.saveCheckIn(checkIn(it)) }
+        root.optJSONArray("focus")?.objects()?.forEach { repo.saveFocus(focus(it)) }
         root.optJSONArray("obstacles")?.objects()?.forEach { repo.saveObstacle(obstacle(it)) }
         root.optJSONArray("scorecard")?.objects()?.forEach { repo.saveScorecard(scorecard(it)) }
         root.optJSONArray("flows")?.objects()?.forEach { repo.saveFlow(flow(it)) }
