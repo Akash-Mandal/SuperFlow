@@ -4,6 +4,7 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.superflow.R
 import com.superflow.data.Repository
 import com.superflow.data.model.HabitMode
@@ -43,9 +44,17 @@ class RecoveryActivity : ScrollActivity() {
         for (h in returning) {
             val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
             card.findViewById<TextView>(R.id.text_title).text = h.title
-            card.findViewById<TextView>(R.id.text_body).text =
-                "Smallest way back: ${h.tinyStart.ifBlank { "start for two minutes" }}" +
-                        if (h.recoveryPlan.isNotBlank()) "\n\n${h.recoveryPlan}" else ""
+            val bodyText = buildString {
+                append("Smallest way back: ${h.tinyStart.ifBlank { "start for two minutes" }}")
+                if (h.recoveryPlan.isNotBlank()) append("\n\n${h.recoveryPlan}")
+                // Obstacle plan surfacing (§10): show the plan at the moment it is needed.
+                val plans = repo.obstacles(h.id)
+                if (plans.isNotEmpty()) {
+                    append("\n\nYou planned for this:")
+                    plans.take(2).forEach { append("\n· If ${it.ifText}, then ${it.thenText}") }
+                }
+            }
+            card.findViewById<TextView>(R.id.text_body).text = bodyText
             val holder = card.findViewById<TextView>(R.id.text_title).parent as LinearLayout
             holder.addView(MaterialButton(this).apply {
                 text = "Do the tiny version"
@@ -86,7 +95,8 @@ class RecoveryActivity : ScrollActivity() {
                     "${s.missesInARow} missed in a row · ${s.consistency30}% over 30 days\n\n" +
                             "A habit that keeps slipping is usually too big, badly timed, or " +
                             "missing a clear cue. Try shrinking it for a week."
-                (card.findViewById<TextView>(R.id.text_title).parent as LinearLayout).addView(
+                val holder = card.findViewById<TextView>(R.id.text_title).parent as LinearLayout
+                holder.addView(
                     MaterialButton(this, null,
                         com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
                         text = "Shrink to tiny"
@@ -100,6 +110,17 @@ class RecoveryActivity : ScrollActivity() {
                                 "value" to s.habit.tinyStart.ifBlank { "Start for two minutes" }
                             ))
                         }
+                    })
+                // Miss reflection (§8): "What got in the way?" presets.
+                holder.addView(
+                    MaterialButton(this, null,
+                        com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                        text = "Why did I miss?"
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).also { it.topMargin = dpi(8) }
+                        setOnClickListener { askMissReason(s.habit.id) }
                     })
                 content.addView(card)
             }
@@ -116,6 +137,26 @@ class RecoveryActivity : ScrollActivity() {
     }
 
     private fun dpi(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    /** Miss reflection (§8): record why the habit was missed, on the latest miss. */
+    private fun askMissReason(habitId: String) {
+        val reasons = listOf("time", "energy", "forgot", "motivation", "circumstance", "other")
+        MaterialAlertDialogBuilder(this)
+            .setTitle("What got in the way?")
+            .setItems(reasons.map { it.replaceFirstChar { c -> c.uppercase() } }.toTypedArray()) { _, which ->
+                val reason = reasons[which]
+                // Attach the reason to the habit's most recent miss.
+                val latestMiss = repo.checkInsOf(habitId).firstOrNull { it.isMiss }
+                if (latestMiss != null) {
+                    exec("record_miss_reason",
+                        jsonOf("habit" to habitId, "reason" to reason, "date" to latestMiss.date))
+                } else {
+                    findViewById<View>(R.id.root).snack("No miss on record yet for this habit.")
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
 
     private fun exec(command: String, args: org.json.JSONObject) {
         val res = bus.execute(command, args, Actor.USER)
