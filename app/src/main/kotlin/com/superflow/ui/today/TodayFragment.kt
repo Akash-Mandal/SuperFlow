@@ -74,7 +74,10 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
                         com.superflow.ui.search.SearchActivity::class.java))
                     true
                 }
-                R.id.action_plan_tomorrow -> { model.planTomorrow(); true }
+                R.id.action_plan_tomorrow -> {
+                    startActivity(Intent(requireContext(), PlanTomorrowActivity::class.java))
+                    true
+                }
                 R.id.action_minimum_mode -> { model.minimumMode(); true }
                 R.id.action_recovery -> {
                     startActivity(Intent(requireContext(),
@@ -153,7 +156,13 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
 
     override fun onFocusSuggest() = model.suggestFocus()
     override fun onEnergy(value: Int) = model.logEnergy(value)
-    override fun onCheckpoint(cp: Checkpoint) = model.runCheckpoint(cp)
+
+    override fun onCheckpoint(cp: Checkpoint) {
+        startActivity(
+            Intent(requireContext(), CheckpointActivity::class.java)
+                .putExtra(CheckpointActivity.EXTRA_CHECKPOINT, cp.name)
+        )
+    }
 
     override fun onEmptyAction() {
         startActivity(Intent(requireContext(), HabitDesignerActivity::class.java))

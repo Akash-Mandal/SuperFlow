@@ -12,6 +12,9 @@
 
     <!-- Common -->
     <string name="search">Search</string>
+    <string name="share_progress_card">Share progress card</string>
+    <string name="app_lock">App lock</string>
+    <string name="unlock">Unlock</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="close">Close</string>

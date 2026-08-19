@@ -432,6 +432,62 @@ class Prefs private constructor(context: Context) {
         get() = str("aiLocalMemory", "")
         set(v) = setStr("aiLocalMemory", v)
 
+    /* ------------------------------------------------------------- app lock */
+
+    var appLockEnabled: Boolean
+        get() = bool("appLockEnabled", false)
+        set(v) = setBool("appLockEnabled", v)
+
+    /** "pin", "biometric", or "both". */
+    var appLockMethod: String
+        get() = str("appLockMethod", "pin")
+        set(v) = setStr("appLockMethod", v)
+
+    /** Auto-lock after this many minutes. 0 = lock on app open. */
+    var appLockTimeout: Int
+        get() = num("appLockTimeout", 0)
+        set(v) = setNum("appLockTimeout", v.coerceIn(0, 60))
+
+    /**
+     * Salted SHA-256 of the PIN, kept in the secrets file (excluded from
+     * backup, export and every prompt), exactly like the API key.
+     * Format: "salt:hex".
+     */
+    var appLockPinHash: String
+        get() = secrets.getString("appLockPinHash", "") ?: ""
+        set(v) { secrets.edit().putString("appLockPinHash", v).apply(); bump() }
+
+    fun hasAppLockPin(): Boolean = appLockPinHash.isNotBlank()
+
+    fun setPin(pin: String): Boolean {
+        val p = pin.trim()
+        if (p.length < 4) return false
+        val salt = java.util.UUID.randomUUID().toString().replace("-", "").take(16)
+        appLockPinHash = "$salt:${sha256(salt + p)}"
+        return true
+    }
+
+    fun clearPin() {
+        secrets.edit().remove("appLockPinHash").apply()
+        bump()
+    }
+
+    fun verifyPin(pin: String): Boolean {
+        val stored = appLockPinHash
+        if (stored.isBlank()) return false
+        val i = stored.indexOf(':')
+        if (i <= 0) return false
+        val salt = stored.substring(0, i)
+        val hash = stored.substring(i + 1)
+        return sha256(salt + pin.trim()) == hash
+    }
+
+    private fun sha256(input: String): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        val bytes = md.digest(input.toByteArray(Charsets.UTF_8))
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
     /* ------------------------------------------------------------- secrets */
 
     var apiKey: String

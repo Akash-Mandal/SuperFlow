@@ -34,7 +34,8 @@ sealed class JourneyRow {
         val title: String,
         val subtitle: String,
         val icon: Int,
-        val archived: Boolean = false
+        val archived: Boolean = false,
+        val graduated: Boolean = false
     ) : JourneyRow() {
         override val stableId = (kind + id).hashCode().toLong()
     }
@@ -152,7 +153,7 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
                 rows.add(JourneyRow.Entity(
                     h.id, "habit", h.title,
                     "Automatic · weekly check-in · ${stats.repetitions} reps",
-                    com.superflow.R.drawable.ic_star
+                    com.superflow.R.drawable.ic_star, graduated = true
                 ))
             }
         }
@@ -212,6 +213,17 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
 
     fun archiveHabit(id: String) = run("archive_habit", jsonOf("habit" to id))
     fun restoreHabit(id: String) = run("restore_habit", jsonOf("habit" to id))
+
+    /** Persists the drag-and-drop order for the active habits. */
+    fun reorderHabits(ids: List<String>) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val arr = org.json.JSONArray()
+                ids.forEach { arr.put(it) }
+                bus.execute("reorder_habits", jsonOf("ids" to arr), Actor.USER)
+            }
+        }
+    }
 
     fun undoLast() {
         viewModelScope.launch {

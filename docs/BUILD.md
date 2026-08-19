@@ -116,7 +116,7 @@ stub in `android.jar` throws). It is never compiled into the APK.
 | Size | ~7.8 MB, 2 dex |
 | Signatures | v2 + v3 verified |
 | App classes | 343 |
-| Capabilities | 49 |
+| Capabilities | 59 |
 
 ## AAB
 

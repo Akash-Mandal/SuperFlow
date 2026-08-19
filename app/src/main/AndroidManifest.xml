@@ -17,6 +17,9 @@
         </intent>
     </queries>
 
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+
     <application
         android:name=".SuperFlowApp"
         android:allowBackup="true"
@@ -64,6 +67,22 @@
             android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.search.SearchActivity" android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.today.CheckpointActivity" android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.today.PlanTomorrowActivity" android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".AppLockActivity" android:exported="false"
+            android:launchMode="singleTop" android:excludeFromRecents="true" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <provider
             android:name="androidx.startup.InitializationProvider"

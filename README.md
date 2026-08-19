@@ -38,7 +38,7 @@ tools/run_tests.sh           # 169 logic assertions
 | minSdk / targetSdk | 26 / 34 |
 | Size | ~7.5 MB, v2+v3 signed |
 | Stack | Material 3, AppCompat, ConstraintLayout, RecyclerView, Fragment, ViewPager2, ViewModel/LiveData, Coroutines, androidx.sqlite, WorkManager, DataStore, Lottie |
-| Capabilities | 58 registered commands shared by the UI and the AI |
+| Capabilities | 59 registered commands shared by the UI and the AI |
 
 SuperFlow is a full AndroidX application: MVVM with `ViewModel` + `StateFlow`,
 `RecyclerView` + `DiffUtil` lists, Material 3 theming with a complete dark mode,

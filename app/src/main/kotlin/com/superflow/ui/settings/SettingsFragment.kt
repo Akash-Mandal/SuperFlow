@@ -284,6 +284,56 @@ class SettingsFragment : Fragment() {
                     "by export, import, and backup. Nothing is silently left out."
         ))
 
+        // Security
+        container.addView(section("SECURITY"))
+        container.addView(group(buildList {
+            add(toggle("App lock", "Require a PIN or biometrics to open the app.",
+                prefs.appLockEnabled) { on ->
+                prefs.appLockEnabled = on
+                if (on && !prefs.hasAppLockPin()) promptForPin()
+                render()
+            })
+            if (prefs.appLockEnabled) {
+                val biometric = com.superflow.AppLock.biometricAvailable(requireContext())
+                val methodLabels = if (biometric) {
+                    listOf("PIN", "Biometric", "Both")
+                } else {
+                    listOf("PIN")
+                }
+                val methodValues = if (biometric) listOf("pin", "biometric", "both") else listOf("pin")
+                add(action(R.drawable.ic_shield, "Unlock method", methodLabel(prefs.appLockMethod)) {
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("Unlock method")
+                        .setItems(methodLabels.toTypedArray()) { _, which ->
+                            prefs.appLockMethod = methodValues[which]
+                            render()
+                        }.show()
+                })
+                val timeoutOptions = listOf("Immediately", "After 1 minute", "After 5 minutes",
+                    "After 15 minutes", "After 30 minutes")
+                val timeoutValues = listOf(0, 1, 5, 15, 30)
+                add(action(R.drawable.ic_history, "Auto-lock",
+                    timeoutOptions[timeoutValues.indexOf(prefs.appLockTimeout).coerceAtLeast(0)]) {
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("Auto-lock")
+                        .setItems(timeoutOptions.toTypedArray()) { _, which ->
+                            prefs.appLockTimeout = timeoutValues[which]
+                            render()
+                        }.show()
+                })
+                add(action(R.drawable.ic_lock,
+                    if (prefs.hasAppLockPin()) "Change PIN" else "Set PIN",
+                    if (prefs.hasAppLockPin()) "A salted hash is stored, never the PIN"
+                    else "Required before the lock can engage") {
+                    promptForPin()
+                })
+            }
+        }))
+        container.addView(note(
+            "Your PIN is stored only as a salted SHA-256 hash in a separate file that is excluded " +
+                    "from backups and exports — the same protection your API key gets."
+        ))
+
         // Privacy
         container.addView(section("PRIVACY"))
         container.addView(group(listOf(
@@ -386,6 +436,26 @@ class SettingsFragment : Fragment() {
         val wd = weekdayWindow()
         val we = weekendWindow()
         return if (wd == we) wd else "Weekdays $wd · Weekends $we"
+    }
+
+    private fun methodLabel(method: String): String = when (method) {
+        "biometric" -> "Biometric"
+        "both" -> "PIN + biometric"
+        else -> "PIN"
+    }
+
+    private fun promptForPin() {
+        TextInputSheet.show(
+            parentFragmentManager, "Set PIN", "At least 4 digits",
+            subtitle = "You will need it to open the app."
+        ) { pin ->
+            if (!prefs.setPin(pin)) {
+                view?.snack("The PIN needs at least 4 digits")
+            } else {
+                view?.snack("PIN set")
+            }
+            render()
+        }
     }
 
     private fun pickRange(title: String, from: String, to: String,

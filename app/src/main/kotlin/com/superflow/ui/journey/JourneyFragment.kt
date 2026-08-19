@@ -80,6 +80,46 @@ class JourneyFragment : Fragment() {
         list.layoutManager = LinearLayoutManager(requireContext())
         list.adapter = adapter
 
+        // Long-press and drag to reorder habits. Only habit rows are draggable;
+        // headers, tools, identities, goals and systems stay put.
+        val touchHelper = androidx.recyclerview.widget.ItemTouchHelper(
+            object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+                androidx.recyclerview.widget.ItemTouchHelper.UP or
+                        androidx.recyclerview.widget.ItemTouchHelper.DOWN, 0
+            ) {
+                override fun onMove(
+                    rv: RecyclerView,
+                    from: RecyclerView.ViewHolder,
+                    to: RecyclerView.ViewHolder
+                ): Boolean {
+                    val fromPos = from.bindingAdapterPosition
+                    val toPos = to.bindingAdapterPosition
+                    if (fromPos == RecyclerView.NO_POSITION || toPos == RecyclerView.NO_POSITION) return false
+                    if (!adapter.isDraggable(toPos)) return false
+                    adapter.moveItem(fromPos, toPos)
+                    return true
+                }
+
+                override fun onSwiped(vh: RecyclerView.ViewHolder, dir: Int) {}
+
+                override fun isLongPressDragEnabled() = true
+
+                override fun getMovementFlags(
+                    rv: RecyclerView, vh: RecyclerView.ViewHolder
+                ): Int {
+                    val pos = vh.bindingAdapterPosition
+                    return if (adapter.isDraggable(pos)) makeMovementFlags(UP or DOWN, 0) else 0
+                }
+
+                override fun clearView(rv: RecyclerView, vh: RecyclerView.ViewHolder) {
+                    super.clearView(rv, vh)
+                    val order = adapter.orderedHabitIds()
+                    if (order.size > 1) model.reorderHabits(order)
+                }
+            }
+        )
+        touchHelper.attachToRecyclerView(list)
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { model.rows.collect { adapter.submitList(it) } }
@@ -195,6 +235,34 @@ class JourneyAdapter(
     private val onAdd: (String) -> Unit,
     private val onTool: (Int) -> Unit
 ) : ListAdapter<JourneyRow, RecyclerView.ViewHolder>(DIFF) {
+
+    /** Mutable mirror of the submitted list, used for drag reordering. */
+    private var backing: MutableList<JourneyRow> = mutableListOf()
+
+    override fun submitList(list: List<JourneyRow>?) {
+        backing = (list ?: emptyList()).toMutableList()
+        super.submitList(list)
+    }
+
+    fun itemAt(position: Int): JourneyRow = backing.getOrNull(position) ?: JourneyRow.Tools
+
+    /** Moves a row and re-diffs, so the internal list never goes stale. */
+    fun moveItem(from: Int, to: Int) {
+        if (from !in backing.indices || to !in backing.indices || from == to) return
+        val item = backing.removeAt(from)
+        backing.add(to, item)
+        submitList(backing.toList())
+    }
+
+    /** Returns the current habit order after a drag. */
+    fun orderedHabitIds(): List<String> =
+        backing.filter { it is JourneyRow.Entity && it.kind == "habit" && !it.archived && !it.graduated }
+            .map { (it as JourneyRow.Entity).id }
+
+    fun isDraggable(position: Int): Boolean {
+        val row = backing.getOrNull(position) ?: return false
+        return row is JourneyRow.Entity && row.kind == "habit" && !row.archived && !row.graduated
+    }
 
     companion object {
         private const val T_TOOLS = 0

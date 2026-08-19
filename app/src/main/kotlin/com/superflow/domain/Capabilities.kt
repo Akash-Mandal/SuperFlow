@@ -300,6 +300,28 @@ object Capabilities {
             okResult("Duplicated \"${original.title}\"", jsonOf("id" to copy.id), id)
         },
 
+        Capability("reorder_habits", "Persist a new order for the active habits (drag-and-drop)",
+            listOf("ids" to "array of habit ids in the new order"), Risk.LOW) { c ->
+            val arr = c.args.optJSONArray("ids")
+                ?: return@Capability CommandResult.fail("An ordered list of habit ids is required")
+            val ids = (0 until arr.length()).mapNotNull { arr.optString(it).trim().ifBlank { null } }
+            val active = c.repo.habits()
+            val byId = active.associateBy { it.id }
+            // Start from the provided order, then append any active habits not
+            // mentioned so nothing is ever lost from the sequence.
+            val orderedIds = LinkedHashSet<String>()
+            ids.forEach { if (it in byId) orderedIds.add(it) }
+            active.forEach { orderedIds.add(it.id) }
+            val prev = active.associate { it.id to it.orderIndex }
+            var i = 0
+            orderedIds.forEach { id -> byId[id]?.let { c.repo.saveHabit(it.copy(orderIndex = i++)) } }
+            val rows = JSONArray()
+            prev.forEach { (id, order) -> byId[id]?.let { rows.put(Serial.of(it.copy(orderIndex = order))) } }
+            val aid = c.bus.record(c.actor, "reorder_habits", "Reordered $i habits", null,
+                jsonOf("kind" to "restoreRows", "table" to "habit", "rows" to rows), c.groupId)
+            okResult("Order updated", null, aid)
+        },
+
         Capability("reorder_habit", "Move a habit up or down the Today timeline",
             listOf("habit" to "id or title", "direction" to "up|down", "toIndex" to "int"),
             Risk.LOW) { c ->
@@ -862,15 +884,17 @@ object Capabilities {
         Capability("create_review", "Save a weekly, monthly or quarterly review",
             listOf("kind" to "WEEKLY|MONTHLY|QUARTERLY", "whatWorked" to "string",
                 "whatDidnt" to "string", "systemChange" to "string",
-                "identityEvidence" to "string"), Risk.LOW) { c ->
+                "identityEvidence" to "string", "periodLabel" to "string"), Risk.LOW) { c ->
             val kind = runCatching { ReviewKind.valueOf(c.str("kind", "WEEKLY").uppercase()) }
                 .getOrDefault(ReviewKind.WEEKLY)
-            val label = when (kind) {
-                ReviewKind.WEEKLY -> "Week of ${SfTime.shortDay(
-                    SfTime.startOfWeek(c.repo.clock.today()))}"
-                ReviewKind.MONTHLY -> SfTime.monthLabel(c.repo.clock.today())
-                ReviewKind.QUARTERLY ->
-                    "Quarter ending ${SfTime.shortDay(c.repo.clock.today())}"
+            val label = c.str("periodLabel").ifBlank {
+                when (kind) {
+                    ReviewKind.WEEKLY -> "Week of ${SfTime.shortDay(
+                        SfTime.startOfWeek(c.repo.clock.today()))}"
+                    ReviewKind.MONTHLY -> SfTime.monthLabel(c.repo.clock.today())
+                    ReviewKind.QUARTERLY ->
+                        "Quarter ending ${SfTime.shortDay(c.repo.clock.today())}"
+                }
             }
             val r = Review(kind = kind, periodLabel = label, whatWorked = c.str("whatWorked"),
                 whatDidnt = c.str("whatDidnt"), systemChange = c.str("systemChange"),

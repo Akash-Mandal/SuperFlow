@@ -6,7 +6,7 @@ partial, and what is not built.
 
 **Build:** `com.superflow` 2.0.0 · minSdk 26 · targetSdk 34 · ~7.8 MB ·
 v2+v3 signed · 76 AndroidX/Material libraries · 343 app classes ·
-58 capabilities · **169 logic assertions passing**.
+59 capabilities · **169 logic assertions passing**.
 
 ---
 
@@ -174,17 +174,17 @@ the reminder step.
 |---|---|---|
 | 1 | Global search across all entities | Done — `domain/Search.kt` (ranked, fuzzy), `search` capability, `SearchActivity`, toolbar entry on Today + Coach |
 | 2 | Habit templates library | Done — 44 templates across 8 areas, `list_templates`/`apply_template`, Designer picker |
-| 3 | Guided checkpoint screens | Not built — checkpoints still run as cards + text |
-| 4 | Plan Tomorrow flow | Partial — `plan_tomorrow` drafts focus; no guided 4-step energy-aware flow |
+| 3 | Guided checkpoint screens | Done — `CheckpointActivity`: energy, plan, focus picker (morning); progress ring + reflection (evening) |
+| 4 | Plan Tomorrow flow | Done — `PlanTomorrowActivity`: review → focus → energy forecast → confirm |
 | 5 | Pause / Vacation mode | Done — Settings UI with date-range + reason; model/capability pre-existed |
 | 6 | Habit graduation | Done — `Habit.graduated`, schema v4, `Graduation`, `graduate`/`ungraduate`/`upgrade`/`status` capabilities, Maintenance section, detail UI |
 | 7 | Smart notification actions | Already done — Done/Tiny/Skip actions on habit reminders |
 | 8 | Weekly summary notification | Done — `WeeklySummaryWorker`, `weekly_summary` channel, Settings day/time |
-| 9 | App lock (PIN + biometric) | Not built |
+| 9 | App lock (PIN + biometric) | Done — `AppLockActivity` (framework `BiometricPrompt` on API 28+, PIN fallback), salted SHA-256 PIN in the secrets file, timeout settings |
 | 10 | Auto-backup | Done — `BackupWorker` + schedule; data-management UI pre-existed |
-| 11 | Drag-and-drop reordering | Not built — `reorder_habit` capability exists; no drag UI |
+| 11 | Drag-and-drop reordering | Done — `reorder_habits` capability + `ItemTouchHelper` long-press drag in Journey |
 | 12 | Duplicate habit | Done — `duplicate_habit` capability + detail-screen button |
-| 13 | Share progress as image | Not built |
+| 13 | Share progress as image | Done — `ShareCard` (1080×1350 canvas card) + FileProvider share + MediaStore save on API 29+ |
 | 14 | Quiet hours per day | Done — weekday/weekend windows, fire-time enforcement |
 | 15 | Notification channels (7) | Done — habits, checkpoints, reviews, milestones, ai_suggestions, weekly_summary, backup |
 | 16 | Fuzzy habit search | Done — Levenshtein fallback in `Repository.findHabit` |

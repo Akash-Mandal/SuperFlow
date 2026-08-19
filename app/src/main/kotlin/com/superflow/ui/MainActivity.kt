@@ -92,6 +92,14 @@ class MainActivity : AppCompatActivity() {
         com.superflow.Shortcuts.update(this)
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (::prefs.isInitialized && prefs.onboarded &&
+            com.superflow.AppLock.shouldLock(prefs)) {
+            startActivity(Intent(this, com.superflow.AppLockActivity::class.java))
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
