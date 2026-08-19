@@ -29,7 +29,7 @@ The app is **built and shipping as a signed APK**, on real Android architecture.
 
 ```bash
 tools/build_apk.sh release   # -> build/outputs/superflow-release.apk
-tools/run_tests.sh           # 143 logic assertions
+tools/run_tests.sh           # 169 logic assertions
 ```
 
 | | |
@@ -38,7 +38,7 @@ tools/run_tests.sh           # 143 logic assertions
 | minSdk / targetSdk | 26 / 34 |
 | Size | ~7.5 MB, v2+v3 signed |
 | Stack | Material 3, AppCompat, ConstraintLayout, RecyclerView, Fragment, ViewPager2, ViewModel/LiveData, Coroutines, androidx.sqlite, WorkManager, DataStore, Lottie |
-| Capabilities | 49 registered commands shared by the UI and the AI |
+| Capabilities | 58 registered commands shared by the UI and the AI |
 
 SuperFlow is a full AndroidX application: MVVM with `ViewModel` + `StateFlow`,
 `RecyclerView` + `DiffUtil` lists, Material 3 theming with a complete dark mode,

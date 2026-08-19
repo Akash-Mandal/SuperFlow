@@ -6,7 +6,7 @@ partial, and what is not built.
 
 **Build:** `com.superflow` 2.0.0 · minSdk 26 · targetSdk 34 · ~7.8 MB ·
 v2+v3 signed · 76 AndroidX/Material libraries · 343 app classes ·
-49 capabilities · **143 logic assertions passing**.
+58 capabilities · **169 logic assertions passing**.
 
 ---
 
@@ -165,6 +165,38 @@ the reminder step.
 | Real Material components | Done — this was the headline gap |
 
 ---
+
+## Alpha2 upgrade
+
+`docs/ALPHA2_UPGRADE_PLAN.md` lists 20 new features. Their status:
+
+| # | Feature | Status |
+|---|---|---|
+| 1 | Global search across all entities | Done — `domain/Search.kt` (ranked, fuzzy), `search` capability, `SearchActivity`, toolbar entry on Today + Coach |
+| 2 | Habit templates library | Done — 44 templates across 8 areas, `list_templates`/`apply_template`, Designer picker |
+| 3 | Guided checkpoint screens | Not built — checkpoints still run as cards + text |
+| 4 | Plan Tomorrow flow | Partial — `plan_tomorrow` drafts focus; no guided 4-step energy-aware flow |
+| 5 | Pause / Vacation mode | Done — Settings UI with date-range + reason; model/capability pre-existed |
+| 6 | Habit graduation | Done — `Habit.graduated`, schema v4, `Graduation`, `graduate`/`ungraduate`/`upgrade`/`status` capabilities, Maintenance section, detail UI |
+| 7 | Smart notification actions | Already done — Done/Tiny/Skip actions on habit reminders |
+| 8 | Weekly summary notification | Done — `WeeklySummaryWorker`, `weekly_summary` channel, Settings day/time |
+| 9 | App lock (PIN + biometric) | Not built |
+| 10 | Auto-backup | Done — `BackupWorker` + schedule; data-management UI pre-existed |
+| 11 | Drag-and-drop reordering | Not built — `reorder_habit` capability exists; no drag UI |
+| 12 | Duplicate habit | Done — `duplicate_habit` capability + detail-screen button |
+| 13 | Share progress as image | Not built |
+| 14 | Quiet hours per day | Done — weekday/weekend windows, fire-time enforcement |
+| 15 | Notification channels (7) | Done — habits, checkpoints, reviews, milestones, ai_suggestions, weekly_summary, backup |
+| 16 | Fuzzy habit search | Done — Levenshtein fallback in `Repository.findHabit` |
+| 17 | Data integrity diagnostics | Done — shared `Diagnostics` + `check_integrity`/`fix_integrity` capabilities; UI delegates to it |
+| 18 | RTL layout support | Already done — `supportsRtl`, start/end everywhere |
+| 19 | Locale-aware date formatting | Already done — `SfTime` takes a `Locale` throughout |
+| 20 | Dynamic app shortcuts | Done — `Shortcuts.update` (top-3 check-ins + Blueprint) |
+
+Domain changes are covered by the new `Alpha2Test` suite (26 assertions). As with
+the rest of the app, the APK has not been executed on a device in this
+environment — the framework-independent logic is unit-tested, but runtime
+behaviour of the new screens and workers is unverified.
 
 ## Partial
 

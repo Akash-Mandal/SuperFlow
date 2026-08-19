@@ -89,7 +89,7 @@ is what those libraries' own code links against.
 tools/run_tests.sh
 ```
 
-143 assertions across four suites:
+169 assertions across five suites:
 
 - **CoreTest** (62) — injected clock, DST gaps and overlaps, leap days, locale
   week starts, every recurrence form, and the opportunity engine: planned skips
@@ -101,6 +101,8 @@ tools/run_tests.sh
   fenced, prose-wrapped, nested and escaped model output.
 - **AiTest** (33) — natural-language habit parsing, prompt-injection detection,
   Blueprint extraction with citations, conflicts and coverage.
+- **Alpha2Test** (26) — Levenshtein distance, global-search relevance scoring,
+  graduation rules, and the habit template catalog.
 
 `tools/test/JsonShim.kt` supplies a real `org.json` for the desktop JVM (the
 stub in `android.jar` throws). It is never compiled into the APK.
