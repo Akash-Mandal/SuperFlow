@@ -79,6 +79,11 @@ class Prefs private constructor(context: Context) {
         get() = bool("remindersEnabled", true)
         set(v) = setBool("remindersEnabled", v)
 
+    /** The POST_NOTIFICATIONS prompt is offered at most once per install. */
+    var notifPermissionAsked: Boolean
+        get() = bool("notifPermissionAsked", false)
+        set(v) = setBool("notifPermissionAsked", v)
+
     var quietFrom: String
         get() = str("quietFrom", "22:00")
         set(v) = setStr("quietFrom", v)
