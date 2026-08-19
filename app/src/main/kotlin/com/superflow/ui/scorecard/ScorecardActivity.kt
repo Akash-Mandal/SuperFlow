@@ -61,12 +61,58 @@ class ScorecardActivity : ScrollActivity() {
                     else -> "Neutral for now."
                 }
                 card.setOnLongClickListener {
-                    exec("delete_scorecard_entry", jsonOf("id" to e.id)); true
+                    com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                        .setTitle(e.routine)
+                        .setItems(arrayOf("Re-score", "Delete")) { _, which ->
+                            when (which) {
+                                0 -> rescore(e.id)
+                                1 -> exec("delete_scorecard_entry", jsonOf("id" to e.id))
+                            }
+                        }.show(); true
+                }
+                // Scorecard -> action pipeline (§12)
+                val holder = card.findViewById<TextView>(R.id.text_title).parent as LinearLayout
+                if (verdict == -1) {
+                    holder.addView(MaterialButton(this, null,
+                        com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                        text = "Turn into a Reduce habit"
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).also { it.topMargin = dpi(8) }
+                        setOnClickListener {
+                            exec("convert_scorecard_to_habit",
+                                jsonOf("id" to e.id, "mode" to "REDUCE"))
+                        }
+                    })
+                } else if (verdict == 1) {
+                    holder.addView(MaterialButton(this, null,
+                        com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                        text = "Protect it with a habit"
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).also { it.topMargin = dpi(8) }
+                        setOnClickListener {
+                            exec("convert_scorecard_to_habit",
+                                jsonOf("id" to e.id, "mode" to "BUILD"))
+                        }
+                    })
                 }
                 content.addView(card)
             }
         }
-        content.addView(textCard("Tip", "Long-press a routine to remove it."))
+        content.addView(textCard("Tip", "Long-press a routine to re-score or remove it."))
+    }
+
+    /** Periodic re-score (§12): the verdict can change as routines change. */
+    private fun rescore(entryId: String) {
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle("Re-score")
+            .setItems(arrayOf("Helpful", "Neutral", "Unhelpful")) { _, which ->
+                val verdict = listOf(1, 0, -1)[which]
+                exec("rescore_scorecard", jsonOf("id" to entryId, "verdict" to verdict))
+            }.show()
     }
 
     private fun addRoutine() {

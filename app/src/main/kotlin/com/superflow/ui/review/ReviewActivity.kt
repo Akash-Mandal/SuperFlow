@@ -50,13 +50,30 @@ class ReviewActivity : ScrollActivity() {
         }
         content.addView(chips)
 
-        val days = when (kind) {
-            ReviewKind.WEEKLY -> 7
-            ReviewKind.MONTHLY -> 30
-            ReviewKind.QUARTERLY -> 90
-        }
         content.addView(section("WHAT THE DATA SAYS"))
-        content.addView(textCard("Last $days days", Insights.summaryText(repo, days)))
+        content.addView(textCard("Pre-filled from your real activity", Insights.reviewData(repo, kind)))
+
+        // Previous review's open action items (§9): decide before writing a new one.
+        val previous = repo.reviews().firstOrNull()
+        val openActions = previous?.actionItems?.filter { !it.completed }
+        if (openActions != null && openActions.isNotEmpty()) {
+            content.addView(section("DID LAST REVIEW LAND?"))
+            for (item in openActions) {
+                val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
+                card.findViewById<TextView>(R.id.text_title).text = item.text
+                card.findViewById<TextView>(R.id.text_body).text =
+                    "Decided ${previous.periodLabel}. Mark it done if it happened."
+                card.setOnClickListener {
+                    bus.execute("complete_review_action", jsonOf(
+                        "reviewId" to previous.id, "itemId" to item.id,
+                        "outcome" to "Did it, worked"
+                    ), Actor.USER)
+                    findViewById<View>(R.id.root).snack("Action item marked done")
+                    rebuild()
+                }
+                content.addView(card)
+            }
+        }
 
         content.addView(section("SUGGESTIONS"))
         val stats = Insights.allStats(repo)
@@ -97,13 +114,23 @@ class ReviewActivity : ScrollActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).also { it.topMargin = dpi(8) }
             setOnClickListener {
+                val change = answers["systemChange"].orEmpty().trim()
                 val res = bus.execute("create_review", jsonOf(
                     "kind" to kind.name,
                     "whatWorked" to answers["whatWorked"].orEmpty(),
                     "whatDidnt" to answers["whatDidnt"].orEmpty(),
-                    "systemChange" to answers["systemChange"].orEmpty(),
+                    "systemChange" to change,
                     "identityEvidence" to answers["identityEvidence"].orEmpty()
                 ), Actor.USER)
+                // Review -> action pipeline (§9): a stated change becomes a tracked item.
+                if (res.ok && change.isNotEmpty()) {
+                    val id = res.data?.optString("id")
+                    if (id != null) {
+                        bus.execute("add_review_action_item", jsonOf(
+                            "reviewId" to id, "text" to change
+                        ), Actor.USER)
+                    }
+                }
                 findViewById<View>(R.id.root).snack(res.message)
                 if (res.ok) { answers.clear(); rebuild() }
             }
@@ -121,6 +148,10 @@ class ReviewActivity : ScrollActivity() {
                 if (r.whatDidnt.isNotBlank()) append("In the way: ${r.whatDidnt}\n")
                 if (r.systemChange.isNotBlank()) append("Changed: ${r.systemChange}\n")
                 if (r.identityEvidence.isNotBlank()) append("Evidence: ${r.identityEvidence}\n")
+                val doneActions = r.actionItems.count { it.completed }
+                if (r.actionItems.isNotEmpty()) {
+                    append("Actions: $doneActions/${r.actionItems.size} done\n")
+                }
                 append(Dates.stamp(r.createdAt))
             }
             card.setOnLongClickListener {
