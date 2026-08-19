@@ -46,6 +46,8 @@ class Prefs private constructor(context: Context) {
     private fun setStr(key: String, v: String) { p.edit().putString(key, v).apply(); bump() }
     private fun num(key: String, def: Int) = p.getInt(key, def)
     private fun setNum(key: String, v: Int) { p.edit().putInt(key, v).apply(); bump() }
+    private fun floatNum(key: String, def: Float) = p.getFloat(key, def)
+    private fun setFloatNum(key: String, v: Float) { p.edit().putFloat(key, v).apply(); bump() }
 
     /* ------------------------------------------------------------- general */
 
@@ -153,6 +155,8 @@ class Prefs private constructor(context: Context) {
         get() = bool("voiceEnabled", true)
         set(v) = setBool("voiceEnabled", v)
 
+    /* ---- Provider ---- */
+
     var providerName: String
         get() = str("providerName", "Custom OpenAI-compatible")
         set(v) = setStr("providerName", v)
@@ -161,33 +165,137 @@ class Prefs private constructor(context: Context) {
         get() = str("baseUrl", "")
         set(v) = setStr("baseUrl", v)
 
+    var fallbackUrl: String
+        get() = str("fallbackUrl", "")
+        set(v) = setStr("fallbackUrl", v)
+
     var model: String
-        get() = str("model", "gpt-4o-mini")
+        get() = str("model", "gpt-4o")
         set(v) = setStr("model", v)
 
+    var organizationId: String
+        get() = str("organizationId", "")
+        set(v) = setStr("organizationId", v)
+
+    var customHeaders: String
+        get() = str("customHeaders", "")
+        set(v) = setStr("customHeaders", v)
+
+    /* ---- Generation parameters (all freely customizable) ---- */
+
+    /** Temperature × 100 (so 70 = 0.70). Default 0.70. Range 0–200. */
     var temperature: Int
-        get() = num("temperature", 20)
-        set(v) = setNum("temperature", v)
+        get() = num("temperature", 70)
+        set(v) = setNum("temperature", v.coerceIn(0, 200))
 
+    /** Top-p (nucleus sampling) × 100. Default 100 = 1.0 (disabled). Range 0–100. */
+    var topP: Int
+        get() = num("topP", 100)
+        set(v) = setNum("topP", v.coerceIn(0, 100))
+
+    /** Maximum output tokens. Default 4096. Range 64–131072. */
     var maxTokens: Int
-        get() = num("maxTokens", 1200)
-        set(v) = setNum("maxTokens", v)
+        get() = num("maxTokens", 4096)
+        set(v) = setNum("maxTokens", v.coerceIn(64, 131_072))
 
+    /** Frequency penalty × 100. Default 0. Range -200 to 200. */
+    var frequencyPenalty: Int
+        get() = num("freqPenalty", 0)
+        set(v) = setNum("freqPenalty", v.coerceIn(-200, 200))
+
+    /** Presence penalty × 100. Default 0. Range -200 to 200. */
+    var presencePenalty: Int
+        get() = num("presPenalty", 0)
+        set(v) = setNum("presPenalty", v.coerceIn(-200, 200))
+
+    /** Seed for reproducible outputs. -1 = random (default). */
+    var seed: Int
+        get() = num("seed", -1)
+        set(v) = setNum("seed", v)
+
+    /** Stop sequences, comma-separated. Empty = none. */
+    var stopSequences: String
+        get() = str("stopSequences", "")
+        set(v) = setStr("stopSequences", v)
+
+    /** Response format: "auto", "json", "text". */
+    var responseFormat: String
+        get() = str("responseFormat", "auto")
+        set(v) = setStr("responseFormat", v)
+
+    /** Request timeout in seconds. Default 120. Range 5–900. */
     var requestTimeoutSec: Int
-        get() = num("timeoutSec", 60)
-        set(v) = setNum("timeoutSec", v)
+        get() = num("timeoutSec", 120)
+        set(v) = setNum("timeoutSec", v.coerceIn(5, 900))
+
+    /** Number of retries on transient failure. Default 2. Range 0–5. */
+    var retryCount: Int
+        get() = num("retryCount", 2)
+        set(v) = setNum("retryCount", v.coerceIn(0, 5))
+
+    /** Max conversation history messages sent to the model. Default 20. Range 2–100. */
+    var conversationHistoryLimit: Int
+        get() = num("convHistoryLimit", 20)
+        set(v) = setNum("convHistoryLimit", v.coerceIn(2, 100))
+
+    /** Max context characters sent in the system prompt. Default 12000. Range 1000–80000. */
+    var maxContextChars: Int
+        get() = num("maxCtxChars", 12000)
+        set(v) = setNum("maxCtxChars", v.coerceIn(1_000, 80_000))
+
+    /** Enable streaming responses (where supported). */
+    var streamingEnabled: Boolean
+        get() = bool("streaming", false)
+        set(v) = setBool("streaming", v)
+
+    /** Log requests and responses for debugging. */
+    var requestLoggingEnabled: Boolean
+        get() = bool("reqLogging", false)
+        set(v) = setBool("reqLogging", v)
+
+    /** Custom system prompt override. Empty = use the built-in prompt. */
+    var customSystemPrompt: String
+        get() = str("customSysPrompt", "")
+        set(v) = setStr("customSysPrompt", v)
+
+    /** Append extra instructions to every system prompt. */
+    var systemPromptSuffix: String
+        get() = str("sysPromptSuffix", "")
+        set(v) = setStr("sysPromptSuffix", v)
+
+    /* ---- Budget ---- */
 
     var unlimitedBudget: Boolean
         get() = bool("unlimitedBudget", false)
         set(v) = setBool("unlimitedBudget", v)
 
     var monthlyCallBudget: Int
-        get() = num("monthlyCallBudget", 500)
-        set(v) = setNum("monthlyCallBudget", v)
+        get() = num("monthlyCallBudget", 5000)
+        set(v) = setNum("monthlyCallBudget", v.coerceAtLeast(1))
 
     var callsThisMonth: Int
         get() = num("callsThisMonth", 0)
         set(v) = setNum("callsThisMonth", v)
+
+    /** Monthly token budget (input + output). 0 = unlimited. */
+    var monthlyTokenBudget: Int
+        get() = num("monthlyTokenBudget", 0)
+        set(v) = setNum("monthlyTokenBudget", v.coerceAtLeast(0))
+
+    var tokensThisMonth: Int
+        get() = num("tokensThisMonth", 0)
+        set(v) = setNum("tokensThisMonth", v)
+
+    /** Monthly cost budget in cents. 0 = unlimited. */
+    var monthlyCostBudgetCents: Int
+        get() = num("monthlyCostCents", 0)
+        set(v) = setNum("monthlyCostCents", v.coerceAtLeast(0))
+
+    var costThisMonthCents: Int
+        get() = num("costThisMonthCents", 0)
+        set(v) = setNum("costThisMonthCents", v)
+
+    /* ---- Context ---- */
 
     var contextIncludeHabits: Boolean
         get() = bool("ctxHabits", true)
@@ -201,6 +309,22 @@ class Prefs private constructor(context: Context) {
         get() = bool("ctxMemory", true)
         set(v) = setBool("ctxMemory", v)
 
+    var contextIncludeCheckIns: Boolean
+        get() = bool("ctxCheckIns", true)
+        set(v) = setBool("ctxCheckIns", v)
+
+    var contextIncludeReviews: Boolean
+        get() = bool("ctxReviews", false)
+        set(v) = setBool("ctxReviews", v)
+
+    var contextIncludeObstacles: Boolean
+        get() = bool("ctxObstacles", false)
+        set(v) = setBool("ctxObstacles", v)
+
+    var contextIncludeFlows: Boolean
+        get() = bool("ctxFlows", false)
+        set(v) = setBool("ctxFlows", v)
+
     var memoryNotes: String
         get() = str("memoryNotes", "")
         set(v) = setStr("memoryNotes", v)
@@ -209,6 +333,68 @@ class Prefs private constructor(context: Context) {
     var blueprintCloudRefine: Boolean
         get() = bool("bpCloudRefine", true)
         set(v) = setBool("bpCloudRefine", v)
+
+    /* ---- Voice / TTS / STT ---- */
+
+    var ttsEnabled: Boolean
+        get() = bool("ttsEnabled", false)
+        set(v) = setBool("ttsEnabled", v)
+
+    var ttsSpeechRate: Int
+        get() = num("ttsSpeechRate", 90)     // ×100, so 90 = 0.9×
+        set(v) = setNum("ttsSpeechRate", v.coerceIn(50, 200))
+
+    var ttsPitch: Int
+        get() = num("ttsPitch", 100)         // ×100
+        set(v) = setNum("ttsPitch", v.coerceIn(50, 200))
+
+    var sttProvider: String
+        get() = str("sttProvider", "platform")
+        set(v) = setStr("sttProvider", v)
+
+    var proactiveAi: Boolean
+        get() = bool("proactiveAi", true)
+        set(v) = setBool("proactiveAi", v)
+
+    var proactiveNotifications: Boolean
+        get() = bool("proactiveNotif", true)
+        set(v) = setBool("proactiveNotif", v)
+
+    /* ---- Data management ---- */
+
+    var autoBackupEnabled: Boolean
+        get() = bool("autoBackup", false)
+        set(v) = setBool("autoBackup", v)
+
+    var autoBackupFrequency: String
+        get() = str("autoBackupFreq", "daily")
+        set(v) = setStr("autoBackupFreq", v)
+
+    var maxBackups: Int
+        get() = num("maxBackups", 7)
+        set(v) = setNum("maxBackups", v.coerceIn(1, 30))
+
+    /* ---- AI mode ---- */
+
+    /** AI setup complexity: "default", "intermediate", or "advanced". */
+    var aiSetupMode: String
+        get() = str("aiSetupMode", "default")
+        set(v) = setStr("aiSetupMode", v)
+
+    /** Legacy compatibility — maps old boolean to new tri-state. */
+    var aiAdvancedMode: Boolean
+        get() = aiSetupMode == "advanced"
+        set(v) { aiSetupMode = if (v) "advanced" else "default" }
+
+    /* ---- AI instructions & memory ---- */
+
+    var aiInstructions: String
+        get() = str("aiInstructions", "")
+        set(v) = setStr("aiInstructions", v)
+
+    var aiLocalMemory: String
+        get() = str("aiLocalMemory", "")
+        set(v) = setStr("aiLocalMemory", v)
 
     /* ------------------------------------------------------------- secrets */
 

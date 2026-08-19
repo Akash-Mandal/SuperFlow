@@ -91,9 +91,9 @@ class Agent private constructor(context: Context) {
         if (prefs.cloudReady() && !stopped.get()) {
             val system = MainBrain.systemPrompt(prefs) + "\n\nCurrent app state:\n" +
                     MainBrain.buildContext(bus.repo, prefs)
-            val history = bus.repo.messages(30)
+            val history = bus.repo.messages(prefs.conversationHistoryLimit * 2)
                 .filter { it.role == "user" || it.role == "assistant" }
-                .takeLast(8)
+                .takeLast(prefs.conversationHistoryLimit)
                 .map { it.role to it.text }
             val reply = MainBrain.chat(prefs, system, history, userText)
             if (reply.ok) return interpretCloud(reply.text)

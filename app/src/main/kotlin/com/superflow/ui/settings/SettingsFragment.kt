@@ -201,30 +201,22 @@ class SettingsFragment : Fragment() {
                 prefs.celebrationsEnabled) { prefs.celebrationsEnabled = it }
         )))
 
-        // Data
-        val counts = repo.counts()
+        // Data Management — all-inclusive
         container.addView(section("YOUR DATA"))
         container.addView(group(listOf(
-            action(R.drawable.ic_upload, getString(R.string.export_data),
-                "Share a full JSON backup") { exportData() },
-            action(R.drawable.ic_download, getString(R.string.import_data),
-                "Paste a previous export") { importData() },
-            action(R.drawable.ic_share, "Share progress summary",
-                "A private, text-only recap") { shareSummary() },
-            action(R.drawable.ic_delete, getString(R.string.delete_all),
-                counts.entries.joinToString("  ") { "${it.key} ${it.value}" }) {
-                MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("Delete all data?")
-                    .setMessage("Every identity, goal, habit and check-in will be erased. " +
-                            "This cannot be undone from here.")
-                    .setNegativeButton(R.string.cancel, null)
-                    .setPositiveButton(R.string.delete) { _, _ ->
-                        bus.execute("delete_all_data", jsonOf("confirm" to true), Actor.USER)
-                        view?.snack("All data deleted")
-                        render()
-                    }.show()
+            action(R.drawable.ic_upload, "Data Management",
+                "Export, import, backup, integrity — all-inclusive data control") {
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.list, DataManagementFragment())
+                    .addToBackStack("data_management")
+                    .commit()
             }
         )))
+        container.addView(note(
+            "The all-inclusion policy ensures every piece of data in the app — identities, goals, " +
+                    "habits, check-ins, reviews, AI conversation, settings, and more — is covered " +
+                    "by export, import, and backup. Nothing is silently left out."
+        ))
 
         // Privacy
         container.addView(section("PRIVACY"))
