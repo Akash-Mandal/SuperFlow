@@ -10,11 +10,8 @@ import com.superflow.core.time.SuperFlowClock
 import com.superflow.core.time.SystemClock
 import com.superflow.data.db.*
 import com.superflow.data.model.*
-import java.time.LocalDate
-import java.time.ZoneId
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import com.superflow.util.jsonArrayOfStrings
+import com.superflow.util.jsonArrayFromObjects
 
 /**
  * Single repository over the database.
@@ -78,7 +75,17 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
 
     fun saveIdentity(i: Identity) = insert("identity", contentValuesOf(
         "id" to i.id, "statement" to i.statement, "lifeArea" to i.lifeArea.name,
-        "status" to i.status.name, "createdAt" to i.createdAt
+        "status" to i.status.name, "isPrimary" to i.isPrimary,
+        "evolutionHistory" to jsonArrayFromObjects(i.evolutionHistory.map { ev ->
+            org.json.JSONObject().apply {
+                put("previousStatement", ev.previousStatement)
+                put("newStatement", ev.newStatement)
+                put("reason", ev.reason)
+                put("votesAtEvolution", ev.votesAtEvolution)
+                put("date", ev.date)
+            }
+        }),
+        "createdAt" to i.createdAt
     ))
 
     fun deleteIdentity(id: String) = delete("identity", "id=?", arrayOf(id))
@@ -94,7 +101,20 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     fun saveGoal(g: Goal) = insert("goal", contentValuesOf(
         "id" to g.id, "identityId" to g.identityId, "title" to g.title, "why" to g.why,
         "outcomeMetric" to g.outcomeMetric, "targetValue" to g.targetValue,
-        "targetDate" to g.targetDate, "status" to g.status.name, "createdAt" to g.createdAt
+        "targetDate" to g.targetDate, "currentMetricValue" to g.currentMetricValue,
+        "metricUnit" to g.metricUnit, "status" to g.status.name,
+        "milestones" to jsonArrayFromObjects(g.milestones.map { m ->
+            org.json.JSONObject().apply {
+                put("id", m.id)
+                put("title", m.title)
+                put("achieved", m.achieved)
+                put("achievedDate", m.achievedDate)
+                put("linkedHabitIds", org.json.JSONArray().apply {
+                    m.linkedHabitIds.forEach { put(it) }
+                })
+            }
+        }),
+        "createdAt" to g.createdAt
     ))
 
     fun deleteGoal(id: String) = delete("goal", "id=?", arrayOf(id))
@@ -109,7 +129,8 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
 
     fun saveSystem(s: Sys) = insert("sys", contentValuesOf(
         "id" to s.id, "goalId" to s.goalId, "title" to s.title, "description" to s.description,
-        "status" to s.status.name, "createdAt" to s.createdAt
+        "status" to s.status.name, "templateId" to s.templateId,
+        "reviewFrequency" to s.reviewFrequency, "createdAt" to s.createdAt
     ))
 
     fun deleteSystem(id: String) = delete("sys", "id=?", arrayOf(id))
@@ -150,8 +171,25 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         "recurrenceRule" to h.recurrenceRule, "scheduleVersion" to h.scheduleVersion,
         "startDate" to h.startDate, "endDate" to h.endDate,
         "reminderEnabled" to h.reminderEnabled,
-        "protectedRoutine" to h.protectedRoutine, "colorSeed" to h.colorSeed,
-        "orderIndex" to h.orderIndex, "status" to h.status.name, "createdAt" to h.createdAt
+        "protectedRoutine" to h.protectedRoutine,
+        "rewardSatisfaction" to h.rewardSatisfaction, "rewardLastRated" to h.rewardLastRated,
+        "reframeHelpful" to h.reframeHelpful, "bundleEffectiveness" to h.bundleEffectiveness,
+        "frictionPlanActive" to h.frictionPlanActive,
+        "environmentPrepReminderTime" to h.environmentPrepReminderTime,
+        "ladderHistory" to jsonArrayFromObjects(h.ladderHistory.map { l ->
+            org.json.JSONObject().apply {
+                put("level", l.level.name)
+                put("previousText", l.previousText)
+                put("newText", l.newText)
+                put("reason", l.reason)
+                put("date", l.date)
+            }
+        }),
+        "lastDifficultyRating" to h.lastDifficultyRating,
+        "stretchCount" to h.stretchCount, "consecutiveStandards" to h.consecutiveStandards,
+        "estimatedMinutes" to h.estimatedMinutes, "difficultyRating" to h.difficultyRating,
+        "colorSeed" to h.colorSeed, "orderIndex" to h.orderIndex,
+        "status" to h.status.name, "createdAt" to h.createdAt
     ))
 
     fun deleteHabit(id: String) {
@@ -225,6 +263,12 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         insert("checkin", contentValuesOf(
             "id" to ci.id, "habitId" to ci.habitId, "date" to ci.date, "result" to ci.result.name,
             "level" to ci.level.name, "amount" to ci.amount, "note" to ci.note,
+            "contextTags" to jsonArrayOfStrings(ci.contextTags),
+            "actualAmount" to ci.actualAmount,
+            "actualDurationMinutes" to ci.actualDurationMinutes,
+            "qualityRating" to ci.qualityRating,
+            "difficultyRating" to ci.difficultyRating,
+            "missReason" to ci.missReason, "missReasonDetail" to ci.missReasonDetail,
             "createdAt" to ci.createdAt
         ))
     }
@@ -242,7 +286,9 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
 
     fun saveFocus(f: FocusItem) = insert("focus", contentValuesOf(
         "id" to f.id, "date" to f.date, "habitId" to f.habitId, "title" to f.title,
-        "done" to f.done, "orderIndex" to f.orderIndex
+        "done" to f.done, "isPriority" to f.isPriority, "goalId" to f.goalId,
+        "estimatedMinutes" to f.estimatedMinutes, "carryOverCount" to f.carryOverCount,
+        "orderIndex" to f.orderIndex
     ))
 
     fun deleteFocus(id: String) = delete("focus", "id=?", arrayOf(id))
@@ -258,7 +304,9 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
 
     fun saveObstacle(o: ObstaclePlan) = insert("obstacle", contentValuesOf(
         "id" to o.id, "habitId" to o.habitId, "ifText" to o.ifText,
-        "thenText" to o.thenText, "createdAt" to o.createdAt
+        "thenText" to o.thenText, "category" to o.category,
+        "timesUsed" to o.timesUsed, "lastUsed" to o.lastUsed,
+        "effectiveness" to o.effectiveness, "createdAt" to o.createdAt
     ))
 
     fun deleteObstacle(id: String) = delete("obstacle", "id=?", arrayOf(id))
@@ -280,7 +328,9 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     fun flows(): List<Flow> = query("SELECT * FROM flow ORDER BY createdAt").mapAll(Rows::flow)
 
     fun saveFlow(f: Flow) = insert("flow", contentValuesOf(
-        "id" to f.id, "title" to f.title, "anchor" to f.anchor, "createdAt" to f.createdAt
+        "id" to f.id, "title" to f.title, "anchor" to f.anchor,
+        "estimatedMinutes" to f.estimatedMinutes, "completionCount" to f.completionCount,
+        "partialCount" to f.partialCount, "createdAt" to f.createdAt
     ))
 
     fun deleteFlow(id: String) {
@@ -295,7 +345,8 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
 
     fun saveFlowStep(s: FlowStep) = insert("flowstep", contentValuesOf(
         "id" to s.id, "flowId" to s.flowId, "habitId" to s.habitId, "title" to s.title,
-        "existingBehaviour" to s.existingBehaviour, "orderIndex" to s.orderIndex
+        "existingBehaviour" to s.existingBehaviour, "durationMinutes" to s.durationMinutes,
+        "isBreakpoint" to s.isBreakpoint, "orderIndex" to s.orderIndex
     ))
 
     fun deleteFlowStep(id: String) = delete("flowstep", "id=?", arrayOf(id))
@@ -308,7 +359,19 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     fun saveReview(r: Review) = insert("review", contentValuesOf(
         "id" to r.id, "kind" to r.kind.name, "periodLabel" to r.periodLabel,
         "whatWorked" to r.whatWorked, "whatDidnt" to r.whatDidnt, "systemChange" to r.systemChange,
-        "identityEvidence" to r.identityEvidence, "createdAt" to r.createdAt
+        "identityEvidence" to r.identityEvidence, "autoGeneratedData" to r.autoGeneratedData,
+        "actionItems" to jsonArrayFromObjects(r.actionItems.map { ai ->
+            org.json.JSONObject().apply {
+                put("id", ai.id)
+                put("text", ai.text)
+                put("completed", ai.completed)
+                put("completedDate", ai.completedDate)
+                put("linkedCommand", ai.linkedCommand)
+                put("outcome", ai.outcome)
+            }
+        }),
+        "previousReviewId" to r.previousReviewId,
+        "createdAt" to r.createdAt
     ))
 
     fun deleteReview(id: String) = delete("review", "id=?", arrayOf(id))

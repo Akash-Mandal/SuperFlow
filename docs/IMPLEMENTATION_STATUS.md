@@ -5,8 +5,8 @@ this repository. This document records honestly what is implemented, what is
 partial, and what is not built.
 
 **Build:** `com.superflow` 2.0.0 · minSdk 26 · targetSdk 34 · ~7.8 MB ·
-v2+v3 signed · 76 AndroidX/Material libraries · 343 app classes ·
-49 capabilities · **143 logic assertions passing**.
+v2+v3 signed · 76 AndroidX/Material libraries · 355 app classes ·
+61 capabilities · **143 logic assertions passing**.
 
 ---
 
@@ -163,6 +163,34 @@ the reminder step.
 | Cloud refinement of the ledger | Done — bounded, only known safe commands accepted |
 | App shortcuts / deep links | Done |
 | Real Material components | Done — this was the headline gap |
+
+---
+
+### Core Growth Systems Upgrade (Wave 1 — Data Layer Complete)
+
+The [Core Growth Systems Upgrade Plan](CORE_GROWTH_SYSTEMS_UPGRADE_PLAN.md) data model is fully implemented:
+
+| System | Status | New Commands |
+|--------|--------|-------------|
+| Identity → Living (§1) | Data model + serialization + capabilities | `evolve_identity`, `add_identity_evidence` |
+| Goals → Measurable (§2) | Data model + serialization + capabilities | `add_goal_milestone`, `complete_goal_milestone`, `update_goal_metric` |
+| Systems → Healthy (§3) | Data model + serialization | — |
+| Four Laws → Living Tools (§4) | Data model + serialization + capabilities | `rate_reward`, `rate_reframe`, `rate_bundle`, `update_four_laws` |
+| Ladder → Adaptive (§5) | Data model + serialization + capabilities | `evolve_ladder` |
+| Check-In → Rich Data (§7) | Data model + serialization | `rate_checkin_difficulty`, `rate_checkin_quality`, `record_miss_reason` (TBD in Capabilities) |
+| Recovery → Preventive (§8) | Data model + serialization | `record_miss_reason` (TBD in Capabilities) |
+| Reviews → Data-Driven (§9) | Data model + serialization | `add_review_action_item`, `complete_review_action` (TBD in Capabilities) |
+| Obstacle Plans → Surfaced (§10) | Data model + serialization | `activate_obstacle_plan`, `rate_obstacle_plan` (TBD in Capabilities) |
+| Flows → Runnable (§11) | Data model + serialization | `run_flow`, `complete_flow` (TBD in Capabilities) |
+| Scorecard → Actionable (§12) | — | `rescore_scorecard`, `convert_scorecard_to_habit` (TBD in Capabilities) |
+| Checkpoints → Guided (§13) | — | — |
+| Energy → Actionable (§14) | — | — |
+| Capacity Management (§15) | Data model + serialization + capabilities | `set_habit_capacity`, `get_daily_load` |
+| Daily Focus → Linked (§6) | Data model + serialization | `set_focus_priority`, `carry_over_focus` (TBD in Capabilities) |
+
+**New capabilities added:** 12 (61 total — `evolve_identity`, `add_identity_evidence`, `add_goal_milestone`, `complete_goal_milestone`, `update_goal_metric`, `rate_reward`, `rate_reframe`, `rate_bundle`, `update_four_laws`, `evolve_ladder`, `set_habit_capacity`, `get_daily_load`)
+
+**Database:** v4 migration adds all new columns across identity, goal, sys, habit, checkin, focus, obstacle, flow, flowstep, review tables.
 
 ---
 

@@ -65,6 +65,47 @@ object Capabilities {
         },
 
         Capability(
+            "evolve_identity", "Record an identity evolution with reason",
+            listOf("id" to "string", "newStatement" to "string", "reason" to "string"), Risk.LOW
+        ) { c ->
+            val old = c.repo.identity(c.str("id")) ?: return@Capability CommandResult.fail("Identity not found")
+            val newStatement = c.str("newStatement").trim()
+            if (newStatement.isBlank()) return@Capability CommandResult.fail("A new statement is required")
+            val allCheckIns = c.repo.checkIns()
+            val votes = allCheckIns.count { it.isSuccess }
+            val evo = IdentityEvolution(
+                previousStatement = old.statement,
+                newStatement = newStatement,
+                reason = c.str("reason"),
+                votesAtEvolution = votes,
+                date = c.date()
+            )
+            val updated = old.copy(
+                statement = newStatement,
+                evolutionHistory = old.evolutionHistory + evo
+            )
+            c.repo.saveIdentity(updated)
+            val id = c.bus.record(c.actor, "evolve_identity",
+                "Evolved identity: " + old.statement + " -> " + newStatement,
+                jsonOf("previousStatement" to old.statement, "newStatement" to newStatement),
+                undoRestore("identity", Serial.of(old)), c.groupId)
+            okResult("Identity evolved. " + newStatement, null, id)
+        },
+
+        Capability(
+            "add_identity_evidence", "Add qualitative evidence to an identity",
+            listOf("identityId" to "string", "text" to "string", "sourceHabitId" to "string"), Risk.LOW
+        ) { c ->
+            val identityId = c.str("identityId")
+            if (c.repo.identity(identityId) == null) return@Capability CommandResult.fail("Identity not found")
+            val text = c.str("text").trim()
+            if (text.isBlank()) return@Capability CommandResult.fail("Evidence text is required")
+            val id = c.bus.record(c.actor, "add_identity_evidence",
+                "Added evidence to identity: $text", null, null, c.groupId)
+            okResult("Evidence recorded. $text", null, id)
+        },
+
+        Capability(
             "delete_identity", "Delete an identity", listOf("id" to "string"),
             Risk.HIGH, destructive = true
         ) { c ->
@@ -117,6 +158,56 @@ object Capabilities {
             val id = c.bus.record(c.actor, "delete_goal", "Deleted goal \"${old.title}\"",
                 Serial.of(old), undoRestore("goal", Serial.of(old)), c.groupId)
             okResult("Goal deleted", null, id)
+        },
+
+        Capability(
+            "add_goal_milestone", "Add a measurable milestone to a goal",
+            listOf("goalId" to "string", "title" to "string"), Risk.LOW
+        ) { c ->
+            val goal = c.repo.goal(c.str("goalId")) ?: return@Capability CommandResult.fail("Goal not found")
+            val title = c.str("title").trim()
+            if (title.isBlank()) return@Capability CommandResult.fail("Milestone title is required")
+            val milestone = GoalMilestone(title = title)
+            val updated = goal.copy(milestones = goal.milestones + milestone)
+            c.repo.saveGoal(updated)
+            val id = c.bus.record(c.actor, "add_goal_milestone",
+                "Added milestone $title to goal ${goal.title}",
+                jsonOf("goalId" to goal.id, "milestoneId" to milestone.id),
+                undoRestore("goal", Serial.of(goal)), c.groupId)
+            okResult("Milestone added to " + goal.title, jsonOf("milestoneId" to milestone.id), id)
+        },
+
+        Capability(
+            "complete_goal_milestone", "Mark a milestone as achieved",
+            listOf("goalId" to "string", "milestoneId" to "string"), Risk.LOW
+        ) { c ->
+            val goal = c.repo.goal(c.str("goalId")) ?: return@Capability CommandResult.fail("Goal not found")
+            val milestoneId = c.str("milestoneId")
+            val idx = goal.milestones.indexOfFirst { it.id == milestoneId }
+            if (idx < 0) return@Capability CommandResult.fail("Milestone not found")
+            val milestones = goal.milestones.toMutableList()
+            milestones[idx] = milestones[idx].copy(achieved = true, achievedDate = c.date())
+            val updated = goal.copy(milestones = milestones)
+            c.repo.saveGoal(updated)
+            val id = c.bus.record(c.actor, "complete_goal_milestone",
+                "Completed milestone: " + milestones[idx].title,
+                null, undoRestore("goal", Serial.of(goal)), c.groupId)
+            okResult("Milestone achieved! " + milestones[idx].title, null, id)
+        },
+
+        Capability(
+            "update_goal_metric", "Update the current metric value for a goal",
+            listOf("goalId" to "string", "value" to "double", "unit" to "string"), Risk.LOW
+        ) { c ->
+            val goal = c.repo.goal(c.str("goalId")) ?: return@Capability CommandResult.fail("Goal not found")
+            val value = c.dbl("value", 0.0)
+            val unit = c.str("unit", goal.metricUnit)
+            val updated = goal.copy(currentMetricValue = value, metricUnit = unit)
+            c.repo.saveGoal(updated)
+            val id = c.bus.record(c.actor, "update_goal_metric",
+                "Updated metric for " + goal.title + ": $value $unit",
+                null, undoRestore("goal", Serial.of(goal)), c.groupId)
+            okResult("Goal metric updated: $value $unit", null, id)
         },
 
         Capability(
@@ -323,6 +414,145 @@ object Capabilities {
             val id = c.bus.record(c.actor, "delete_obstacle_plan", "Removed an obstacle plan",
                 Serial.of(old), undoRestore("obstacle", Serial.of(old)), c.groupId)
             okResult("Obstacle plan removed", null, id)
+        },
+
+        /* -------------------------------------------------- Four Laws living */
+
+        Capability(
+            "rate_reward", "Rate a habit reward satisfaction (1-5)",
+            listOf("habit" to "id or title", "rating" to "1-5"), Risk.LOW
+        ) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val rating = c.int("rating", 3).coerceIn(1, 5)
+            val updated = h.copy(rewardSatisfaction = rating, rewardLastRated = c.date())
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "rate_reward",
+                "Rated reward for habit: $rating/5",
+                null, undoRestore("habit", Serial.of(h)), c.groupId)
+            okResult("Reward satisfaction recorded: $rating/5", null, id)
+        },
+
+        Capability(
+            "rate_reframe", "Rate whether a reframe helped",
+            listOf("habit" to "id or title", "helpful" to "bool"), Risk.LOW
+        ) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val helpful = c.bool("helpful", true)
+            val updated = h.copy(reframeHelpful = helpful)
+            c.repo.saveHabit(updated)
+            val tag = if (helpful) "helpful" else "not helpful"
+            val id = c.bus.record(c.actor, "rate_reframe",
+                "Reframe rated as $tag", null,
+                undoRestore("habit", Serial.of(h)), c.groupId)
+            okResult("Reframe rated as $tag", null, id)
+        },
+
+        Capability(
+            "rate_bundle", "Rate temptation bundle effectiveness (1-5)",
+            listOf("habit" to "id or title", "rating" to "1-5"), Risk.LOW
+        ) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val rating = c.int("rating", 3).coerceIn(1, 5)
+            val updated = h.copy(bundleEffectiveness = rating)
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "rate_bundle",
+                "Rated bundle: $rating/5", null,
+                undoRestore("habit", Serial.of(h)), c.groupId)
+            okResult("Bundle effectiveness recorded: $rating/5", null, id)
+        },
+
+        Capability(
+            "update_four_laws", "Update any four-laws field post-design",
+            listOf("habit" to "id or title", "field" to "string", "value" to "string"), Risk.LOW
+        ) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val field = c.str("field").trim()
+            val value = c.str("value")
+            val updated = when (field.lowercase()) {
+                "benefit" -> old.copy(benefit = value)
+                "temptationbundle", "bundle" -> old.copy(temptationBundle = value)
+                "reframe" -> old.copy(reframe = value)
+                "frictionplan", "friction" -> old.copy(frictionPlan = value)
+                "environmentprep", "environment", "prep" -> old.copy(environmentPrep = value)
+                "reward" -> old.copy(reward = value)
+                "rewardSatisfaction" -> old.copy(rewardSatisfaction = value.toIntOrNull()?.coerceIn(1, 5))
+                "reframeHelpful" -> old.copy(reframeHelpful = value.equalsTrue())
+                "bundleEffectiveness" -> old.copy(bundleEffectiveness = value.toIntOrNull()?.coerceIn(1, 5))
+                "frictionplanactive" -> old.copy(frictionPlanActive = value.equalsTrue())
+                "environmentprepremindertime" -> old.copy(environmentPrepReminderTime = value)
+                else -> return@Capability CommandResult.fail("Unknown four-laws field: $field")
+            }
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "update_four_laws",
+                "Updated $field for habit", null,
+                undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("Four Laws field updated: $field", null, id)
+        },
+
+        /* ----------------------------------------------- Adaptive Ladder */
+
+        Capability(
+            "evolve_ladder", "Record a ladder level change with reason",
+            listOf("habit" to "id or title", "level" to "TINY|MINIMUM|STANDARD|STRETCH",
+                "newText" to "string", "reason" to "string"), Risk.LOW
+        ) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val level = Level.from(c.str("level", "STANDARD"))
+            val newText = c.str("newText").trim()
+            val reason = c.str("reason").trim()
+            if (newText.isBlank()) return@Capability CommandResult.fail("New ladder text is required")
+            val previousText = old.levelText(level)
+            val evo = LadderEvolution(level = level, previousText = previousText,
+                newText = newText, reason = reason, date = c.date())
+            val updated = old.copy(ladderHistory = old.ladderHistory + evo)
+            val finalUpdated = when (level) {
+                Level.TINY -> updated.copy(tinyStart = newText)
+                Level.MINIMUM -> updated.copy(minimumVersion = newText)
+                Level.STANDARD -> updated.copy(standardVersion = newText)
+                Level.STRETCH -> updated.copy(stretchVersion = newText)
+            }
+            c.repo.saveHabit(finalUpdated)
+            val id = c.bus.record(c.actor, "evolve_ladder",
+                "Evolved ladder for habit: $level $previousText -> $newText",
+                jsonOf("level" to level.name, "previousText" to previousText, "newText" to newText),
+                undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("Ladder evolved: $level now $newText", null, id)
+        },
+
+        /* ------------------------------------------------ Capacity management */
+
+        Capability(
+            "set_habit_capacity", "Set estimated minutes and difficulty for a habit",
+            listOf("habit" to "id or title", "estimatedMinutes" to "int", "difficulty" to "1-5"),
+            Risk.LOW
+        ) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val mins = c.int("estimatedMinutes", old.estimatedMinutes).coerceAtLeast(1)
+            val diff = c.int("difficulty", old.difficultyRating).coerceIn(1, 5)
+            val updated = old.copy(estimatedMinutes = mins, difficultyRating = diff)
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "set_habit_capacity",
+                "Set capacity for habit: ${mins}min, difficulty $diff",
+                null, undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("Capacity set: ${mins}min, difficulty $diff", null, id)
+        },
+
+        Capability(
+            "get_daily_load", "Calculate total cognitive load for a day",
+            listOf("date" to "yyyy-MM-dd"), Risk.LOW
+        ) { c ->
+            val date = c.localDate()
+            val habits = c.repo.habitsForDay(date)
+            if (habits.isEmpty()) return@Capability okResult("No habits scheduled. Load: 0.")
+            val totalMinutes = habits.sumOf { it.estimatedMinutes }
+            val avgDiff = habits.map { it.difficultyRating }.average()
+            val loadScore = habits.size * avgDiff
+            val color = when {
+                loadScore < 15 -> "green"
+                loadScore < 30 -> "amber"
+                else -> "coral"
+            }
+            okResult("Load: ${habits.size} habits, ~${totalMinutes}min, avg diff %.1f/5 (${color})".format(avgDiff))
         }
     )
 

@@ -29,6 +29,18 @@ fun jsonArrayOf(items: Collection<String>): JSONArray {
     return a
 }
 
+fun jsonArrayOfStrings(items: List<String>): String {
+    val a = JSONArray()
+    items.forEach { a.put(it) }
+    return a.toString()
+}
+
+fun jsonArrayFromObjects(items: List<JSONObject>): String {
+    val a = JSONArray()
+    items.forEach { a.put(it) }
+    return a.toString()
+}
+
 fun parseObject(text: String): JSONObject? = try {
     JSONObject(text)
 } catch (e: Exception) {
