@@ -1,123 +1,98 @@
 # Building SuperFlow
 
-SuperFlow is a **full AndroidX / Material 3 application**. It is built without
-Gradle, because the build environment cannot reach Google Maven, Maven Central,
-`services.gradle.org` or `plugins.gradle.org`. Instead the script drives the
-Android build tools directly, against a local set of pre-exploded AARs.
+SuperFlow is a **full AndroidX / Material 3 application** built with the
+standard Android Gradle Plugin. This is the only supported build path.
 
-The result is a normal Android app — real `AppCompatActivity`, `Fragment`,
-`ViewModel`, `RecyclerView`, `ViewPager2`, Material 3 components, coroutines,
-`androidx.sqlite`, WorkManager, Lottie — not a framework-only app.
+> **History:** an earlier revision of this repository shipped a Gradle-less
+> pipeline (`tools/build_apk.sh` + `tools/gen_res.py` + a vendored library
+> set) because the build host could not reach the package repositories.
+> That pipeline produced the original launch crash: it left
+> `${applicationId}` unresolved in the AndroidX Startup provider authority,
+> generated only partial library `R` classes (which masked wrong-namespace
+> source references such as `com.google.android.material.R.attr
+> .borderlessButtonStyle`, an AppCompat attribute), and merged AAR
+> manifests inconsistently. The pipeline has been **removed**; Gradle now
+> performs dependency resolution, resource linking, `R` generation,
+> manifest merging (including the `androidx.startup` provider contributed
+> by the `work-runtime` AAR), Kotlin compilation, D8 dexing and debug
+> signing.
 
-## Dependencies
+## Requirements
 
-76 libraries, listed in dependency order in [`tools/libs.txt`](../tools/libs.txt):
-
-| Area | Libraries |
+| Component | Version |
 |---|---|
-| UI | Material **1.13.0**, AppCompat 1.7.1, ConstraintLayout 2.2.1, RecyclerView 1.4.0, ViewPager2, CoordinatorLayout, SwipeRefresh, CardView, Transition |
-| Architecture | Fragment 1.6.1, Activity 1.11.0, Lifecycle/ViewModel/LiveData 2.6.2 (+ `-ktx`), SavedState, Startup |
-| Async | Kotlin Coroutines 1.8.1 (core + android) |
-| Data | `androidx.sqlite` 2.1.0 + framework, Room runtime, Gson |
-| Background | WorkManager 2.7.0 (+ `-ktx` for `CoroutineWorker`) |
-| Preferences | DataStore 1.0 (core + preferences) |
-| Motion | Lottie 6.6.10, DynamicAnimation |
-| Net | OkHttp 5.1.0, Okio |
-
-## Toolchain
-
-Expected under `$SUPERFLOW_TOOLCHAIN` (default `~/toolchain`):
-
-```
-toolchain/
-├── jdk/                        JDK 25 runtime            (PyPI: jdk4py)
-├── kotlinc/                    Kotlin 2.4.x compiler     (npm: kotlin-compiler)
-├── bin/aapt2                   Android Asset Packaging 2 (npm: aaptjs3)
-├── lib/dx.jar                  AOSP dexer                (LineageOS prebuilts)
-├── lib/apksigner.jar           APK signer
-├── lib/kotlin-stdlib-clean.jar Kotlin stdlib, META-INF/versions stripped
-├── platforms/android-34.jar    API 34 android.jar        (Sable/android-platforms)
-├── androidlibs/<lib>/          Exploded AAR: res/, AndroidManifest.xml
-└── libjars/<lib>.jar           That AAR's classes.jar
-```
-
-## Five problems this build had to solve
-
-1. **`META-INF/versions/**` breaks `dx`** (`unknown tag byte`). Every jar has
-   those multi-release directories stripped.
-2. **`aapt2` styleable conflicts.** Passing library resources positionally makes
-   Material and AppCompat collide on `styleable/SearchView`. They must be passed
-   as ordered `-R` overlays, least specific first.
-3. **The full transitive resource closure is required** — drawerlayout, cardview
-   and friends, or Material's styles fail to resolve.
-4. **`.kotlin_module` files must survive.** Stripping all of `META-INF` from the
-   `-ktx` artifacts silently removes the module metadata Kotlin needs to resolve
-   top-level extensions, and `viewModels()` / `viewModelScope` /
-   `repeatOnLifecycle` stop resolving with a confusing "unresolved reference".
-5. **Duplicate classes at dex time.** Newer `activity`/`lifecycle` artifacts
-   bundle classes the older `-ktx` artifacts also carry. The `-ktx` jars stay
-   intact on the *compile* classpath (see #4); the overlap is removed only in a
-   dex-time staging copy.
-
-`minSdk` is **26** because `dx` refuses `invokedynamic` below that — which
-matches the Grand Plan's stated policy anyway.
+| JDK | 17 (AGP 8.9 requirement) |
+| Gradle | 8.11.1 (wrapper committed) |
+| Android Gradle Plugin | 8.9.1 |
+| Kotlin | 2.2.0 |
+| Android SDK | platform 36 (compileSdk), targetSdk 34, minSdk 26 |
 
 ## Build
 
 ```bash
-tools/build_apk.sh release     # -> build/outputs/superflow-release.apk
-tools/build_apk.sh debug       # -> build/outputs/superflow-debug.apk
+./gradlew clean
+./gradlew testDebugUnitTest     # JVM unit tests (domain + logic)
+./gradlew lintDebug
+./gradlew assembleDebug
+# APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Pipeline: compile library resources (cached) → `aapt2 link` with ordered
-overlays → generate Kotlin `R` objects from `R.txt` → `kotlinc` → `dx --multi-dex`
-→ package → sign (v1+v2+v3).
-
-Signing keys are generated on first run into `build/` and are git-ignored.
-Override with `SUPERFLOW_KEYSTORE`, `SUPERFLOW_KEYSTORE_PASS`, `SUPERFLOW_KEY_ALIAS`.
-
-### Generated R classes
-
-`kotlinc` cannot consume aapt2's Java `R.java`, so `tools/gen_res.py` turns
-`R.txt` into Kotlin objects — including `styleable` int arrays, and mirrors of
-the same ids under `com.google.android.material` and `androidx.appcompat`, which
-is what those libraries' own code links against.
-
-## Tests
+Full verification (build + tests + APK integrity + optional on-device
+smoke test and instrumented tests):
 
 ```bash
-tools/run_tests.sh
+./tools/verify.sh            # build, test, lint, APK hash
+./tools/verify.sh --device   # + install, force-stop, cold launch, logcat
+                             #   crash check, existing-data relaunch,
+                             #   connectedDebugAndroidTest
 ```
 
-143 assertions across four suites:
+## Dependencies
 
-- **CoreTest** (62) — injected clock, DST gaps and overlaps, leap days, locale
-  week starts, every recurrence form, and the opportunity engine: planned skips
-  and pauses never creating misses, today never counting as a miss, unscheduled
-  days staying transparent, runs/recoveries, never-miss-twice, and pro-rated
-  flexible quotas.
-- **LogicTest** (21) — habit ladder fallbacks, contract generation, enum parsing.
-- **ParseTest** (27) — recurrence parsing and round-tripping, JSON extracted from
-  fenced, prose-wrapped, nested and escaped model output.
-- **AiTest** (33) — natural-language habit parsing, prompt-injection detection,
-  Blueprint extraction with citations, conflicts and coverage.
+Declared in `gradle/libs.versions.toml`. The runtime set matches the exact
+library versions the source was developed and field-tested against:
 
-`tools/test/JsonShim.kt` supplies a real `org.json` for the desktop JVM (the
-stub in `android.jar` throws). It is never compiled into the APK.
-
-## Output
-
-| | |
+| Area | Libraries |
 |---|---|
-| Package | `com.superflow` 2.0.0 (code 2) |
-| minSdk / targetSdk | 26 / 34 |
-| Size | ~7.8 MB, 2 dex |
-| Signatures | v2 + v3 verified |
-| App classes | 343 |
-| Capabilities | 49 |
+| UI | Material **1.13.0**, AppCompat 1.7.1, RecyclerView 1.4.0, ViewPager2 1.1.0, Activity 1.11.0 |
+| Architecture | Fragment 1.6.1, Lifecycle/ViewModel 2.6.2 (+ `-ktx`), Core-ktx 1.17.0 |
+| Async | Kotlin Coroutines 1.8.1 |
+| Data | `androidx.sqlite` 2.1.0 + framework |
+| Background | WorkManager 2.7.0 (+ `-ktx` for `CoroutineWorker`) — initialized by the `androidx.startup` provider merged from the AAR; never initialize it manually |
 
-## AAB
+## Manifest notes
 
-Producing an Android App Bundle needs `bundletool`, which was not reachable.
-The release APK carries the complete feature set; AAB packaging is the only
-distribution artifact still outstanding.
+* The app manifest does **not** declare a `package` attribute (AGP 8 takes
+  the namespace from `app/build.gradle.kts`) and does **not** declare the
+  `androidx.startup.InitializationProvider` — the manifest merger
+  contributes it with the correctly resolved authority.
+* `BootReceiver` stays exported with a `BOOT_COMPLETED` /
+  `MY_PACKAGE_REPLACED` filter (required for the reschedule-on-reboot path).
+* `ReminderReceiver` and the widget receiver are not exported.
+
+## Resource namespaces
+
+With non-transitive R classes (the AGP 8 default, also made explicit in
+`gradle.properties`), library attributes must be referenced through the
+library that defines them:
+
+* `androidx.appcompat.R.attr.borderlessButtonStyle` — AppCompat attribute
+  (used for text-style `MaterialButton` constructors).
+* `com.google.android.material.R.attr.*` — Material color and button-style
+  attributes (`colorPrimary`, `colorSurface`, `colorSurfaceVariant`,
+  `colorOnSurface`, `colorOnSurfaceVariant`, `colorOnPrimary`,
+  `colorOutline`, `colorPrimaryContainer`, `colorSecondaryContainer`,
+  `materialButtonOutlinedStyle`).
+* `com.superflow.R.*` — application resources only.
+
+## Testing
+
+* `app/src/test` — JVM unit tests: recurrence rules, opportunity model
+  (adherence, runs, recoveries, never-miss-twice), time/DST handling,
+  domain models, JSON extraction, the Local Coordinator router, quiet-hours
+  predicate and row serialization.
+* `app/src/androidTest` — instrumented tests: schema creation and v1→v3
+  migration with data safety, WAL mode, clean-install / onboarding /
+  onboarded launch paths, reminder scheduling (enabled/disabled, quiet
+  hours, budget, idempotence), widget refresh with zero installed widgets,
+  check-in/undo round trips and tab navigation.

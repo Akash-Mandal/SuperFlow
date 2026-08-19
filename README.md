@@ -25,19 +25,21 @@ It also integrates a practical self-discipline system: Plan Ahead/Do Now, up to 
 
 ## Project status
 
-The app is **built and shipping as a signed APK**, on real Android architecture.
+The app is **built with the standard Android Gradle Plugin** and ships as a
+signed debug APK on real Android architecture.
 
 ```bash
-tools/build_apk.sh release   # -> build/outputs/superflow-release.apk
-tools/run_tests.sh           # 143 logic assertions
+./gradlew assembleDebug            # -> app/build/outputs/apk/debug/app-debug.apk
+./gradlew testDebugUnitTest        # JVM unit tests
+./tools/verify.sh --device         # full verification incl. on-device smoke test
 ```
 
 | | |
 |---|---|
 | Package | `com.superflow` 2.0.0 |
-| minSdk / targetSdk | 26 / 34 |
-| Size | ~7.5 MB, v2+v3 signed |
-| Stack | Material 3, AppCompat, ConstraintLayout, RecyclerView, Fragment, ViewPager2, ViewModel/LiveData, Coroutines, androidx.sqlite, WorkManager, DataStore, Lottie |
+| minSdk / targetSdk / compileSdk | 26 / 34 / 36 |
+| Build | Gradle 8.11.1, AGP 8.9.1, Kotlin 2.2.0, JDK 17 |
+| Stack | Material 3, AppCompat, RecyclerView, Fragment, ViewPager2, ViewModel/StateFlow, Coroutines, androidx.sqlite, WorkManager |
 | Capabilities | 49 registered commands shared by the UI and the AI |
 
 SuperFlow is a full AndroidX application: MVVM with `ViewModel` + `StateFlow`,
@@ -52,18 +54,13 @@ planned skips and pauses never create misses, schedule edits never rewrite
 history, and date maths is `java.time` against an injected clock that survives
 reboots, time-zone travel, daylight saving and leap days.
 
-It is built **without Gradle**, because the build environment cannot reach
-Google Maven, Maven Central or the Gradle distribution servers. The script in
-`tools/` drives `aapt2`, `kotlinc`, `dx` and `apksigner` directly against a
-local set of 71 pre-exploded AARs. See **[BUILD.md](docs/BUILD.md)** for the
-toolchain and the five non-obvious problems that had to be solved, and
-**[IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md)** for an honest
-feature-by-feature account.
+See **[BUILD.md](docs/BUILD.md)** for the build, toolchain and the history of
+the removed Gradle-less pipeline (and why it caused the original launch
+crash), and **[IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md)** for an
+honest feature-by-feature account.
 
 ## Product plans
 
-- **[Build and toolchain guide](docs/BUILD.md)** — how the APK is produced
-- **[Implementation status](docs/IMPLEMENTATION_STATUS.md)** — what actually shipped
 - **[Build and toolchain guide](docs/BUILD.md)** — how the APK is produced
 - **[Implementation status](docs/IMPLEMENTATION_STATUS.md)** — what actually shipped
 - **[SuperFlow Grand Product and Engineering Plan](docs/GRAND_PLAN.md)**
