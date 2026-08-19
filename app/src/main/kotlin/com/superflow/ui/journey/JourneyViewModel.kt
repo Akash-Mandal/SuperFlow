@@ -97,11 +97,18 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
         }
         for (g in goals) {
             val systems = repo.systems().count { it.goalId == g.id }
+            val milestones = g.milestones
+            val achieved = milestones.count { it.achieved }
             rows.add(JourneyRow.Entity(
                 g.id, "goal", g.title,
                 buildString {
                     append(g.status.name.lowercase())
                     append(" · $systems systems")
+                    if (milestones.isNotEmpty()) append(" · $achieved/${milestones.size} milestones")
+                    if (g.currentMetricValue != null) {
+                        append(" · ${g.currentMetricValue}${g.metricUnit}")
+                        if (g.targetValue != null) append("/${g.targetValue}")
+                    }
                     if (g.why.isNotBlank()) append(" · ${g.why.take(48)}")
                 },
                 com.superflow.R.drawable.ic_goal
@@ -117,9 +124,11 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
         }
         for (s in systems) {
             val habits = repo.habits().count { it.systemId == s.id }
+            val health = Insights.systemHealth(repo, s)
+            val healthText = if (habits == 0) "no habits yet" else "$health% healthy"
             rows.add(JourneyRow.Entity(
                 s.id, "system", s.title,
-                "$habits habits · goal: ${repo.goal(s.goalId)?.title ?: "none"}",
+                "$habits habits · $healthText · goal: ${repo.goal(s.goalId)?.title ?: "none"}",
                 com.superflow.R.drawable.ic_system
             ))
         }

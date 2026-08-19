@@ -17,6 +17,12 @@ fun Cursor.strOrNull(name: String): String? =
 fun Cursor.int(name: String): Int =
     getColumnIndex(name).let { if (it < 0 || isNull(it)) 0 else getInt(it) }
 
+fun Cursor.intOrNull(name: String): Int? =
+    getColumnIndex(name).let { if (it < 0 || isNull(it)) null else getInt(it) }
+
+fun Cursor.boolOrNull(name: String): Boolean? =
+    getColumnIndex(name).let { if (it < 0 || isNull(it)) null else getInt(it) == 1 }
+
 fun Cursor.lng(name: String): Long =
     getColumnIndex(name).let { if (it < 0 || isNull(it)) 0L else getLong(it) }
 
@@ -82,14 +88,14 @@ object Rows {
         scheduleVersion = c.int("scheduleVersion").coerceAtLeast(1),
         startDate = c.str("startDate"), endDate = c.strOrNull("endDate"),
         reminderEnabled = c.bool("reminderEnabled"), protectedRoutine = c.bool("protectedRoutine"),
-        rewardSatisfaction = if (c.isNull(c.getColumnIndex("rewardSatisfaction"))) null else c.int("rewardSatisfaction"),
+        rewardSatisfaction = c.intOrNull("rewardSatisfaction"),
         rewardLastRated = c.strOrNull("rewardLastRated"),
-        reframeHelpful = if (c.isNull(c.getColumnIndex("reframeHelpful"))) null else c.bool("reframeHelpful"),
-        bundleEffectiveness = if (c.isNull(c.getColumnIndex("bundleEffectiveness"))) null else c.int("bundleEffectiveness"),
+        reframeHelpful = c.boolOrNull("reframeHelpful"),
+        bundleEffectiveness = c.intOrNull("bundleEffectiveness"),
         frictionPlanActive = c.bool("frictionPlanActive"),
         environmentPrepReminderTime = c.strOrNull("environmentPrepReminderTime"),
         ladderHistory = parseLadderEvolution(c.str("ladderHistory")),
-        lastDifficultyRating = if (c.isNull(c.getColumnIndex("lastDifficultyRating"))) null else c.int("lastDifficultyRating"),
+        lastDifficultyRating = c.intOrNull("lastDifficultyRating"),
         stretchCount = c.int("stretchCount"), consecutiveStandards = c.int("consecutiveStandards"),
         estimatedMinutes = c.int("estimatedMinutes").coerceAtLeast(1),
         difficultyRating = c.int("difficultyRating").coerceIn(1, 5),
@@ -102,10 +108,10 @@ object Rows {
         CheckInResult.valueOf(c.str("result").ifBlank { "DONE" }),
         Level.from(c.str("level")), c.dbl("amount"), c.str("note"),
         parseContextTags(c.str("contextTags")),
-        if (c.isNull(c.getColumnIndex("actualAmount"))) null else c.dbl("actualAmount"),
-        if (c.isNull(c.getColumnIndex("actualDurationMinutes"))) null else c.int("actualDurationMinutes"),
-        if (c.isNull(c.getColumnIndex("qualityRating"))) null else c.int("qualityRating"),
-        if (c.isNull(c.getColumnIndex("difficultyRating"))) null else c.int("difficultyRating"),
+        c.dblOrNull("actualAmount"),
+        c.intOrNull("actualDurationMinutes"),
+        c.intOrNull("qualityRating"),
+        c.intOrNull("difficultyRating"),
         c.strOrNull("missReason"), c.strOrNull("missReasonDetail"),
         c.lng("createdAt")
     )
@@ -113,14 +119,14 @@ object Rows {
     fun focus(c: Cursor) = FocusItem(
         c.str("id"), c.str("date"), c.strOrNull("habitId"), c.str("title"),
         c.bool("done"), c.bool("isPriority"), c.strOrNull("goalId"),
-        if (c.isNull(c.getColumnIndex("estimatedMinutes"))) null else c.int("estimatedMinutes"),
+        c.intOrNull("estimatedMinutes"),
         c.int("carryOverCount"), c.int("orderIndex")
     )
 
     fun obstacle(c: Cursor) = ObstaclePlan(
         c.str("id"), c.str("habitId"), c.str("ifText"), c.str("thenText"),
         c.strOrNull("category"), c.int("timesUsed"), c.strOrNull("lastUsed"),
-        if (c.isNull(c.getColumnIndex("effectiveness"))) null else c.int("effectiveness"),
+        c.intOrNull("effectiveness"),
         c.lng("createdAt")
     )
 
@@ -181,6 +187,11 @@ object Rows {
     fun pause(c: Cursor) = PauseWindow(
         c.str("id"), c.strOrNull("habitId"), c.str("startDate"), c.str("endDate"),
         c.str("reason"), c.lng("createdAt")
+    )
+
+    fun evidence(c: Cursor) = IdentityEvidence(
+        c.str("id"), c.str("identityId"), c.str("text"), c.strOrNull("sourceHabitId"),
+        c.str("date"), c.lng("createdAt")
     )
 
     fun profile(c: Cursor) = UserProfile(

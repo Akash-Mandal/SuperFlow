@@ -131,6 +131,11 @@ object Serial {
         "createdAt" to r.createdAt
     )
 
+    fun of(e: IdentityEvidence): JSONObject = jsonOf(
+        "table" to "evidence", "id" to e.id, "identityId" to e.identityId, "text" to e.text,
+        "sourceHabitId" to e.sourceHabitId, "date" to e.date, "createdAt" to e.createdAt
+    )
+
     fun of(e: EnergyLog): JSONObject = jsonOf(
         "table" to "energy", "id" to e.id, "date" to e.date, "checkpoint" to e.checkpoint.name,
         "energy" to e.energy, "note" to e.note, "createdAt" to e.createdAt
@@ -289,6 +294,11 @@ object Serial {
         o.optInt("energy", 3), o.string("note"), long(o, "createdAt")
     )
 
+    fun evidence(o: JSONObject) = IdentityEvidence(
+        o.string("id", newId()), o.string("identityId"), o.string("text"),
+        o.stringOrNull("sourceHabitId"), o.string("date"), long(o, "createdAt")
+    )
+
     fun pause(o: JSONObject) = PauseWindow(
         o.string("id", newId()), o.stringOrNull("habitId"), o.string("startDate"),
         o.string("endDate"), o.string("reason"), long(o, "createdAt")
@@ -330,14 +340,14 @@ object Serial {
     fun parseGoalMilestones(arr: JSONArray?): List<GoalMilestone> {
         if (arr == null || arr.length() == 0) return emptyList()
         return arr.objects().map { o ->
+            val linked = o.optJSONArray("linkedHabitIds")
             GoalMilestone(
                 id = o.string("id"),
                 title = o.string("title"),
                 achieved = o.optBoolean("achieved", false),
                 achievedDate = o.optString("achievedDate", null),
-                linkedHabitIds = (0 until (o.optJSONArray("linkedHabitIds")?.length() ?: 0))
-                    .map { o.optJSONArray("linkedHabitIds").optString(it, "") }
-                    .filter { it.isNotBlank() }
+                linkedHabitIds = if (linked == null) emptyList()
+                else (0 until linked.length()).map { linked.optString(it, "") }.filter { it.isNotBlank() }
             )
         }
     }
@@ -395,6 +405,7 @@ object Serial {
         root.put("reviews", arr(repo.reviews().map { of(it) }))
         root.put("energy", arr(repo.energyLogs().map { of(it) }))
         root.put("pauses", arr(repo.pauses().map { of(it) }))
+        root.put("evidence", arr(repo.evidence().map { of(it) }))
         val projects = repo.projects()
         root.put("projects", arr(projects.map { of(it) }))
         root.put("sources", arr(projects.flatMap { repo.sources(it.id) }.map { of(it) }))
@@ -417,6 +428,7 @@ object Serial {
         root.optJSONArray("reviews")?.objects()?.forEach { repo.saveReview(review(it)) }
         root.optJSONArray("energy")?.objects()?.forEach { repo.saveEnergy(energy(it)) }
         root.optJSONArray("pauses")?.objects()?.forEach { repo.savePause(pause(it)) }
+        root.optJSONArray("evidence")?.objects()?.forEach { repo.saveEvidence(evidence(it)) }
         root.optJSONArray("projects")?.objects()?.forEach { repo.saveProject(project(it)) }
         root.optJSONArray("sources")?.objects()?.forEach { repo.saveSource(source(it)) }
         root.optJSONArray("requirements")?.objects()?.forEach { repo.saveRequirement(requirement(it)) }

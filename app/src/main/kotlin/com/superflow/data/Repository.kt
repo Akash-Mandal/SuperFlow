@@ -88,7 +88,11 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         "createdAt" to i.createdAt
     ))
 
-    fun deleteIdentity(id: String) = delete("identity", "id=?", arrayOf(id))
+    fun deleteIdentity(id: String) {
+        db.delete("identity", "id=?", arrayOf(id))
+        db.delete("evidence", "identityId=?", arrayOf(id))
+        invalidate()
+    }
 
     /* ---------------------------------------------------------------- goal */
 
@@ -197,6 +201,7 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         db.delete("checkin", "habitId=?", arrayOf(id))
         db.delete("obstacle", "habitId=?", arrayOf(id))
         db.delete("focus", "habitId=?", arrayOf(id))
+        db.delete("evidence", "sourceHabitId=?", arrayOf(id))
         invalidate()
     }
 
@@ -419,6 +424,20 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         "createdAt" to p.createdAt, "updatedAt" to System.currentTimeMillis()
     ))
 
+    /* ------------------------------------------------------------ evidence */
+
+    fun evidence(identityId: String? = null): List<IdentityEvidence> =
+        if (identityId == null) query("SELECT * FROM evidence ORDER BY date DESC").mapAll(Rows::evidence)
+        else query("SELECT * FROM evidence WHERE identityId=? ORDER BY date DESC", arrayOf(identityId))
+            .mapAll(Rows::evidence)
+
+    fun saveEvidence(e: IdentityEvidence) = insert("evidence", contentValuesOf(
+        "id" to e.id, "identityId" to e.identityId, "text" to e.text,
+        "sourceHabitId" to e.sourceHabitId, "date" to e.date, "createdAt" to e.createdAt
+    ))
+
+    fun deleteEvidence(id: String) = delete("evidence", "id=?", arrayOf(id))
+
     /* --------------------------------------------------------------- audit */
 
     fun audit(limit: Int = 300): List<AuditEntry> =
@@ -513,7 +532,7 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     fun deleteAllData() {
         for (t in listOf("identity", "goal", "sys", "habit", "checkin", "focus", "obstacle",
             "scorecard", "flow", "flowstep", "review", "energy", "audit", "aimsg",
-            "bp_project", "bp_source", "bp_req", "bp_version", "pause", "profile")) {
+            "bp_project", "bp_source", "bp_req", "bp_version", "pause", "profile", "evidence")) {
             db.delete(t, null, null)
         }
         invalidate()
@@ -522,7 +541,7 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     fun counts(): Map<String, Int> {
         val out = LinkedHashMap<String, Int>()
         for (t in listOf("identity", "goal", "sys", "habit", "checkin", "focus", "obstacle",
-            "scorecard", "flow", "review", "energy", "audit", "bp_project")) {
+            "scorecard", "flow", "review", "energy", "audit", "bp_project", "evidence")) {
             query("SELECT COUNT(*) FROM $t").use { c ->
                 out[t] = if (c.moveToFirst()) c.getInt(0) else 0
             }

@@ -33,6 +33,10 @@ sealed class TodayRow {
         override val stableId = 1L
     }
 
+    data class Load(val habits: Int, val minutes: Int, val score: Double, val color: String) : TodayRow() {
+        override val stableId = 11L
+    }
+
     data class IdentityCard(val statement: String, val votes: Int) : TodayRow() {
         override val stableId = 2L
     }
@@ -108,7 +112,20 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         val (done, total) = Insights.dayProgress(repo, date)
         rows.add(TodayRow.Progress(done, total, progressMessage(done, total)))
 
-        repo.identities().firstOrNull()?.let { identity ->
+        // Daily load indicator (§15)
+        val (habitsCount, minutes, score) = Insights.dailyLoad(repo, date)
+        if (habitsCount > 0) {
+            val color = when {
+                score < 15 -> "green"
+                score < 30 -> "amber"
+                else -> "coral"
+            }
+            rows.add(TodayRow.Load(habitsCount, minutes, score, color))
+        }
+
+        // Primary identity first, then others (§1)
+        val identities = repo.identities().sortedByDescending { it.isPrimary }
+        identities.firstOrNull()?.let { identity ->
             val votes = Insights.identityEvidence(repo)
                 .firstOrNull { it.first == identity.statement }?.second ?: 0
             rows.add(TodayRow.IdentityCard(identity.statement, votes))

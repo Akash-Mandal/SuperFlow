@@ -39,11 +39,26 @@ object MainBrain {
             }
             repo.goals().takeIf { it.isNotEmpty() }?.let { list ->
                 sb.append("\nGoals:\n")
-                list.forEach { sb.append("- ${it.title} [id=${it.id}]\n") }
+                list.forEach { g ->
+                    sb.append("- ${g.title} [id=${g.id}]")
+                    if (g.milestones.isNotEmpty()) {
+                        val done = g.milestones.count { it.achieved }
+                        sb.append(" milestones=$done/${g.milestones.size}")
+                    }
+                    if (g.currentMetricValue != null) {
+                        sb.append(" metric=${g.currentMetricValue}${g.metricUnit}")
+                        if (g.targetValue != null) sb.append("/${g.targetValue}")
+                    }
+                    sb.append('\n')
+                }
             }
             repo.systems().takeIf { it.isNotEmpty() }?.let { list ->
                 sb.append("\nSystems:\n")
-                list.forEach { sb.append("- ${it.title} [id=${it.id}]\n") }
+                list.forEach { s ->
+                    val health = Insights.systemHealth(repo, s)
+                    val habits = repo.habits().count { it.systemId == s.id }
+                    sb.append("- ${s.title} [id=${s.id}] health=${health}% habits=$habits\n")
+                }
             }
             repo.habits().takeIf { it.isNotEmpty() }?.let { list ->
                 sb.append("\nHabits:\n")

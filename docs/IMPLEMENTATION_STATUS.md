@@ -6,7 +6,7 @@ partial, and what is not built.
 
 **Build:** `com.superflow` 2.0.0 · minSdk 26 · targetSdk 34 · ~7.8 MB ·
 v2+v3 signed · 76 AndroidX/Material libraries · 355 app classes ·
-61 capabilities · **143 logic assertions passing**.
+74 capabilities · **143+ logic assertions passing** (GrowthTest suite added).
 
 ---
 
@@ -188,9 +188,15 @@ The [Core Growth Systems Upgrade Plan](CORE_GROWTH_SYSTEMS_UPGRADE_PLAN.md) data
 | Capacity Management (§15) | Data model + serialization + capabilities | `set_habit_capacity`, `get_daily_load` |
 | Daily Focus → Linked (§6) | Data model + serialization | `set_focus_priority`, `carry_over_focus` (TBD in Capabilities) |
 
-**New capabilities added:** 12 (61 total — `evolve_identity`, `add_identity_evidence`, `add_goal_milestone`, `complete_goal_milestone`, `update_goal_metric`, `rate_reward`, `rate_reframe`, `rate_bundle`, `update_four_laws`, `evolve_ladder`, `set_habit_capacity`, `get_daily_load`)
+**New capabilities added:** 25 (74 total) — the 12 from Phase 1 plus `rate_checkin_difficulty`, `rate_checkin_quality`, `record_miss_reason`, `activate_obstacle_plan`, `rate_obstacle_plan`, `add_review_action_item`, `complete_review_action`, `run_flow`, `complete_flow`, `rescore_scorecard`, `convert_scorecard_to_habit`, `set_focus_priority`, `carry_over_focus`.
 
-**Database:** v4 migration adds all new columns across identity, goal, sys, habit, checkin, focus, obstacle, flow, flowstep, review tables.
+**Database:** v4 migration adds all new columns across identity, goal, sys, habit, checkin, focus, obstacle, flow, flowstep, review tables, plus the new `evidence` (identity evidence journal) table.
+
+**Insights:** new analytics — `systemHealth`/`systemHealthAll` (§3), `dailyLoad` (§15), `missReasons` (§8), `weekdayPattern` (§8), `energyCorrelation` (§14), `ladderAdvice` (§5).
+
+**Coordinator:** natural-language patterns for the new commands ("today's load", "missed X because…", "rate the reward for X 4", "carry X to tomorrow", "star X", "i am now someone who…", "run flow X").
+
+**UI:** Today shows the Daily Load indicator card and the primary identity first; Journey shows goal milestones/metrics and system health scores; TodayAdapter renders the load card.
 
 ---
 
