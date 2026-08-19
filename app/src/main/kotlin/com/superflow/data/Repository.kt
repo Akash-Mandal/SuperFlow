@@ -60,7 +60,7 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         invalidate()
     }
 
-    private fun delete(table: String, where: String, args: Array<Any?>) {
+    fun delete(table: String, where: String, args: Array<Any?>) {
         db.delete(table, where, args)
         invalidate()
     }
@@ -233,6 +233,9 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         delete("checkin", "habitId=? AND date=?", arrayOf(habitId, date))
 
     /* --------------------------------------------------------------- focus */
+
+    fun focusAll(): List<FocusItem> =
+        query("SELECT * FROM focus ORDER BY date DESC, orderIndex").mapAll(Rows::focus)
 
     fun focusFor(date: String): List<FocusItem> =
         query("SELECT * FROM focus WHERE date=? ORDER BY orderIndex", arrayOf(date)).mapAll(Rows::focus)
