@@ -1,4 +1,5 @@
 import com.superflow.data.model.*
+import com.superflow.domain.Capabilities
 import com.superflow.domain.Serial
 import org.json.JSONArray
 import org.json.JSONObject
@@ -152,6 +153,33 @@ fun main() {
     eq("levelText standard", evolved.levelText(Level.STANDARD), "Walk 10 min")
     eq("levelText tiny fallback", evolved.levelText(Level.TINY), "Shoes on")
     eq("levelText stretch fallback", evolved.levelText(Level.STRETCH), "Walk 10 min")
+
+    println("Model defaults for growth fields")
+    val fresh = Habit(title = "Walk")
+    eq("default estimatedMinutes", fresh.estimatedMinutes, 5)
+    eq("default difficultyRating", fresh.difficultyRating, 3)
+    eq("default frictionPlanActive", fresh.frictionPlanActive, false)
+    eq("default ladderHistory empty", fresh.ladderHistory.size, 0)
+    val freshCi = CheckIn(habitId = "h", date = "2026-01-01", result = CheckInResult.DONE)
+    eq("default contextTags empty", freshCi.contextTags.size, 0)
+    eq("default missReason null", freshCi.missReason, null)
+    val freshFocus = FocusItem(date = "2026-01-01", habitId = "h", title = "t")
+    eq("default isPriority", freshFocus.isPriority, false)
+    eq("default carryOverCount", freshFocus.carryOverCount, 0)
+    val freshSys = Sys(title = "S")
+    eq("default reviewFrequency", freshSys.reviewFrequency, "monthly")
+    eq("default templateId", freshSys.templateId, null)
+    val freshGoal = Goal(title = "G")
+    eq("default milestones empty", freshGoal.milestones.size, 0)
+    val freshIdentity = Identity(statement = "s")
+    eq("default isPrimary", freshIdentity.isPrimary, true)
+    eq("default evolutionHistory empty", freshIdentity.evolutionHistory.size, 0)
+
+    println("System templates catalog")
+    val templates = Capabilities.systemTemplates()
+    check("has five templates", templates.size == 5)
+    check("has morning routine", templates.any { it.first == "morning_routine" })
+    check("has evening wind-down", templates.any { it.first == "evening_wind_down" })
 
     println()
     println("GrowthTest: $pass passed, $fail failed")

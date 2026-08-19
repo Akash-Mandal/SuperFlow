@@ -173,6 +173,18 @@ object Coordinator {
             return Plan("get_daily_load", JSONObject(), 0.9)
         }
 
+        if (matches(s, "system health", "health of my systems", "how are my systems")) {
+            return Plan("get_system_health", JSONObject(), 0.9)
+        }
+
+        if (matches(s, "energy correlation", "energy and habits", "does energy matter")) {
+            return Plan("get_energy_correlation", JSONObject(), 0.9)
+        }
+
+        if (matches(s, "miss patterns", "when do i miss", "weekday pattern", "why do i miss")) {
+            return Plan("get_miss_patterns", JSONObject(), 0.9)
+        }
+
         if (s.contains("rate the reward") || s.contains("reward satisfaction")) {
             Regex("(?:for |on )?([a-z ]+?)(?: as |: )?([1-5])(?:/5)?$").find(raw)?.let { m ->
                 val name = m.groupValues[1].trim()

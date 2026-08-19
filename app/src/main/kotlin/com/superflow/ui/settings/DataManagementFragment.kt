@@ -392,6 +392,11 @@ class DataManagementFragment : Fragment() {
                                 repo.saveHabit(Serial.habit(arr.getJSONObject(i)))
                             }
                         }
+                        json.optJSONArray("evidence")?.let { arr ->
+                            (0 until arr.length()).forEach { i ->
+                                repo.saveEvidence(Serial.evidence(arr.getJSONObject(i)))
+                            }
+                        }
                         // ... same pattern for other categories
                         true
                     }.getOrDefault(false)
