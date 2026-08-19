@@ -207,7 +207,7 @@ class AiEngineActivity : ScrollActivity() {
             }
         })
         content.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Show context receipt"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -249,7 +249,7 @@ class AiEngineActivity : ScrollActivity() {
             })
         }
         content.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Take snapshot now"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -291,7 +291,7 @@ class AiEngineActivity : ScrollActivity() {
             }
         })
         content.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Stop AI"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -302,7 +302,7 @@ class AiEngineActivity : ScrollActivity() {
             }
         })
         content.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = getString(R.string.activity_trail)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT

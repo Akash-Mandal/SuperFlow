@@ -1,6 +1,8 @@
 package com.superflow.ui.detail
 
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -9,7 +11,9 @@ import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.superflow.AppBackground
 import com.superflow.R
+import com.superflow.core.time.SfTime
 import com.superflow.data.Repository
 import com.superflow.data.model.*
 import com.superflow.domain.Actor
@@ -22,7 +26,6 @@ import com.superflow.ui.common.snack
 import com.superflow.ui.common.visible
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.sheets.ObstacleSheet
-import com.superflow.util.Dates
 import com.superflow.util.jsonOf
 
 /** One habit's full design, ladder, history and obstacle plans. */
@@ -31,6 +34,18 @@ class HabitDetailActivity : ScrollActivity() {
     private val bus by lazy { CommandBus.get(this) }
     private val repo by lazy { Repository.get(this) }
     private val habitId by lazy { intent.getStringExtra(EXTRA_HABIT_ID).orEmpty() }
+    private val main = Handler(Looper.getMainLooper())
+
+    /** Immutable payload so the DB pass happens off the UI thread. */
+    private data class DetailData(
+        val habit: Habit?,
+        val stats: HabitStats?,
+        val todayCheckIn: CheckIn?,
+        val history: List<Int>,
+        val obstacles: List<ObstaclePlan>
+    )
+
+    private var loadGeneration = 0
 
     override fun titleText() = "Habit"
 
@@ -40,19 +55,50 @@ class HabitDetailActivity : ScrollActivity() {
     }
 
     override fun buildContent() {
+        if (!contentReady()) return
+        content.removeAllViews()
+        content.addView(textCard("Habit", "Loading…"))
+        val gen = ++loadGeneration
+        AppBackground.launch {
+            val data = loadData()
+            main.post {
+                if (gen != loadGeneration || isFinishing || isDestroyed) return@post
+                content.removeAllViews()
+                fill(data)
+            }
+        }
+    }
+
+    private fun loadData(): DetailData {
         val h = repo.habit(habitId)
+            ?: return DetailData(null, null, null, emptyList(), emptyList())
+        val snap = repo.snapshot()
+        val today = repo.clock.today()
+        val iso = SfTime.format(today)
+        val todayCheckIn = snap.checkIns.firstOrNull { it.habitId == h.id && it.date == iso }
+        return DetailData(
+            habit = h,
+            stats = Insights.forHabit(snap, repo, h, today),
+            todayCheckIn = todayCheckIn,
+            history = Insights.historyStates(snap, repo, h, 14, today),
+            obstacles = repo.obstacles(h.id)
+        )
+    }
+
+    private fun fill(d: DetailData) {
+        val h = d.habit
         if (h == null) {
             content.addView(textCard("Habit not found", "It may have been deleted."))
             return
         }
+        val stats = d.stats ?: return
         toolbar.title = h.title
-        val stats = Insights.forHabit(repo, h)
+        val today = d.todayCheckIn
 
         content.addView(textCard(getString(R.string.your_contract), h.contract()))
 
         // Today
         content.addView(section("TODAY"))
-        val today = repo.checkIn(h.id, com.superflow.core.time.SfTime.format(repo.clock.today()))
         val todayCard = layoutInflater.inflate(R.layout.item_text_card, content, false)
         todayCard.findViewById<TextView>(R.id.text_title).text = when {
             today == null -> "Not recorded yet"
@@ -115,7 +161,7 @@ class HabitDetailActivity : ScrollActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT, dpi(24)
             ).also { it.topMargin = dpi(12) }
         }
-        strip.setStates(Insights.historyStates(repo, h, 14))
+        strip.setStates(d.history)
         (histCard.findViewById<TextView>(R.id.text_title).parent as LinearLayout).addView(strip)
         content.addView(histCard)
 
@@ -147,12 +193,11 @@ class HabitDetailActivity : ScrollActivity() {
 
         // Obstacles
         content.addView(section(getString(R.string.obstacle_plans)))
-        val obstacles = repo.obstacles(h.id)
-        if (obstacles.isEmpty()) {
+        if (d.obstacles.isEmpty()) {
             content.addView(textCard("No if-then plans yet",
                 "Deciding in advance is what makes a plan survive a bad day."))
         }
-        obstacles.forEach { o ->
+        d.obstacles.forEach { o ->
             val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
             card.findViewById<TextView>(R.id.text_title).text = "If ${o.ifText}"
             card.findViewById<TextView>(R.id.text_body).text = "then ${o.thenText}"
@@ -193,10 +238,10 @@ class HabitDetailActivity : ScrollActivity() {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).also { it.topMargin = dpi(8) }
-            setOnClickListener { exec("archive_habit", jsonOf("habit" to h.id)); finish() }
+            setOnClickListener { exec("archive_habit", jsonOf("habit" to h.id), thenFinish = true) }
         })
         content.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Delete habit"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -207,7 +252,7 @@ class HabitDetailActivity : ScrollActivity() {
                     .setMessage("Its history goes too. You can undo this from Activity.")
                     .setNegativeButton(R.string.cancel, null)
                     .setPositiveButton(R.string.delete) { _, _ ->
-                        exec("delete_habit", jsonOf("habit" to h.id)); finish()
+                        exec("delete_habit", jsonOf("habit" to h.id), thenFinish = true)
                     }.show()
             }
         })
@@ -215,10 +260,15 @@ class HabitDetailActivity : ScrollActivity() {
 
     private fun dpi(v: Int) = (v * resources.displayMetrics.density).toInt()
 
-    private fun exec(command: String, args: org.json.JSONObject) {
-        val res = bus.execute(command, args, Actor.USER)
-        if (!res.ok) findViewById<View>(R.id.root).snack(res.message)
-        rebuild()
+    private fun exec(command: String, args: org.json.JSONObject, thenFinish: Boolean = false) {
+        AppBackground.launch {
+            val res = bus.execute(command, args, Actor.USER)
+            main.post {
+                if (isFinishing || isDestroyed) return@post
+                if (!res.ok) findViewById<View>(R.id.root).snack(res.message)
+                if (thenFinish) finish() else rebuild()
+            }
+        }
     }
 
     companion object { const val EXTRA_HABIT_ID = "habitId" }

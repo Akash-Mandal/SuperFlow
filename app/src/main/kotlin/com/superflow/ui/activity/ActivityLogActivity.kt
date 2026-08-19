@@ -6,6 +6,7 @@ import android.widget.TextView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
+import com.superflow.AppBackground
 import com.superflow.R
 import com.superflow.data.Repository
 import com.superflow.data.model.AuditEntry
@@ -28,6 +29,18 @@ class ActivityLogActivity : ScrollActivity() {
 
     override fun titleText() = getString(R.string.activity_trail)
 
+    /** Undo/clear are database writes; keep them off the render thread. */
+    private fun runAndRebuild(work: () -> String) {
+        AppBackground.launch {
+            val message = runCatching { work() }.getOrElse { it.message ?: "That did not work" }
+            mainHandler.post {
+                if (isFinishing || isDestroyed) return@post
+                findViewById<View>(R.id.root).snack(message)
+                rebuild()
+            }
+        }
+    }
+
     override fun buildContent() {
         content.addView(textCard("Everything that changed",
             "Actions from you, from AI and from scheduled jobs — each individually undoable."))
@@ -44,10 +57,24 @@ class ActivityLogActivity : ScrollActivity() {
         }
         content.addView(chips)
 
-        val entries = repo.audit(300).filter { filter == "ALL" || it.actor == filter }
+        // The trail is a database read; load it off the render thread.
+        val gen = ++loadGeneration
+        AppBackground.launch {
+            val entries = repo.audit(300).filter { filter == "ALL" || it.actor == filter }
+            mainHandler.post {
+                if (gen != loadGeneration || isFinishing || isDestroyed) return@post
+                content.removeAllViews()
+                buildContent()
+                fillEntries(entries)
+            }
+        }
+    }
+
+    private fun fillEntries(entries: List<AuditEntry>) {
         if (entries.isEmpty()) {
             content.addView(textCard("Nothing recorded yet",
                 "Actions appear here the moment anything changes."))
+            addClearButton()
             return
         }
 
@@ -72,9 +99,7 @@ class ActivityLogActivity : ScrollActivity() {
                             LinearLayout.LayoutParams.WRAP_CONTENT
                         ).also { it.topMargin = dpi(12) }
                         setOnClickListener {
-                            val res = bus.undoGroup(key)
-                            findViewById<View>(R.id.root).snack(res.message)
-                            rebuild()
+                            runAndRebuild { bus.undoGroup(key).message }
                         }
                     })
                 }
@@ -85,12 +110,10 @@ class ActivityLogActivity : ScrollActivity() {
                         if (e.undone) " · undone" else ""
                 if (!e.undone && e.undoPayload.isNotBlank()) {
                     (title.parent as LinearLayout).addView(MaterialButton(this, null,
-                        com.google.android.material.R.attr.borderlessButtonStyle).apply {
+                        androidx.appcompat.R.attr.borderlessButtonStyle).apply {
                         text = getString(R.string.undo)
                         setOnClickListener {
-                            val res = bus.undo(e)
-                            findViewById<View>(R.id.root).snack(res.message)
-                            rebuild()
+                            runAndRebuild { bus.undo(e).message }
                         }
                     })
                 }
@@ -98,8 +121,12 @@ class ActivityLogActivity : ScrollActivity() {
             content.addView(card)
         }
 
+        addClearButton()
+    }
+
+    private fun addClearButton() {
         content.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Clear trail"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -109,11 +136,13 @@ class ActivityLogActivity : ScrollActivity() {
                     .setTitle("Clear the activity history?")
                     .setMessage("Undo data will be lost.")
                     .setNegativeButton(R.string.cancel, null)
-                    .setPositiveButton("Clear") { _, _ -> repo.clearAudit(); rebuild() }
+                    .setPositiveButton("Clear") { _, _ -> runAndRebuild { repo.clearAudit(); "Trail cleared" } }
                     .show()
             }
         })
     }
+
+    private var loadGeneration = 0
 
     private fun dpi(v: Int) = (v * resources.displayMetrics.density).toInt()
 }

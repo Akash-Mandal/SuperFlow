@@ -20,6 +20,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
+import com.superflow.AppBackground
 import com.superflow.R
 import com.superflow.ai.Coordinator
 import com.superflow.data.Prefs
@@ -31,6 +32,7 @@ import com.superflow.ui.MainActivity
 import com.superflow.ui.common.snack
 import com.superflow.ui.common.visible
 import com.superflow.util.jsonOf
+import com.superflow.widget.TodayWidget
 
 /**
  * Onboarding: from aspiration to first action in under five minutes.
@@ -135,7 +137,7 @@ class OnboardingActivity : AppCompatActivity() {
             append("Review — improve the system, not blame yourself")
         }))
         contentView.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Skip for now"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -187,7 +189,7 @@ class OnboardingActivity : AppCompatActivity() {
         field("habit", "Habit", "Walk for 10 minutes")
         field("tiny", "Tiny start — about two minutes", "Put on my shoes and step outside")
         contentView.addView(MaterialButton(this, null,
-            com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Suggest a tiny start"
             setOnClickListener {
                 val title = v("habit")
@@ -326,31 +328,9 @@ class OnboardingActivity : AppCompatActivity() {
 
     private fun complete(skipped: Boolean) {
         if (!skipped) {
-            val identityId = bus.execute("create_identity",
-                jsonOf("statement" to v("identity"), "lifeArea" to area.name), Actor.USER)
-                .data?.optString("id")
-
-            val goalId = bus.execute("create_goal",
-                jsonOf("title" to v("goal"), "why" to v("why"), "identityId" to identityId),
-                Actor.USER).data?.optString("id")
-
-            val systemId = bus.execute("create_system", jsonOf(
-                "title" to v("system").ifBlank { "My ${v("goal")} routine" }, "goalId" to goalId
-            ), Actor.USER).data?.optString("id")
-
-            bus.execute("create_habit", jsonOf(
-                "title" to v("habit"),
-                "tinyStart" to v("tiny").ifBlank { Coordinator.defaultTinyStart(v("habit")) },
-                "standardVersion" to v("habit"),
-                "cueTime" to v("cueTime"),
-                "anchorText" to v("anchor"),
-                "reward" to v("reward"),
-                "systemId" to systemId,
-                "identityId" to identityId,
-                "reminder" to wantsReminder,
-                "days" to "daily"
-            ), Actor.USER)
-
+            // The permission prompt must come from a live activity, so it
+            // happens here; the four database writes and the alarm pass run on
+            // the background lane and are ordered before the reschedule.
             if (wantsReminder && android.os.Build.VERSION.SDK_INT >= 33) {
                 val perm = android.Manifest.permission.POST_NOTIFICATIONS
                 if (checkSelfPermission(perm) !=
@@ -358,10 +338,60 @@ class OnboardingActivity : AppCompatActivity() {
                     notificationPermission.launch(perm)
                 }
             }
+            createWorkspace()
         }
         prefs.onboarded = true
         Reminders.rescheduleAll(this)
+        TodayWidget.refresh(this, force = true)
         startActivity(Intent(this, MainActivity::class.java))
         finish()
+    }
+
+    /** Identity -> goal -> system -> habit, off the main thread. */
+    private fun createWorkspace() {
+        next.isEnabled = false
+        val identity = v("identity")
+        val goal = v("goal")
+        val why = v("why")
+        val system = v("system").ifBlank { "My ${v("goal")} routine" }
+        val habit = v("habit")
+        val tiny = v("tiny").ifBlank { Coordinator.defaultTinyStart(v("habit")) }
+        val cueTime = v("cueTime")
+        val anchor = v("anchor")
+        val reward = v("reward")
+        val wantsReminder = wantsReminder
+
+        AppBackground.launch {
+            try {
+                val identityId = bus.execute("create_identity",
+                    jsonOf("statement" to identity, "lifeArea" to area.name), Actor.USER)
+                    .data?.optString("id")
+
+                val goalId = bus.execute("create_goal",
+                    jsonOf("title" to goal, "why" to why, "identityId" to identityId),
+                    Actor.USER).data?.optString("id")
+
+                val systemId = bus.execute("create_system", jsonOf(
+                    "title" to system, "goalId" to goalId
+                ), Actor.USER).data?.optString("id")
+
+                bus.execute("create_habit", jsonOf(
+                    "title" to habit,
+                    "tinyStart" to tiny,
+                    "standardVersion" to habit,
+                    "cueTime" to cueTime,
+                    "anchorText" to anchor,
+                    "reward" to reward,
+                    "systemId" to systemId,
+                    "identityId" to identityId,
+                    "reminder" to wantsReminder,
+                    "days" to "daily"
+                ), Actor.USER)
+            } catch (e: Exception) {
+                // Onboarding must complete even if a write fails; the user can
+                // recreate the pieces from Journey. Log for supportability.
+                android.util.Log.w("Onboarding", "Workspace creation failed", e)
+            }
+        }
     }
 }
