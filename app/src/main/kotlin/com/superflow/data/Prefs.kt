@@ -89,6 +89,27 @@ class Prefs private constructor(context: Context) {
         get() = str("quietTo", "07:00")
         set(v) = setStr("quietTo", v)
 
+    /**
+     * Alpha2: separate quiet hours for weekdays and weekends. Empty means
+     * "inherit the single quietFrom/quietTo window above", so users who set
+     * one window keep it until they configure per-day hours.
+     */
+    var quietWeekdayFrom: String
+        get() = str("quietWeekdayFrom", "")
+        set(v) = setStr("quietWeekdayFrom", v)
+
+    var quietWeekdayTo: String
+        get() = str("quietWeekdayTo", "")
+        set(v) = setStr("quietWeekdayTo", v)
+
+    var quietWeekendFrom: String
+        get() = str("quietWeekendFrom", "")
+        set(v) = setStr("quietWeekendFrom", v)
+
+    var quietWeekendTo: String
+        get() = str("quietWeekendTo", "")
+        set(v) = setStr("quietWeekendTo", v)
+
     var reminderBudget: Int
         get() = num("reminderBudget", 6)
         set(v) = setNum("reminderBudget", v)
@@ -112,6 +133,21 @@ class Prefs private constructor(context: Context) {
     var energyTracking: Boolean
         get() = bool("energyTracking", true)
         set(v) = setBool("energyTracking", v)
+
+    /* ------------------------------------------------------ weekly summary */
+
+    var weeklySummaryEnabled: Boolean
+        get() = bool("weeklySummaryEnabled", true)
+        set(v) = setBool("weeklySummaryEnabled", v)
+
+    /** ISO day of week (Monday = 1 .. Sunday = 7) for the weekly report. */
+    var weeklySummaryDay: Int
+        get() = num("weeklySummaryDay", 7)
+        set(v) = setNum("weeklySummaryDay", v.coerceIn(1, 7))
+
+    var weeklySummaryTime: String
+        get() = str("weeklySummaryTime", "18:00")
+        set(v) = setStr("weeklySummaryTime", v)
 
     var crashReporting: Boolean
         get() = bool("crashReporting", false)

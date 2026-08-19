@@ -119,6 +119,16 @@
     <string name="channel_habits_desc">Gentle nudges for the habits you scheduled</string>
     <string name="channel_checkpoints">Checkpoints</string>
     <string name="channel_checkpoints_desc">Morning, midday and evening check-ins</string>
+    <string name="channel_reviews">Review reminders</string>
+    <string name="channel_reviews_desc">Weekly, monthly and quarterly review nudges</string>
+    <string name="channel_milestones">Milestones</string>
+    <string name="channel_milestones_desc">Quiet acknowledgments of progress</string>
+    <string name="channel_ai_suggestions">AI suggestions</string>
+    <string name="channel_ai_suggestions_desc">Proactive suggestions from the coach</string>
+    <string name="channel_weekly_summary">Weekly summary</string>
+    <string name="channel_weekly_summary_desc">Your week in SuperFlow, every Sunday</string>
+    <string name="channel_backup">Backup status</string>
+    <string name="channel_backup_desc">Automatic backup results</string>
 
     <!-- Content descriptions -->
     <string name="cd_back">Navigate up</string>

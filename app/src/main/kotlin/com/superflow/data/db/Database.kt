@@ -16,7 +16,7 @@ class SuperFlowDatabase private constructor(context: Context) {
 
     companion object {
         const val NAME = "superflow.db"
-        const val VERSION = 3
+        const val VERSION = 4
 
         @Volatile private var instance: SuperFlowDatabase? = null
 
@@ -70,7 +70,8 @@ object Schema {
                 frictionPlan TEXT, environmentPrep TEXT, reward TEXT, recoveryPlan TEXT,
                 recurrenceRule TEXT, scheduleVersion INTEGER, startDate TEXT, endDate TEXT,
                 reminderEnabled INTEGER, protectedRoutine INTEGER,
-                colorSeed INTEGER, orderIndex INTEGER, status TEXT, createdAt INTEGER)"""
+                colorSeed INTEGER, orderIndex INTEGER, status TEXT,
+                graduated INTEGER, graduatedAt INTEGER, createdAt INTEGER)"""
         )
         db.execSQL(
             """CREATE TABLE checkin(
@@ -152,6 +153,11 @@ object Schema {
     }
 
     fun upgrade(db: SupportSQLiteDatabase, old: Int, new: Int) {
+        if (old < 4) {
+            // Alpha2: habit graduation (66+ days at 90%+ consistency).
+            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN graduated INTEGER DEFAULT 0") }
+            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN graduatedAt INTEGER") }
+        }
         if (old < 3) {
             // daysMask -> recurrenceRule, plus schedule versioning and pauses.
             runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN recurrenceRule TEXT") }

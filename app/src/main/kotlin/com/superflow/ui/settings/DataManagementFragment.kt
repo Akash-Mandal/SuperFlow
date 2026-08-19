@@ -428,45 +428,11 @@ class DataManagementFragment : Fragment() {
         true
     } catch (e: Exception) { false }
 
-    private fun checkIntegrity(): String {
-        val issues = mutableListOf<String>()
-        val habitIds = repo.habits(true).map { it.id }.toSet()
-        val identityIds = repo.identities(true).map { it.id }.toSet()
-        val goalIds = repo.goals().map { it.id }.toSet()
-        val systemIds = repo.systems().map { it.id }.toSet()
-
-        // Orphaned check-ins
-        val orphanCI = repo.checkIns().count { it.habitId !in habitIds }
-        if (orphanCI > 0) issues.add("$orphanCI check-ins for deleted habits")
-
-        // Orphaned obstacles
-        val orphanOb = repo.obstacles().count { it.habitId !in habitIds }
-        if (orphanOb > 0) issues.add("$orphanOb obstacle plans for deleted habits")
-
-        // Goals without identities
-        val orphanG = repo.goals().count { it.identityId != null && it.identityId !in identityIds }
-        if (orphanG > 0) issues.add("$orphanG goals linked to deleted identities")
-
-        // Systems without goals
-        val orphanS = repo.systems().count { it.goalId != null && it.goalId !in goalIds }
-        if (orphanS > 0) issues.add("$orphanS systems linked to deleted goals")
-
-        // Habits without systems
-        val orphanH = repo.habits().count { it.systemId != null && it.systemId !in systemIds }
-        if (orphanH > 0) issues.add("$orphanH habits linked to deleted systems")
-
-        return if (issues.isEmpty()) "✓ All data is consistent. No issues found."
-        else "Issues found:\n" + issues.joinToString("\n") { "· $it" }
-    }
+    private fun checkIntegrity(): String =
+        com.superflow.domain.Diagnostics.checkIntegrity(repo)
 
     private fun fixIntegrity() {
-        val habitIds = repo.habits(true).map { it.id }.toSet()
-        repo.checkIns().filter { it.habitId !in habitIds }.forEach {
-            repo.delete("checkin", "id=?", arrayOf(it.id))
-        }
-        repo.obstacles().filter { it.habitId !in habitIds }.forEach {
-            repo.deleteObstacle(it.id)
-        }
+        com.superflow.domain.Diagnostics.fix(repo)
     }
 
     /* ------------------------------------------------------------- helpers */

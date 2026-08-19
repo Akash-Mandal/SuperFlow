@@ -126,7 +126,7 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
 
         // Habits
         rows.add(JourneyRow.Header("Habits", "Design", "habit"))
-        val habits = repo.habits()
+        val habits = repo.habits().filter { !it.graduated }
         if (habits.isEmpty()) {
             rows.add(JourneyRow.Empty("Pick one small action",
                 "Every habit needs a version you can start in two minutes.", "habit"))
@@ -141,6 +141,20 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
                 if (h.mode == HabitMode.REDUCE) com.superflow.R.drawable.ic_shield
                 else com.superflow.R.drawable.ic_bolt
             ))
+        }
+
+        // Graduated habits live in maintenance, off Today, checked weekly.
+        val graduated = repo.habits().filter { it.graduated }
+        if (graduated.isNotEmpty()) {
+            rows.add(JourneyRow.Header("Maintenance", null, "maintenance"))
+            for (h in graduated) {
+                val stats = Insights.forHabit(repo, h)
+                rows.add(JourneyRow.Entity(
+                    h.id, "habit", h.title,
+                    "Automatic · weekly check-in · ${stats.repetitions} reps",
+                    com.superflow.R.drawable.ic_star
+                ))
+            }
         }
 
         val archived = repo.habits(true).filter { it.status == Status.ARCHIVED }

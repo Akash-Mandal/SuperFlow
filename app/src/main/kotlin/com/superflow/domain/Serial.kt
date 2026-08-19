@@ -49,7 +49,8 @@ object Serial {
         "startDate" to h.startDate, "endDate" to h.endDate,
         "reminderEnabled" to h.reminderEnabled, "protectedRoutine" to h.protectedRoutine,
         "colorSeed" to h.colorSeed, "orderIndex" to h.orderIndex,
-        "status" to h.status.name, "createdAt" to h.createdAt
+        "status" to h.status.name, "graduated" to h.graduated, "graduatedAt" to h.graduatedAt,
+        "createdAt" to h.createdAt
     )
 
     fun of(c: CheckIn): JSONObject = jsonOf(
@@ -167,7 +168,10 @@ object Serial {
         protectedRoutine = o.optBoolean("protectedRoutine", false),
         colorSeed = o.optInt("colorSeed", 0),
         orderIndex = o.optInt("orderIndex", 0),
-        status = Status.valueOf(o.string("status", "ACTIVE")), createdAt = long(o, "createdAt")
+        status = Status.valueOf(o.string("status", "ACTIVE")),
+        graduated = o.optBoolean("graduated", false),
+        graduatedAt = if (o.isNull("graduatedAt")) null else o.optLong("graduatedAt"),
+        createdAt = long(o, "createdAt")
     )
 
     fun checkIn(o: JSONObject) = CheckIn(

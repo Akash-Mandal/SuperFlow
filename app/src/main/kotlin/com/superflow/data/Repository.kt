@@ -10,6 +10,7 @@ import com.superflow.core.time.SuperFlowClock
 import com.superflow.core.time.SystemClock
 import com.superflow.data.db.*
 import com.superflow.data.model.*
+import com.superflow.util.levenshtein
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -126,7 +127,13 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         if (id == null) null
         else query("SELECT * FROM habit WHERE id=?", arrayOf(id)).mapAll(Rows::habit).firstOrNull()
 
-    /** Fuzzy lookup for AI commands and search. */
+    /**
+     * Fuzzy lookup for AI commands and search.
+     *
+     * Tries exact, prefix and substring matches in order, then falls back to
+     * the nearest title by Levenshtein distance so a typo ("walkk") still
+     * resolves to the intended habit.
+     */
     fun findHabit(queryText: String): Habit? {
         val q = queryText.trim().lowercase()
         if (q.isEmpty()) return null
@@ -135,6 +142,8 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
             ?: all.firstOrNull { it.title.lowercase().startsWith(q) }
             ?: all.firstOrNull { it.title.lowercase().contains(q) }
             ?: all.firstOrNull { q.contains(it.title.lowercase()) }
+            ?: all.minByOrNull { levenshtein(q, it.title.lowercase()) }
+                ?.takeIf { levenshtein(q, it.title.lowercase()) <= 3 }
     }
 
     fun saveHabit(h: Habit) = insert("habit", contentValuesOf(
@@ -151,7 +160,9 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         "startDate" to h.startDate, "endDate" to h.endDate,
         "reminderEnabled" to h.reminderEnabled,
         "protectedRoutine" to h.protectedRoutine, "colorSeed" to h.colorSeed,
-        "orderIndex" to h.orderIndex, "status" to h.status.name, "createdAt" to h.createdAt
+        "orderIndex" to h.orderIndex, "status" to h.status.name,
+        "graduated" to h.graduated, "graduatedAt" to h.graduatedAt,
+        "createdAt" to h.createdAt
     ))
 
     fun deleteHabit(id: String) {
@@ -175,7 +186,9 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     )
 
     fun habitsForDay(date: LocalDate): List<Habit> =
-        habits().filter { it.status == Status.ACTIVE && scheduleOf(it).activeOn(date) }
+        habits().filter {
+            it.status == Status.ACTIVE && !it.graduated && scheduleOf(it).activeOn(date)
+        }
 
     /** Today's habits joined with their check-ins, ready for the list adapter. */
     fun todayHabits(date: LocalDate): List<TodayHabit> {

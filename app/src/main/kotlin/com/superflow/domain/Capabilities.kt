@@ -17,17 +17,19 @@ import org.json.JSONObject
  */
 object Capabilities {
 
-    const val CATALOG_VERSION = 2
+    const val CATALOG_VERSION = 3
 
     fun all(): List<Capability> = buildList {
         addAll(identityCaps())
         addAll(habitCaps())
+        addAll(graduationCaps())
         addAll(checkInCaps())
         addAll(focusCaps())
         addAll(designCaps())
         addAll(pauseCaps())
         addAll(reviewCaps())
         addAll(queryCaps())
+        addAll(diagnosticsCaps())
         addAll(dataCaps())
     }
 
@@ -277,6 +279,26 @@ object Capabilities {
             okResult("Habit deleted", null, id)
         },
 
+        Capability("duplicate_habit", "Create a copy of an existing habit, including its obstacle plans",
+            listOf("habit" to "id or title"), Risk.LOW) { c ->
+            val original = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val copy = original.copy(
+                id = newId(),
+                title = "${original.title} (copy)",
+                graduated = false,
+                graduatedAt = null,
+                createdAt = System.currentTimeMillis(),
+                orderIndex = original.orderIndex + 1
+            )
+            c.repo.saveHabit(copy)
+            c.repo.obstacles(original.id).forEach { o ->
+                c.repo.saveObstacle(o.copy(id = newId(), habitId = copy.id))
+            }
+            val id = c.bus.record(c.actor, "duplicate_habit", "Duplicated \"${original.title}\"",
+                Serial.of(copy), undoDelete("habit", copy.id), c.groupId)
+            okResult("Duplicated \"${original.title}\"", jsonOf("id" to copy.id), id)
+        },
+
         Capability("reorder_habit", "Move a habit up or down the Today timeline",
             listOf("habit" to "id or title", "direction" to "up|down", "toIndex" to "int"),
             Risk.LOW) { c ->
@@ -323,6 +345,75 @@ object Capabilities {
             val id = c.bus.record(c.actor, "delete_obstacle_plan", "Removed an obstacle plan",
                 Serial.of(old), undoRestore("obstacle", Serial.of(old)), c.groupId)
             okResult("Obstacle plan removed", null, id)
+        }
+    )
+
+    /* ------------------------------------------------------ graduation layer */
+
+    private fun graduationCaps() = listOf(
+        Capability("graduation_status", "Report a habit's graduation eligibility",
+            listOf("habit" to "id or title"), Risk.LOW) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val s = Graduation.status(c.repo, h)
+            val text = when {
+                h.graduated -> "\"${h.title}\" is already in maintenance."
+                s.eligible -> "\"${h.title}\" is ready to graduate: ${s.consistency}% over " +
+                        "${s.opportunities} opportunities across ${s.trackedDays} days."
+                !s.hasEnoughData -> "\"${h.title}\" needs more data before a graduation call " +
+                        "(${s.opportunities} opportunities so far)."
+                else -> "\"${h.title}\": ${s.consistency}% over ${s.trackedDays} tracked days. " +
+                        "Graduation opens at ${Graduation.MIN_DAYS} days with " +
+                        "${Graduation.MIN_CONSISTENCY}% consistency."
+            }
+            okResult(text, jsonOf(
+                "eligible" to s.eligible, "consistency" to s.consistency,
+                "opportunities" to s.opportunities, "trackedDays" to s.trackedDays
+            ), null)
+        },
+
+        Capability("graduate_habit", "Move a habit to maintenance — tracked weekly, not daily",
+            listOf("habit" to "id or title"), Risk.MEDIUM) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            if (old.graduated) return@Capability CommandResult.fail("Already in maintenance")
+            val updated = old.copy(graduated = true, graduatedAt = System.currentTimeMillis())
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "graduate_habit",
+                "\"${old.title}\" moved to maintenance",
+                Serial.of(updated), undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("\"${old.title}\" graduated. It now checks in weekly, not daily.",
+                jsonOf("id" to updated.id), id)
+        },
+
+        Capability("ungraduate_habit", "Return a graduated habit to daily tracking",
+            listOf("habit" to "id or title"), Risk.LOW) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            if (!old.graduated) return@Capability CommandResult.fail("Not in maintenance")
+            val updated = old.copy(graduated = false, graduatedAt = null)
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "ungraduate_habit",
+                "\"${old.title}\" back to daily tracking",
+                Serial.of(updated), undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("\"${old.title}\" is back on Today.", jsonOf("id" to updated.id), id)
+        },
+
+        Capability("upgrade_habit", "Increase a habit's standard version instead of graduating",
+            listOf("habit" to "id or title"), Risk.MEDIUM) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val harder = old.stretchVersion.ifBlank {
+                old.standardVersion.ifBlank { old.title }
+            }
+            val updated = old.copy(
+                standardVersion = harder,
+                graduated = false,
+                graduatedAt = null,
+                scheduleVersion = old.scheduleVersion
+            )
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "upgrade_habit",
+                "\"${old.title}\" upgraded to \"$harder\"",
+                Serial.of(updated), undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("\"${old.title}\" upgraded: the new standard is \"$harder\".",
+                jsonOf("id" to updated.id), id)
         }
     )
 
@@ -787,20 +878,42 @@ object Capabilities {
             okResult(sb.toString())
         },
 
-        Capability("search", "Search habits, goals, identities and systems",
+        Capability("search", "Search every entity — habits, goals, identities, reviews, journal, activity",
             listOf("query" to "string"), Risk.LOW) { c ->
-            val q = c.str("query").trim().lowercase()
+            val q = c.str("query").trim()
             if (q.isBlank()) return@Capability CommandResult.fail("What should I search for?")
-            val hits = ArrayList<String>()
-            c.repo.identities().filter { it.statement.lowercase().contains(q) }
-                .forEach { hits.add("Identity: ${it.statement}") }
-            c.repo.goals().filter { it.title.lowercase().contains(q) }
-                .forEach { hits.add("Goal: ${it.title}") }
-            c.repo.systems().filter { it.title.lowercase().contains(q) }
-                .forEach { hits.add("System: ${it.title}") }
-            c.repo.habits(true).filter { it.title.lowercase().contains(q) }
-                .forEach { hits.add("Habit: ${it.title}") }
-            okResult(if (hits.isEmpty()) "No matches for \"$q\"." else hits.joinToString("\n"))
+            val results = Search.search(c.repo, q)
+            if (results.isEmpty()) return@Capability okResult("No matches for \"$q\".")
+            val lines = ArrayList<String>()
+            results.take(20).forEach { r ->
+                lines.add("${r.type.replaceFirstChar { it.uppercase() }}: ${r.title}" +
+                        if (r.subtitle.isBlank()) "" else " — ${r.subtitle}")
+            }
+            okResult(lines.joinToString("\n"))
+        }
+    )
+
+    /* ------------------------------------------------------ diagnostics layer */
+
+    private fun diagnosticsCaps() = listOf(
+        Capability("check_integrity", "Scan the workspace for orphaned or dangling records",
+            listOf(), Risk.LOW) { c ->
+            okResult(Diagnostics.checkIntegrity(c.repo))
+        },
+
+        Capability("fix_integrity", "Clean up orphaned check-ins, obstacles and dangling links",
+            listOf("confirm" to "bool"), Risk.HIGH, destructive = true) { c ->
+            val found = Diagnostics.issues(c.repo)
+            if (found.isEmpty()) return@Capability okResult("Nothing to fix — all data is consistent")
+            val rows = Diagnostics.captureDeletions(c.repo)
+            val touched = Diagnostics.fix(c.repo)
+            val undo = if (rows.length() > 0)
+                jsonOf("kind" to "restoreRows", "table" to "checkin", "rows" to rows)
+            else jsonOf("kind" to "noop")
+            val id = c.bus.record(c.actor, "fix_integrity",
+                "Fixed ${found.size} integrity issue(s), $touched records touched",
+                null, undo, c.groupId)
+            okResult("Fixed ${found.size} issue(s). $touched records touched.", null, id)
         }
     )
 

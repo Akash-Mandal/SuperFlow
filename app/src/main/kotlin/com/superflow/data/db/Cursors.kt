@@ -72,7 +72,9 @@ object Rows {
         startDate = c.str("startDate"), endDate = c.strOrNull("endDate"),
         reminderEnabled = c.bool("reminderEnabled"), protectedRoutine = c.bool("protectedRoutine"),
         colorSeed = c.int("colorSeed"), orderIndex = c.int("orderIndex"),
-        status = Status.valueOf(c.str("status").ifBlank { "ACTIVE" }), createdAt = c.lng("createdAt")
+        status = Status.valueOf(c.str("status").ifBlank { "ACTIVE" }),
+        graduated = c.bool("graduated"), graduatedAt = c.lngOrNull("graduatedAt"),
+        createdAt = c.lng("createdAt")
     )
 
     fun checkIn(c: Cursor) = CheckIn(

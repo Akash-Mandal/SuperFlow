@@ -136,16 +136,33 @@ class SettingsFragment : Fragment() {
                 Reminders.rescheduleAll(requireContext())
                 render()
             },
-            action(R.drawable.ic_moon, "Quiet hours",
-                "${prefs.quietFrom} – ${prefs.quietTo}") {
-                pickTime(prefs.quietFrom) { from ->
-                    prefs.quietFrom = from
-                    pickTime(prefs.quietTo) { to ->
-                        prefs.quietTo = to
-                        Reminders.rescheduleAll(requireContext())
-                        render()
-                    }
-                }
+            action(R.drawable.ic_moon, "Quiet hours", quietHoursSummary()) {
+                val options = arrayOf(
+                    "Weekdays: ${weekdayWindow()}",
+                    "Weekends: ${weekendWindow()}",
+                    "Every day: ${prefs.quietFrom} – ${prefs.quietTo}"
+                )
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Quiet hours")
+                    .setItems(options) { _, which ->
+                        when (which) {
+                            0 -> pickRange("Weekday quiet hours",
+                                prefs.quietWeekdayFrom, prefs.quietWeekdayTo) { f, t ->
+                                prefs.quietWeekdayFrom = f; prefs.quietWeekdayTo = t
+                                Reminders.rescheduleAll(requireContext()); render()
+                            }
+                            1 -> pickRange("Weekend quiet hours",
+                                prefs.quietWeekendFrom, prefs.quietWeekendTo) { f, t ->
+                                prefs.quietWeekendFrom = f; prefs.quietWeekendTo = t
+                                Reminders.rescheduleAll(requireContext()); render()
+                            }
+                            else -> pickRange("Quiet hours every day",
+                                prefs.quietFrom, prefs.quietTo) { f, t ->
+                                prefs.quietFrom = f; prefs.quietTo = t
+                                Reminders.rescheduleAll(requireContext()); render()
+                            }
+                        }
+                    }.show()
             },
             action(R.drawable.ic_notification, "Daily reminder budget",
                 "${prefs.reminderBudget} per day") {
@@ -191,6 +208,55 @@ class SettingsFragment : Fragment() {
             add(toggle("Track energy", "Optional, with sample-size caveats.", prefs.energyTracking) {
                 prefs.energyTracking = it
             })
+        }))
+
+        // Weekly summary
+        container.addView(section("WEEKLY SUMMARY"))
+        container.addView(group(buildList {
+            add(toggle("Weekly report", "A quiet Sunday-evening recap.", prefs.weeklySummaryEnabled) {
+                prefs.weeklySummaryEnabled = it
+            })
+            if (prefs.weeklySummaryEnabled) {
+                val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday",
+                    "Friday", "Saturday", "Sunday")
+                add(action(R.drawable.ic_calendar, "Report day",
+                    dayNames[(prefs.weeklySummaryDay - 1).coerceIn(0, 6)]) {
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("Weekly report day")
+                        .setItems(dayNames.toTypedArray()) { _, which ->
+                            prefs.weeklySummaryDay = which + 1
+                            render()
+                        }.show()
+                })
+                add(action(R.drawable.ic_notification, "Report time", prefs.weeklySummaryTime) {
+                    pickTime(prefs.weeklySummaryTime) { t ->
+                        prefs.weeklySummaryTime = t
+                        render()
+                    }
+                })
+            }
+        }))
+
+        // Pause / Vacation
+        container.addView(section("PAUSE / VACATION"))
+        container.addView(group(buildList {
+            add(action(R.drawable.ic_pause, "Pause habits",
+                "Take a break without creating misses") { startPauseFlow() })
+            val pauses = repo.pauses()
+            if (pauses.isEmpty()) {
+                add(note("No active pauses. Paused days never count as misses."))
+            } else {
+                pauses.forEach { p ->
+                    val scope = p.habitId?.let { id -> repo.habit(id)?.title } ?: "All habits"
+                    add(action(R.drawable.ic_play, "Resume: $scope",
+                        "${p.startDate} → ${p.endDate}" +
+                                (if (p.reason.isBlank()) "" else " · ${p.reason}")) {
+                        bus.execute("resume_habits", jsonOf("id" to p.id), Actor.USER)
+                        view?.snack("Resumed")
+                        render()
+                    })
+                }
+            }
         }))
 
         // Experience
@@ -308,6 +374,29 @@ class SettingsFragment : Fragment() {
         return v
     }
 
+    private fun weekdayWindow(): String =
+        prefs.quietWeekdayFrom.ifBlank { prefs.quietFrom } + " – " +
+                prefs.quietWeekdayTo.ifBlank { prefs.quietTo }
+
+    private fun weekendWindow(): String =
+        prefs.quietWeekendFrom.ifBlank { prefs.quietFrom } + " – " +
+                prefs.quietWeekendTo.ifBlank { prefs.quietTo }
+
+    private fun quietHoursSummary(): String {
+        val wd = weekdayWindow()
+        val we = weekendWindow()
+        return if (wd == we) wd else "Weekdays $wd · Weekends $we"
+    }
+
+    private fun pickRange(title: String, from: String, to: String,
+                          onPicked: (String, String) -> Unit) {
+        pickTime(from.ifBlank { "22:00" }) { f ->
+            pickTime(to.ifBlank { "07:00" }) { t ->
+                onPicked(f, t)
+            }
+        }
+    }
+
     private fun pickTime(current: String, onPicked: (String) -> Unit) {
         val minutes = Dates.minutesOfDay(current).coerceAtLeast(0)
         val picker = MaterialTimePicker.Builder()
@@ -319,6 +408,35 @@ class SettingsFragment : Fragment() {
             onPicked(String.format("%02d:%02d", picker.hour, picker.minute))
         }
         picker.show(parentFragmentManager, "time")
+    }
+
+    /** Guided pause/vacation flow: start date → end date → optional reason. */
+    private fun startPauseFlow() {
+        val today = com.superflow.core.time.SfTime.format(repo.clock.today())
+        TextInputSheet.show(
+            parentFragmentManager, "Pause habits", "Start date (yyyy-MM-dd)",
+            subtitle = "Paused days never count as misses.", value = today
+        ) { from ->
+            val fromIso = from.trim().ifBlank { today }
+            TextInputSheet.show(
+                parentFragmentManager, "Pause habits", "End date (yyyy-MM-dd)",
+                subtitle = "The break ends after this day.", value = fromIso
+            ) { to ->
+                val toIso = to.trim().ifBlank { fromIso }
+                TextInputSheet.show(
+                    parentFragmentManager, "Pause habits", "Reason (optional)",
+                    subtitle = "Vacation, illness, travel, or anything else."
+                ) { reason ->
+                    val res = bus.execute(
+                        "pause_habits",
+                        jsonOf("from" to fromIso, "to" to toIso, "reason" to reason.trim()),
+                        Actor.USER
+                    )
+                    view?.snack(res.message)
+                    render()
+                }
+            }
+        }
     }
 
     /* ------------------------------------------------------------------ data */

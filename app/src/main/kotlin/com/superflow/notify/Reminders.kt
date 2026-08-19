@@ -35,35 +35,68 @@ object Reminders {
 
     const val CHANNEL_HABITS = "superflow_habits"
     const val CHANNEL_CHECKPOINTS = "superflow_checkpoints"
+    const val CHANNEL_REVIEWS = "superflow_reviews"
+    const val CHANNEL_MILESTONES = "superflow_milestones"
+    const val CHANNEL_AI_SUGGESTIONS = "superflow_ai_suggestions"
+    const val CHANNEL_WEEKLY_SUMMARY = "superflow_weekly_summary"
+    const val CHANNEL_BACKUP = "superflow_backup"
 
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < 26) return
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
-        nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_HABITS,
-                context.getString(R.string.channel_habits),
-                NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = context.getString(R.string.channel_habits_desc)
-                setShowBadge(false)
-            }
-        )
-        nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_CHECKPOINTS,
-                context.getString(R.string.channel_checkpoints),
-                NotificationManager.IMPORTANCE_LOW).apply {
-                description = context.getString(R.string.channel_checkpoints_desc)
-                setShowBadge(false)
-            }
-        )
+
+        fun channel(id: String, name: Int, desc: Int, importance: Int, vibrate: Boolean) {
+            nm.createNotificationChannel(
+                NotificationChannel(id, context.getString(name), importance).apply {
+                    description = context.getString(desc)
+                    setShowBadge(false)
+                    enableVibration(vibrate)
+                }
+            )
+        }
+
+        channel(CHANNEL_HABITS, R.string.channel_habits, R.string.channel_habits_desc,
+            NotificationManager.IMPORTANCE_DEFAULT, true)
+        channel(CHANNEL_CHECKPOINTS, R.string.channel_checkpoints, R.string.channel_checkpoints_desc,
+            NotificationManager.IMPORTANCE_DEFAULT, false)
+        channel(CHANNEL_REVIEWS, R.string.channel_reviews, R.string.channel_reviews_desc,
+            NotificationManager.IMPORTANCE_DEFAULT, false)
+        channel(CHANNEL_MILESTONES, R.string.channel_milestones, R.string.channel_milestones_desc,
+            NotificationManager.IMPORTANCE_MIN, false)
+        channel(CHANNEL_AI_SUGGESTIONS, R.string.channel_ai_suggestions,
+            R.string.channel_ai_suggestions_desc, NotificationManager.IMPORTANCE_MIN, false)
+        channel(CHANNEL_WEEKLY_SUMMARY, R.string.channel_weekly_summary,
+            R.string.channel_weekly_summary_desc, NotificationManager.IMPORTANCE_DEFAULT, false)
+        channel(CHANNEL_BACKUP, R.string.channel_backup, R.string.channel_backup_desc,
+            NotificationManager.IMPORTANCE_MIN, false)
     }
 
-    fun inQuietHours(prefs: Prefs, hhmm: String): Boolean {
+    /**
+     * The quiet window in effect for a given day of week. Weekdays and
+     * weekends can each have their own hours; an unset per-day window falls
+     * back to the single legacy window.
+     */
+    fun quietBounds(prefs: Prefs, dayOfWeek: java.time.DayOfWeek): Pair<String, String> {
+        val weekend = dayOfWeek == java.time.DayOfWeek.SATURDAY ||
+                dayOfWeek == java.time.DayOfWeek.SUNDAY
+        val from = if (weekend) prefs.quietWeekendFrom.ifBlank { prefs.quietFrom }
+        else prefs.quietWeekdayFrom.ifBlank { prefs.quietFrom }
+        val to = if (weekend) prefs.quietWeekendTo.ifBlank { prefs.quietTo }
+        else prefs.quietWeekdayTo.ifBlank { prefs.quietTo }
+        return from to to
+    }
+
+    fun inQuietHours(prefs: Prefs, hhmm: String, dayOfWeek: java.time.DayOfWeek): Boolean {
         val t = Dates.minutesOfDay(hhmm)
-        val from = Dates.minutesOfDay(prefs.quietFrom)
-        val to = Dates.minutesOfDay(prefs.quietTo)
+        val (fromText, toText) = quietBounds(prefs, dayOfWeek)
+        val from = Dates.minutesOfDay(fromText)
+        val to = Dates.minutesOfDay(toText)
         if (t < 0 || from < 0 || to < 0) return false
         return if (from <= to) t in from..to else (t >= from || t <= to)
     }
+
+    fun inQuietHours(prefs: Prefs, hhmm: String): Boolean =
+        inQuietHours(prefs, hhmm, java.time.LocalDate.now().dayOfWeek)
 
     fun rescheduleAll(context: Context) {
         ensureChannels(context)
@@ -78,12 +111,14 @@ object Reminders {
         var budget = prefs.reminderBudget
         var slot = 0
 
+        // Quiet hours are enforced at fire time (the receiver re-checks the
+        // actual day of week), not at schedule time, so a reminder whose cue
+        // falls inside a weekend-only quiet window still fires on weekdays.
         val habits = repo.habits()
             .filter { it.reminderEnabled && it.cueTime.isNotBlank() && Dates.isValidTime(it.cueTime) }
             .sortedBy { Dates.minutesOfDay(it.cueTime) }
         for (h in habits) {
             if (budget <= 0) break
-            if (inQuietHours(prefs, h.cueTime)) continue
             val intent = Intent(context, ReminderReceiver::class.java).apply {
                 putExtra("kind", "habit")
                 putExtra("habitId", h.id)
@@ -101,7 +136,7 @@ object Reminders {
                 Checkpoint.EVENING to prefs.eveningCheckpoint
             )
             for ((cp, time) in cps) {
-                if (!Dates.isValidTime(time) || inQuietHours(prefs, time)) continue
+                if (!Dates.isValidTime(time)) continue
                 val intent = Intent(context, ReminderReceiver::class.java).apply {
                     putExtra("kind", "checkpoint")
                     putExtra("checkpoint", cp.name)
