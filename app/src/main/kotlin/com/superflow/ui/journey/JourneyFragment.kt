@@ -20,15 +20,19 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+import com.google.android.material.appbar.MaterialToolbar
 import com.superflow.R
 import com.superflow.data.model.LifeArea
 import com.superflow.design.JourneyTree
 import com.superflow.ui.common.dp
 import com.superflow.ui.common.visible
+import com.superflow.data.Prefs
 import com.superflow.ui.common.snack
+import com.superflow.ui.common.wireRefresh
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.detail.HabitDetailActivity
 import com.superflow.ui.flows.FlowActivity
@@ -46,6 +50,9 @@ class JourneyFragment : Fragment() {
     private val model: JourneyViewModel by viewModels()
     private lateinit var adapter: JourneyAdapter
 
+    /** Dismisses the refresh spinner once the new rows are on screen. */
+    private var pendingRefresh: (() -> Unit)? = null
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View = inflater.inflate(R.layout.fragment_list, container, false)
@@ -56,6 +63,19 @@ class JourneyFragment : Fragment() {
             "One chain, top to bottom. Tap a level to open what hangs off it."
 
         val list = view.findViewById<RecyclerView>(R.id.list)
+        val refresh = view.findViewById<SwipeRefreshLayout>(R.id.refresh)
+        // The visible equivalent of the pull gesture, for users who have
+        // switched it off or cannot perform it.
+        view.findViewById<MaterialToolbar>(R.id.toolbar).apply {
+            inflateMenu(R.menu.list_menu)
+            setOnMenuItemClickListener { item ->
+                if (item.itemId == R.id.action_refresh) { model.refresh(); true } else false
+            }
+        }
+        refresh.wireRefresh(Prefs.get(requireContext())) { done ->
+            pendingRefresh = done
+            model.refresh()
+        }
         val fab = view.findViewById<ExtendedFloatingActionButton>(R.id.fab)
         fab.visibility = View.VISIBLE
         fab.text = "Design habit"
@@ -86,7 +106,14 @@ class JourneyFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch { model.rows.collect { adapter.submitList(it) } }
+                launch {
+                    model.rows.collect { rows ->
+                        adapter.submitList(rows) {
+                            pendingRefresh?.invoke()
+                            pendingRefresh = null
+                        }
+                    }
+                }
                 launch {
                     model.events.collect {
                         if (it != null) {

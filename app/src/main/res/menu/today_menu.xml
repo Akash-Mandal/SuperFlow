@@ -13,6 +13,13 @@
         android:icon="@drawable/ic_calendar" app:showAsAction="ifRoom" />
     <item android:id="@+id/action_settings" android:title="@string/open_settings"
         android:icon="@drawable/ic_settings" app:showAsAction="always" />
+    <!--
+        Refresh is in the overflow because pull-to-refresh is a preference
+        (Navigation.Gesture.PULL_REFRESH) and can be switched off. Every
+        gesture in this app has a visible equivalent; this is that one's.
+    -->
+    <item android:id="@+id/action_refresh" android:title="@string/action_refresh"
+        app:showAsAction="never" />
     <item android:id="@+id/action_minimum_mode" android:title="@string/minimum_mode"
         app:showAsAction="never" />
     <item android:id="@+id/action_recovery" android:title="@string/recovery_center"

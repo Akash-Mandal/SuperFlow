@@ -10,7 +10,9 @@ import android.view.animation.AnimationUtils
 import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.color.MaterialColors
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.snackbar.Snackbar
+import com.superflow.design.Navigation
 import com.superflow.R
 import com.superflow.data.Prefs
 import com.superflow.design.HapticPattern
@@ -79,6 +81,42 @@ fun View.fadeIn(durationMs: Long = 220) {
     alpha = 0f
     visibility = View.VISIBLE
     animate().alpha(1f).setDuration(durationMs).start()
+}
+
+/**
+ * Wires pull-to-refresh on a screen that has a `@id/refresh` container.
+ *
+ * Three things this centralises, all of which were wrong the first time
+ * they were written by hand.
+ *
+ * **The gesture is a preference.** `Navigation.Gesture.PULL_REFRESH` can be
+ * switched off, in which case the layout stays but stops intercepting, so
+ * the list scrolls normally and the toolbar's Refresh item is the way in.
+ *
+ * **The spinner must be dismissed by the caller, not by a timer.** A
+ * refresh here is a database read that completes in a few milliseconds, and
+ * a spinner that vanishes that fast reads as the gesture not having worked.
+ * [onRefresh] is handed a `done` callback; the fragment calls it when the
+ * new state has actually been rendered, and [SwipeRefreshLayout] holds the
+ * spinner until then.
+ *
+ * **The colours must be set explicitly.** The spinner takes its arrow and
+ * background from its own attributes, not from the app theme, so an
+ * unstyled one is Material-blue on white in every palette.
+ */
+fun SwipeRefreshLayout.wireRefresh(prefs: Prefs, onRefresh: (done: () -> Unit) -> Unit) {
+    val enabled = prefs.gestureEnabled(Navigation.Gesture.PULL_REFRESH)
+    isEnabled = enabled
+    if (!enabled) return
+
+    setColorSchemeColors(context.themeColor(androidx.appcompat.R.attr.colorPrimary))
+    setProgressBackgroundColorSchemeColor(
+        context.themeColor(com.google.android.material.R.attr.colorSurfaceContainerHigh)
+    )
+    setOnRefreshListener {
+        haptic(Haptics.THRESHOLD, prefs)
+        onRefresh { isRefreshing = false }
+    }
 }
 
 /** Staggered entry animation for a freshly populated list. */

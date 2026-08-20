@@ -140,6 +140,10 @@
     <string name="serif_accents">Serif for reflection</string>
     <string name="serif_accents_sub">Identity statements and journal entries in a serif face.</string>
     <string name="app_icon">App icon</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="gestures">Gestures</string>
+    <string name="gesture_has_equivalent">There is a button for this too.</string>
+    <string name="gesture_needs_confirm_off">Unavailable while &#8220;Confirm completion&#8221; is on.</string>
     <string name="tab_journey_identities">Identities</string>
     <string name="tab_journey_goals">Goals</string>
     <string name="tab_journey_systems">Systems</string>

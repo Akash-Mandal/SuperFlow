@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Shared overflow for the list-shaped screens (Journey, Insights).
+
+    One item, and it exists because pull-to-refresh is a preference. Every
+    gesture in this app has a visible equivalent so that switching a gesture
+    off costs discoverability rather than capability; this is that
+    equivalent, and the reason it is not a visible icon is that pulling is
+    the expected way in and a permanent refresh button would imply the
+    screen does not update on its own.
+-->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item android:id="@+id/action_refresh" android:title="@string/action_refresh"
+        app:showAsAction="never" />
+</menu>

@@ -25,6 +25,7 @@ import com.superflow.design.Choice
 import com.superflow.design.Contrast
 import com.superflow.design.Haptics
 import com.superflow.design.IconVariants
+import com.superflow.design.Navigation
 import com.superflow.design.ThemeSelection
 import com.superflow.ui.common.SfHaptics
 import com.superflow.ui.common.SfTheme
@@ -277,6 +278,29 @@ class AppearanceFragment : Fragment() {
             )
         )
 
+        /* --------------------------------------------------------- gestures */
+
+        container.addView(section(getString(R.string.gestures)))
+        container.addView(
+            group(
+                Navigation.Gesture.entries.map { gesture ->
+                    // A destructive gesture is suppressed while confirmations
+                    // are on, so its switch is shown but disabled rather than
+                    // hidden: a control that vanishes when an unrelated
+                    // setting changes is how people conclude the app is
+                    // broken.
+                    val suppressed = gesture.destructive && prefs.confirmCompletion
+                    toggle(
+                        gesture.label,
+                        if (suppressed) getString(R.string.gesture_needs_confirm_off)
+                        else getString(R.string.gesture_has_equivalent),
+                        prefs.gestureEnabled(gesture),
+                        enabled = !suppressed,
+                    ) { on -> prefs.setGestureEnabled(gesture.key, on) }
+                }
+            )
+        )
+
         /* ------------------------------------------------------- behaviour */
 
         container.addView(section("Behaviour"))
@@ -482,8 +506,18 @@ class AppearanceFragment : Fragment() {
         return card
     }
 
+    /**
+     * @param enabled when false the row is shown greyed and inert. Used for
+     *   a setting whose value still matters but which another setting is
+     *   currently overriding - showing it disabled explains the override,
+     *   where hiding it would just look like the app losing a feature.
+     */
     private fun toggle(
-        title: String, subtitle: String?, value: Boolean, onChange: (Boolean) -> Unit
+        title: String,
+        subtitle: String?,
+        value: Boolean,
+        enabled: Boolean = true,
+        onChange: (Boolean) -> Unit,
     ): View {
         val v = layoutInflater.inflate(R.layout.item_setting_toggle, container, false)
         v.findViewById<TextView>(R.id.toggle_title).text = title
@@ -493,6 +527,11 @@ class AppearanceFragment : Fragment() {
         }
         val sw = v.findViewById<MaterialSwitch>(R.id.toggle_switch)
         sw.isChecked = value
+        sw.isEnabled = enabled
+        v.isEnabled = enabled
+        v.alpha = if (enabled) 1f else DISABLED_ALPHA
+        if (!enabled) return v
+
         // The row is the target, not just the switch: a 48dp switch is a small
         // thing to hit, and the label is the obvious thing to tap.
         v.setOnClickListener {
@@ -513,6 +552,9 @@ class AppearanceFragment : Fragment() {
          * safe and keeps `checkedId - BUTTON_ID_BASE` readable.
          */
         const val BUTTON_ID_BASE = 0x00A0_0000
+
+        /** A disabled row stays readable; it just stops inviting a tap. */
+        const val DISABLED_ALPHA = 0.5f
     }
 }
 
