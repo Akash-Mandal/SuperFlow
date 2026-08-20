@@ -112,6 +112,60 @@ object Motion {
     /** Cap on total stagger, so a long list does not crawl in. */
     const val STAGGER_MAX_ITEMS = 8
 
+    /**
+     * The plan's budget for an orchestrated entrance: last item settled
+     * within 800ms of the first starting (§20, Motion Quality).
+     *
+     * This is a real constraint, not a target. Past roughly this point a
+     * staggered entrance stops reading as one considered movement and
+     * starts reading as the app being slow, and the user has begun
+     * reaching for something before it has arrived.
+     */
+    const val ORCHESTRATION_BUDGET = 800
+
+    /**
+     * Wall-clock time from the start of a staggered entrance until the last
+     * visible item has finished: the cap's delay plus one item's duration.
+     *
+     * Items past [STAGGER_MAX_ITEMS] share the cap's delay, so the total
+     * does not grow with list length - which is exactly what makes the
+     * budget holdable on a screen with forty rows.
+     */
+    fun orchestrationMs(
+        base: Int,
+        level: Int,
+        systemAnimationsOff: Boolean = false,
+    ): Int {
+        if (isDisabled(level, systemAnimationsOff)) return 0
+        return staggerDelay(STAGGER_MAX_ITEMS, level, systemAnimationsOff) +
+            duration(base, level, systemAnimationsOff)
+    }
+
+    /**
+     * Whether an entrance built from [base] fits the budget at [level].
+     *
+     * The honest use of this is at design time: if a screen wants to bring
+     * its rows in at [SLOW], this says no, and the answer is to use a
+     * shorter duration rather than to raise the budget.
+     */
+    fun fitsBudget(base: Int, level: Int): Boolean =
+        orchestrationMs(base, level) <= ORCHESTRATION_BUDGET
+
+    /**
+     * The longest per-item duration that still fits, at the most expensive
+     * motion level a user can choose.
+     *
+     * Screens pick their entrance duration from this rather than from a
+     * number someone liked, which is why [NORMAL] is the entrance duration
+     * everywhere and [SLOW] is reserved for things that animate alone.
+     */
+    val ENTRANCE_MAX: Int
+        get() {
+            val scale = scaleFor(EXPRESSIVE)
+            val stagger = (STAGGER_MAX_ITEMS * STAGGER * scale).toInt()
+            return ((ORCHESTRATION_BUDGET - stagger) / scale).toInt()
+        }
+
     fun scaleFor(level: Int): Float = when (level) {
         NONE -> 0f
         REDUCED -> 0.5f

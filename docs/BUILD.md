@@ -98,22 +98,27 @@ is what those libraries' own code links against.
 tools/run_tests.sh
 ```
 
-3525 assertions across six suites, plus three static gates:
+3972 assertions across six suites, plus three static gates:
 
 - **CoreTest** (62) — injected clock, DST gaps and overlaps, leap days, locale
   week starts, every recurrence form, and the opportunity engine: planned skips
   and pauses never creating misses, today never counting as a miss, unscheduled
   days staying transparent, runs/recoveries, never-miss-twice, and pro-rated
   flexible quotas.
-- **LogicTest** (21) — habit ladder fallbacks, contract generation, enum parsing.
+- **LogicTest** (101) — habit ladder fallbacks, contract generation, enum
+  parsing, and the data-policy round trip for every preference.
 - **ParseTest** (27) — recurrence parsing and round-tripping, JSON extracted from
   fenced, prose-wrapped, nested and escaped model output.
 - **AiTest** (33) — natural-language habit parsing, prompt-injection detection,
   Blueprint extraction with citations, conflicts and coverage.
-- **DesignTest** (2596) — design tokens, spacing and density, motion scaling,
-  haptic patterns, WCAG contrast, the history-state encoding (pinned against
-  `Insights.kt` itself), and all of `ChartGeometry` including an exhaustive
-  heatmap index round-trip.
+- **DesignTest** (3063) — the whole `com.superflow.design` package: tokens,
+  spacing and density, motion scaling, haptic patterns, WCAG contrast, the
+  history-state encoding (pinned against `Insights.kt` itself), `ChartGeometry`
+  including an exhaustive heatmap index round-trip, period bucketing and
+  sample-size floors, navigation placement and width classes, the onboarding
+  flow, the Journey hierarchy (including that its parent chain cannot cycle),
+  sound design and tone synthesis, widget layout and copy, launcher icon
+  variants, and which renderer owns each screen.
 - **RoleTest** (786) — parses the real theme XML and asserts the Kotlin colour
   and type models reproduce it, role by role, palette by palette, in both light
   and dark. This is what stops the View and Compose layers drifting apart.
@@ -123,7 +128,10 @@ Three further gates run as part of the same script:
 - `tools/check_compose.py` — static analysis of the Compose sources, which have
   no compiler here. Catches missing imports, members shadowing imports they
   call, `by` without `getValue`, Compose naming violations and dangling `R`
-  references. Each rule is verified against a deliberately broken canary.
+  references. Each rule is verified against a deliberately broken canary. The
+  file set is discovered, not listed: every `.kt` under `ui/` that imports
+  Compose is scanned, because the hand-maintained list went stale twice and a
+  Compose file nothing checks is precisely the one that breaks.
 - `tools/check_generated.py` — fails if `design/Ramps.kt` is stale with respect
   to the colour XML it is generated from.
 - `tools/check_policy.py` — fails if any preference in `Prefs.kt` is not
@@ -142,9 +150,9 @@ stub in `android.jar` throws). It is never compiled into the APK.
 |---|---|
 | Package | `com.superflow` 2.0.0 (code 2) |
 | minSdk / targetSdk | 26 / 34 |
-| Size | ~7.8 MB, 2 dex |
+| Size | ~7.8 MB, 2 dex (pre-Compose measurement) |
 | Signatures | v2 + v3 verified |
-| App classes | 343 |
+| App classes | 108 source files |
 | Capabilities | 49 |
 
 ## AAB

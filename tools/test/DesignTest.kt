@@ -95,6 +95,30 @@ fun main() {
         (0..8).map { Motion.staggerDelay(it, Motion.STANDARD) }
             .zipWithNext().all { it.first <= it.second })
 
+    // The plan's 800ms orchestration budget (20, Motion Quality), asserted
+    // rather than aspired to.
+    eq("budget is the plan's number", Motion.ORCHESTRATION_BUDGET, 800)
+    eq("nothing to wait for when motion is off",
+        Motion.orchestrationMs(Motion.NORMAL, Motion.NONE), 0)
+    check("a normal entrance fits at every level",
+        listOf(Motion.REDUCED, Motion.STANDARD, Motion.EXPRESSIVE)
+            .all { Motion.fitsBudget(Motion.NORMAL, it) })
+    check("a slow entrance does not fit at expressive",
+        !Motion.fitsBudget(Motion.SLOW, Motion.EXPRESSIVE))
+    check("the entrance ceiling is honest",
+        Motion.fitsBudget(Motion.ENTRANCE_MAX, Motion.EXPRESSIVE) &&
+            !Motion.fitsBudget(Motion.ENTRANCE_MAX + 40, Motion.EXPRESSIVE))
+    check("normal sits under the ceiling", Motion.NORMAL <= Motion.ENTRANCE_MAX)
+    // The whole point of capping the stagger: a forty-row list costs the
+    // same as an eight-row one.
+    eq("list length does not change the total",
+        Motion.orchestrationMs(Motion.NORMAL, Motion.STANDARD),
+        Motion.staggerDelay(400, Motion.STANDARD) +
+            Motion.duration(Motion.NORMAL, Motion.STANDARD))
+    check("reduced motion is strictly faster than standard",
+        Motion.orchestrationMs(Motion.NORMAL, Motion.REDUCED) <
+            Motion.orchestrationMs(Motion.NORMAL, Motion.STANDARD))
+
     // ------------------------------------------------------------ haptics
     println("Haptic vocabulary")
     check("at least eight patterns", Haptics.all.size >= 8)
@@ -1788,6 +1812,106 @@ fun main() {
             T.voiceFor(SoundDesign.Cue.SWIPE_DISMISS).noise > 0.5f)
         check("the chime is not",
             T.voiceFor(SoundDesign.Cue.CHECK_IN).noise == 0f)
+    }
+    println()
+
+    println("Journey tree: the parent chain cannot cycle")
+    run {
+        // Rank strictly decreases going up, so no set of links can make the
+        // walk revisit a node. The cases that would hang a naive walker:
+        fun N(id: String, kind: JourneyTree.Kind, parentId: String?, title: String) =
+            JourneyTree.Node(id, kind, parentId, title)
+        val kinds = listOf(
+            JourneyTree.Kind.IDENTITY, JourneyTree.Kind.GOAL,
+            JourneyTree.Kind.SYSTEM, JourneyTree.Kind.HABIT,
+        )
+
+        // Self-link at every level.
+        kinds.forEach { kind ->
+            val self = listOf(N("x", kind, "x", kind.label))
+            val tree = JourneyTree.build(self, setOf(kind.key + ":x"))
+            eq("a self-link at ${kind.key} still yields one row", tree.rows.size, 1)
+            check("and it is not treated as its own parent",
+                tree.rows.first().node.parentId == "x" &&
+                    tree.rows.first().depth == 0)
+        }
+
+        // Two nodes of the same kind pointing at each other. Neither link
+        // resolves, because a parent must be one rank above.
+        val mutual = listOf(
+            N("a", JourneyTree.Kind.GOAL, "b", "A"),
+            N("b", JourneyTree.Kind.GOAL, "a", "B"),
+        )
+        val mutualTree = JourneyTree.build(mutual)
+        eq("mutual same-rank links produce two unlinked roots",
+            mutualTree.unlinked.size, 2)
+        eq("and no linked rows", mutualTree.linked.size, 0)
+        eq("summary counts both as unlinked", mutualTree.summary.unlinked, 2)
+
+        // A habit pointing up two levels: a real import case. The link is
+        // dropped rather than drawn as a jump with a hole in it.
+        val skipped = listOf(
+            N("i", JourneyTree.Kind.IDENTITY, null, "I am someone who moves"),
+            N("h", JourneyTree.Kind.HABIT, "i", "Walk"),
+        )
+        val skippedTree = JourneyTree.build(skipped, setOf("identity:i"))
+        eq("a habit linked straight to an identity is unlinked",
+            skippedTree.unlinked.size, 1)
+        eq("and the identity has no children",
+            skippedTree.linked.first().childCount, 0)
+        eq("deepest chain counts only what really connects",
+            skippedTree.summary.deepestChain, 1)
+
+        // A long legitimate chain still resolves and terminates.
+        val full = listOf(
+            N("i", JourneyTree.Kind.IDENTITY, null, "I"),
+            N("g", JourneyTree.Kind.GOAL, "i", "G"),
+            N("s", JourneyTree.Kind.SYSTEM, "g", "S"),
+            N("h", JourneyTree.Kind.HABIT, "s", "H"),
+        )
+        val open = setOf("identity:i", "goal:g", "system:s")
+        val fullTree = JourneyTree.build(full, open)
+        eq("a complete chain is four rows deep", fullTree.linked.size, 4)
+        eq("and the habit sits at depth three", fullTree.linked.last().depth, 3)
+        eq("deepest chain is four", fullTree.summary.deepestChain, 4)
+        eq("revealing the habit opens all three ancestors",
+            JourneyTree.revealPath(full, JourneyTree.Kind.HABIT, "h").size, 3)
+    }
+    println()
+
+    println("Rendering: which toolkit draws each screen")
+    run {
+        // Studio has no View version, so it must never be VIEWS.
+        eq("studio is compose-only", Rendering.studio, Rendering.Renderer.COMPOSE)
+        eq("onboarding too", Rendering.onboarding, Rendering.Renderer.COMPOSE)
+
+        // Every tab resolves; a new tab added without a renderer would not
+        // compile, but a tab pointed at the wrong field would.
+        Navigation.tabs.forEach { tab ->
+            check("${tab.key} has a renderer", Rendering.rendererFor(tab) != null)
+        }
+        eq("studio routes to the studio field",
+            Rendering.rendererFor(Navigation.Tab.STUDIO), Rendering.studio)
+        eq("today routes to the today field",
+            Rendering.rendererFor(Navigation.Tab.TODAY), Rendering.today)
+        eq("journey routes to the journey field",
+            Rendering.rendererFor(Navigation.Tab.JOURNEY), Rendering.journey)
+        eq("insights routes to the insights field",
+            Rendering.rendererFor(Navigation.Tab.INSIGHTS), Rendering.insights)
+
+        // The dual list must describe reality, or it is worse than nothing.
+        check("studio is not listed as dual-implemented",
+            Navigation.Tab.STUDIO !in Rendering.dualImplemented)
+        check("every dual-implemented screen is still on Views",
+            Rendering.dualImplemented.all {
+                Rendering.rendererFor(it) == Rendering.Renderer.VIEWS
+            })
+        eq("no duplicates in the dual list",
+            Rendering.dualImplemented.distinct().size, Rendering.dualImplemented.size)
+
+        eq("the migration is not finished yet", Rendering.migrationComplete, false)
+        check("and it finishes exactly when nothing is dual-implemented",
+            Rendering.migrationComplete == Rendering.dualImplemented.isEmpty())
     }
     println()
 

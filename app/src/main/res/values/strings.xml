@@ -140,6 +140,10 @@
     <string name="serif_accents">Serif for reflection</string>
     <string name="serif_accents_sub">Identity statements and journal entries in a serif face.</string>
     <string name="app_icon">App icon</string>
+    <string name="tab_journey_identities">Identities</string>
+    <string name="tab_journey_goals">Goals</string>
+    <string name="tab_journey_systems">Systems</string>
+    <string name="tab_journey_habits">Habits</string>
     <string name="mono_figures">Aligned numbers</string>
     <string name="mono_figures_sub">Monospaced figures in stats and charts.</string>
     <string name="sound_enabled">Sound</string>

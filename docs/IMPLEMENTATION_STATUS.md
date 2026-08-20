@@ -5,15 +5,18 @@ this repository. This document records honestly what is implemented, what is
 partial, and what is not built.
 
 **Build:** `com.superflow` 2.0.0 · minSdk 26 · targetSdk 34 · ~7.8 MB ·
-v2+v3 signed · 76 AndroidX/Material libraries · 343 app classes ·
-49 capabilities · **3525 logic assertions passing**.
+v2+v3 signed · 76 AndroidX/Material libraries · 108 Kotlin source files ·
+141 resource files · 49 capabilities · **3972 logic assertions passing**.
 
 > **Build environment caveat (current):** Google Maven is unreachable from
 > this environment, so the AAR set cannot be fetched and **no APK can be
-> produced right now**. The XML, resource and `design/` layers are fully
-> verified by the offline suites; the Compose layer under `ui/theme`,
+> produced right now**. The Kotlin, XML, resource and `design/` layers are
+> fully verified by the offline suites; the Compose layer under `ui/theme`,
 > `ui/components` and `ui/screens` is **written but has never been
-> compiled**. See "UI/UX upgrade" below.
+> compiled**. Because of that, `design/Rendering` keeps Today, Journey and
+> Insights on their View implementations - which have been exercised - and
+> the Compose versions are one constant away from being live. See
+> "UI/UX upgrade" below.
 
 ---
 
@@ -30,18 +33,34 @@ app/src/main/kotlin/com/superflow/
 │   ├── db/          androidx.sqlite schema, DAOs, row mappers
 │   ├── Repository   Reactive repo exposing a StateFlow revision
 │   └── Prefs        Settings + AI config; secrets in a separate excluded file
-├── domain/          CommandBus, 45 Capabilities, Serial, Insights
+├── domain/          CommandBus, 49 Capabilities, Serial, Insights, mappers
 ├── ai/              Coordinator (local), MainBrain (cloud), Agent, Snapshots, VoiceInput
 ├── blueprint/       Intent Compiler, Requirement Ledger, PdfText
 ├── notify/          Reminders, checkpoints, boot rescheduling
 ├── widget/          Home-screen widget
+├── design/          Pure UI logic: tokens, palettes, roles, geometry,
+│                    navigation, accessibility, sound, widget and icon
+│                    variants. No Android imports, no R - all of it testable.
 └── ui/
-    ├── common/      Design helpers, ProgressRing, BarChart, HeatmapView, HistoryStrip
-    ├── today/ journey/ insights/ coach/ settings/    (five tabs, MVVM)
+    ├── theme/       Compose: SfTheme, palettes, typography, shapes, motion
+    ├── components/  Compose: cards, chips, fields, charts, skeletons, rings
+    ├── screens/     Compose: Today, Journey, Insights, Studio, Onboarding
+    ├── common/      Design helpers, ProgressRing, BarChart, HeatmapView,
+    │                HistoryStrip, ComposeHost, SfHaptics, SfSound
+    ├── today/ journey/ insights/ studio/ settings/   (four tabs, MVVM)
     ├── designer/ detail/ recovery/ scorecard/ flows/ review/
     ├── blueprint/ engine/ activity/ onboarding/
     └── sheets/      Material bottom-sheet editors
 ```
+
+**The `design/` package is the load-bearing idea.** Any UI decision that can
+be written as a pure function of its inputs lives there: which tone fills a
+role, how a chart's axis is chosen, what a widget says at 8am with two of five
+habits done, which launcher alias to enable. It imports nothing from Android
+and references no `R`, so it runs on a desktop JVM - which is why 3063 of the
+suite's 3972 assertions are about the user interface. Rendering code in `ui/`
+is then only rendering, and both the View and Compose layers read the same
+answers.
 
 **Real Android architecture:** `AppCompatActivity` + `Fragment` + `ViewPager2`,
 `ViewModel` per screen, `StateFlow` state, `RecyclerView` + `ListAdapter` +
@@ -186,8 +205,10 @@ the reminder step.
 
 ## UI/UX upgrade (Calm Precision)
 
-Work against `docs/UI_UX_GRAND_UPGRADE_PLAN.md`. The design system is real
-and verified; the Compose rendering layer is written but unverified.
+Work against `docs/UI_UX_GRAND_UPGRADE_PLAN.md`. All five phases have been
+worked through. The design system and the View layer are verified; the
+Compose rendering layer is written and statically checked but has never been
+compiled, because the artifacts to compile it against are unreachable here.
 
 **Verified — pure logic, covered by the offline suites**
 
@@ -204,42 +225,75 @@ and verified; the Compose rendering layer is written but unverified.
 | `design/ChartGeometry` | Axis ticks, bar metrics and hit testing, heatmap bucketing, correlation |
 | `design/Catalog` | The option lists every appearance surface shares |
 | `design/Periods` | Insight windows, chart bucketing, and the sample-size thresholds that gate every claim |
+| `design/Navigation` | Tabs, routes, legacy key migration, nav placement by width class |
+| `design/Accessibility` | Touch-target floor, text-scale reflow, colour-vision alternatives, undo timing |
+| `design/SoundDesign` + `ToneSynth` | When a cue may sound, how loud, and the synthesis of all four |
+| `design/OnboardingFlow` | Six steps, what each requires, what blocks advancing, when to ask for notifications |
+| `design/JourneyTree` | The identity-goal-system-habit hierarchy: placement, counts, orphans, gaps |
+| `design/WidgetLayout` | Widget size selection, row budgets, and the copy for every state |
+| `design/IconVariants` | Which launcher alias to enable, and in what order |
+| `design/Rendering` | Which renderer owns each screen while the migration lands |
+| `domain/JourneyMapper` | The four entity tables projected into hierarchy nodes |
+| `domain/StudioMapper` | Attributing data changes to the AI reply that caused them |
 
 `RoleTest` parses the real theme XML and asserts the Kotlin model reproduces
 it role by role, so the two rendering layers cannot drift apart. It found
 three shipped bugs when first written, including a WCAG AA failure on
 light-mode `colorSecondary` in three of five palettes.
 
-**Shipped in the View layer**
+**Shipped and reachable in the View layer**
 
 - Five palettes, three dark flavours, three densities, high contrast, all as
   stacking theme overlays
 - Inter / Source Serif 4 / JetBrains Mono, SIL OFL 1.1, with the full type scale
-- Appearance & Experience settings screen
+- Appearance & Experience settings, promoted to their own Activity
+- Launcher icon variants (default / minimal / paper) via activity-aliases,
+  re-asserted after an update
 - `SfHaptics`: 10 tuned patterns across three device capability tiers
+- `SfSound`: four synthesised interface cues, opt-in, quiet-hours aware,
+  suppressed by the ringer switch
+- Journey rebuilt as one hierarchy - indent, connectors, subtree counts,
+  dormant and orphan treatment, gap prompts, and a level spoken to TalkBack
+- Home-screen widget in four sizes, chosen from the launcher's measured cell,
+  palette-aware, with per-row check-in and correct resize handling
 - Theme application and recreate-on-change across every Activity
 - Appearance and experience preferences, round-tripped through export/import
 
-**Written but never compiled — Compose**
+**Written, statically checked, never compiled — Compose**
 
 `ui/theme/` (SfTheme, SfPalette, SfTypography, SfShapes, SfMotion),
 `ui/components/` (SfCard, SfChipGroup, SfTextField, SfSectionHeader,
 SfSkeleton, SfHistoryStrip, SfProgressRing, SfHabitCard, SfBarChart,
-SfHeatmap) and `ui/screens/` (TodayScreen, InsightsScreen).
+SfHeatmap), `ui/screens/` (Today, Journey, Insights, Studio, Onboarding) and
+the fragments that host them.
 
-These are checked by `tools/check_compose.py`, which catches missing imports,
-recursive shadowing, delegation without `getValue`, naming violations and
-dangling resource references — but a static checker is not a compiler. **Treat
-this layer as unreviewed until it builds.** The Compose artifacts are listed
-in `tools/libs.txt` ready to resolve.
+`tools/check_compose.py` scans all 27 of these - discovered by import, not
+listed by hand - and catches missing imports, recursive shadowing, delegation
+without `getValue`, naming violations and dangling resource references. It is
+not a compiler. **Treat this layer as unreviewed until it builds.**
 
-**Not started**
+Studio is the exception: it has no View predecessor, because it is the merge
+of Coach, Blueprint and the AI engine and was written new. It is Compose or
+nothing, and `design/Rendering` says so.
 
-Phase 3 Journey screen, Phase 4 Studio merge, onboarding redesign, Glance
-widgets, sound design, Phase 5 refinement. The Compose screens are also not
-yet hosted - `TodayFragment` and `InsightsFragment` still inflate the XML
-implementations, and swapping them over is deliberately left until the
-Compose layer compiles.
+**Deviations from the plan, and why**
+
+| Plan asked for | Shipped | Why |
+|---|---|---|
+| Glance widgets | RemoteViews | Glance is a Compose runtime; not resolvable here. The split into `WidgetLayout` + `WidgetChrome` is the one Glance would impose, so only the binding file would change. |
+| Pinch-to-zoom heatmap | Scrolling heatmap | Pinch on a chart inside a vertically scrolling list fights the parent for the gesture; scrolling is unambiguous. |
+| 8 onboarding steps | 6 | The life-area picker folded into the identity step; asking twice about the same thing is what made it eight. |
+| Sampled sound design | Synthesised | No audio assets were reachable. `ToneSynth` generates all four cues from partials, which also keeps the APK smaller. |
+| Settings as a tab | Settings as an Activity | Plan 10.1 reduces the tab bar to four; settings is a route you return from, not a place you live. |
+| App-level text-size setting | Not built | It would duplicate the system font-size setting and diverge from it. `Accessibility` honours the system scale instead. |
+
+**Still outstanding**
+
+- Nothing in the Compose layer has been run. That is the whole of Phase 2 and
+  most of Phase 3 as *rendered* output.
+- Performance profiling (plan's <16ms frame budget) needs a device.
+- Screen-reader testing was done by reading the semantics, not by listening
+  to TalkBack.
 
 ## Not built
 
@@ -268,6 +322,7 @@ Present in the dex, confirmed by inspection: `MaterialCardView`,
 `BottomNavigationView`, `BottomSheetDialogFragment`, `ListAdapter`,
 `ViewPager2`, `ViewModel`, `MutableStateFlow`, `SupportSQLiteDatabase`,
 `ConstraintLayout`, `LottieAnimationView`, and all 311 SuperFlow classes.
+(That inspection predates this upgrade; the APK cannot currently be rebuilt.)
 
 **The APK has not been executed on a device or emulator** — none was available.
 It compiles, links, dexes, packages and verifies, and its framework-independent

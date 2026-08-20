@@ -180,18 +180,38 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun checkIn(habit: Habit, level: Level) =
-        run("check_in", jsonOf("habit" to habit.id, "level" to level.name))
+    /*
+     * Two shapes of the same actions.
+     *
+     * The View adapter already holds the entity it was bound to, so it
+     * passes it. The Compose screen routes everything through a sealed
+     * action type that carries ids, because holding a `Habit` inside an
+     * action makes the action unstable as a Compose parameter and forces a
+     * recomposition of the whole list whenever any field of any habit
+     * changes. The commands only ever needed the id, so the id-taking
+     * overloads are the primitive and the entity-taking ones delegate.
+     */
 
-    fun skip(habit: Habit) = run("skip_habit", jsonOf("habit" to habit.id))
+    fun checkIn(habitId: String, level: Level) =
+        run("check_in", jsonOf("habit" to habitId, "level" to level.name))
+
+    fun checkIn(habit: Habit, level: Level) = checkIn(habit.id, level)
+
+    fun skip(habitId: String) = run("skip_habit", jsonOf("habit" to habitId))
+
+    fun clearCheckIn(habitId: String) =
+        run("clear_check_in", jsonOf("habit" to habitId), announce = false)
+
+    fun toggleFocus(focusId: String, done: Boolean) =
+        run("complete_focus_item", jsonOf("id" to focusId, "done" to done), announce = false)
+
+    fun skip(habit: Habit) = skip(habit.id)
 
     fun markMissed(habit: Habit) = run("mark_missed", jsonOf("habit" to habit.id))
 
-    fun clearCheckIn(habit: Habit) =
-        run("clear_check_in", jsonOf("habit" to habit.id), announce = false)
+    fun clearCheckIn(habit: Habit) = clearCheckIn(habit.id)
 
-    fun toggleFocus(item: FocusItem, done: Boolean) =
-        run("complete_focus_item", jsonOf("id" to item.id, "done" to done), announce = false)
+    fun toggleFocus(item: FocusItem, done: Boolean) = toggleFocus(item.id, done)
 
     fun removeFocus(item: FocusItem) =
         run("remove_focus_item", jsonOf("id" to item.id), announce = false)

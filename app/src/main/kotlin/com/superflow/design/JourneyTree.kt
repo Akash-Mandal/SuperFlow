@@ -164,6 +164,16 @@ object JourneyTree {
         // target exists and sits exactly one rank above: an import that
         // pointed a habit straight at an identity would otherwise render as
         // a two-level jump with a missing middle.
+        //
+        // This is also what makes the recursive walks below safe without a
+        // visited set. A parent is always exactly one rank above its child,
+        // so rank strictly decreases on every step upward and the parent
+        // chain cannot revisit a node: a cycle would need two nodes each one
+        // rank above the other. Corrupt data cannot produce one either,
+        // because the rank comes from the node's own kind and not from the
+        // stored link. If a fifth level or a same-rank link is ever added,
+        // `tally` and `walk` need a visited set and `summarise` needs a
+        // depth cap.
         val parentOf = HashMap<String, Node?>(nodes.size * 2)
         for (n in nodes) {
             val want = n.kind.parent

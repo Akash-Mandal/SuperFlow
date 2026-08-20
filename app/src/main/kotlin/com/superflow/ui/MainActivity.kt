@@ -20,13 +20,17 @@ import com.google.android.material.navigationrail.NavigationRailView
 import com.superflow.R
 import com.superflow.data.Prefs
 import com.superflow.design.Navigation
+import com.superflow.design.Rendering
 import com.superflow.notify.Reminders
 import com.superflow.ui.common.SfTheme
+import com.superflow.ui.insights.ComposeInsightsFragment
 import com.superflow.ui.insights.InsightsFragment
+import com.superflow.ui.journey.ComposeJourneyFragment
 import com.superflow.ui.journey.JourneyFragment
 import com.superflow.ui.onboarding.OnboardingActivity
 import com.superflow.ui.settings.SettingsActivity
 import com.superflow.ui.studio.StudioFragment
+import com.superflow.ui.today.ComposeTodayFragment
 import com.superflow.ui.today.TodayFragment
 import com.superflow.widget.TodayWidget
 
@@ -90,15 +94,25 @@ class MainActivity : AppCompatActivity() {
 
         pager.isUserInputEnabled = false
         pager.offscreenPageLimit = 2
+        // Which fragment backs each tab is decided by design.Rendering, not
+        // here: three of the four screens exist in both a View and a Compose
+        // implementation while the migration lands, and that fact belongs in
+        // one documented place rather than spread across four call sites.
         pager.adapter = object : FragmentStateAdapter(this) {
             override fun getItemCount() = Navigation.tabCount
-            override fun createFragment(position: Int): Fragment =
-                when (Navigation.tabAt(position)) {
-                    Navigation.Tab.TODAY -> TodayFragment()
-                    Navigation.Tab.JOURNEY -> JourneyFragment()
-                    Navigation.Tab.INSIGHTS -> InsightsFragment()
+            override fun createFragment(position: Int): Fragment {
+                val tab = Navigation.tabAt(position)
+                return when (tab) {
+                    Navigation.Tab.TODAY ->
+                        if (Rendering.isCompose(tab)) ComposeTodayFragment() else TodayFragment()
+                    Navigation.Tab.JOURNEY ->
+                        if (Rendering.isCompose(tab)) ComposeJourneyFragment() else JourneyFragment()
+                    Navigation.Tab.INSIGHTS ->
+                        if (Rendering.isCompose(tab)) ComposeInsightsFragment() else InsightsFragment()
+                    // Compose-only; no View version was ever written.
                     Navigation.Tab.STUDIO -> StudioFragment()
                 }
+            }
         }
 
         val onSelected = NavigationBarView.OnItemSelectedListener { item ->

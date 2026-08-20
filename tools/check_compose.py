@@ -34,12 +34,27 @@ DIRS = [
     ROOT / "app/src/main/kotlin/com/superflow/ui/components",
     ROOT / "app/src/main/kotlin/com/superflow/ui/screens",
 ]
-# Individual Compose files that live outside those directories, because
-# they are bridges into the View world and belong beside their neighbours.
-FILES = [
-    ROOT / "app/src/main/kotlin/com/superflow/ui/common/ComposeHost.kt",
-    ROOT / "app/src/main/kotlin/com/superflow/ui/onboarding/OnboardingActivity.kt",
-]
+# Compose also appears outside those directories, in the fragments and
+# activities that bridge into the View world. Those were listed by hand
+# until the list went stale twice; they are now discovered, because a
+# Compose file that nothing checks is exactly the file that breaks.
+UI_ROOT = ROOT / "app/src/main/kotlin/com/superflow/ui"
+
+
+def discovered():
+    """Every .kt under ui/ that actually imports Compose, minus DIRS."""
+    covered = {d.resolve() for d in DIRS}
+    out = []
+    for f in sorted(UI_ROOT.rglob("*.kt")):
+        if any(parent.resolve() in covered for parent in f.parents):
+            continue
+        head = f.read_text(encoding="utf-8", errors="replace")
+        if "import androidx.compose" in head:
+            out.append(f)
+    return out
+
+
+FILES = discovered()
 RES = ROOT / "app/src/main/res"
 
 problems = []
@@ -255,7 +270,12 @@ def check_file(path, res_names):
         problems.append(f"{rel}: chains `.{ext}(...)` but does not import {fqn}")
 
     # --- 6. R references
-    for m in re.finditer(r"\bR\.(\w+)\.(\w+)\b", src):
+    #
+    # Only *our* R. `android.R.string.ok` and `com.google.android.material.R`
+    # resolve against the framework and the Material library, neither of
+    # which is scannable from here, so a qualified R is skipped rather than
+    # reported as missing.
+    for m in re.finditer(r"(?<![.\w])R\.(\w+)\.(\w+)\b", src):
         kind, name = m.group(1), m.group(2)
         known = res_names.get(kind)
         if known is None:
