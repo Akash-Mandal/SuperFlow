@@ -24,10 +24,12 @@ import com.superflow.data.model.Habit
 import com.superflow.data.model.Level
 import com.superflow.core.time.Greeting
 import com.superflow.core.time.SfTime
+import com.superflow.design.Navigation
 import com.superflow.ui.MainActivity
 import com.superflow.ui.common.snack
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.detail.HabitDetailActivity
+import com.superflow.ui.settings.SettingsActivity
 import com.superflow.ui.sheets.TextInputSheet
 import com.superflow.util.Dates
 import kotlinx.coroutines.launch
@@ -70,6 +72,12 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
         toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.action_plan_tomorrow -> { model.planTomorrow(); true }
+                // Settings is reached from here rather than the tab bar
+                // since 10.1 — see Navigation.Tab, which has no entry for it.
+                R.id.action_settings -> {
+                    startActivity(Intent(requireContext(), SettingsActivity::class.java))
+                    true
+                }
                 R.id.action_minimum_mode -> { model.minimumMode(); true }
                 R.id.action_recovery -> {
                     startActivity(Intent(requireContext(),
@@ -81,7 +89,7 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
         }
 
         fab.setOnClickListener {
-            (activity as? MainActivity)?.goToTab(3)
+            (activity as? MainActivity)?.select(Navigation.Tab.STUDIO)
         }
         list.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {

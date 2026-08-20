@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.appcompat.app.AppCompatDelegate
 import com.superflow.data.Prefs
 import com.superflow.notify.Reminders
+import com.superflow.ui.settings.AppIcons
 import com.superflow.work.BackgroundWork
 
 /**
@@ -20,6 +21,9 @@ class SuperFlowApp : Application() {
         applyTheme(prefs.themeMode)
         Reminders.ensureChannels(this)
         BackgroundWork.schedule(this)
+        // An update resets runtime component states to their manifest
+        // defaults, so a non-default launcher icon has to be re-asserted.
+        AppIcons.reassert(this)
     }
 
     companion object {

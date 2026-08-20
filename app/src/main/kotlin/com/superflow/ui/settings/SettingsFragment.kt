@@ -15,19 +15,19 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
 import com.superflow.R
-import com.superflow.SuperFlowApp
 import com.superflow.data.Prefs
 import com.superflow.data.Repository
+import com.superflow.design.Catalog
 import com.superflow.domain.Actor
 import com.superflow.domain.CommandBus
 import com.superflow.domain.Serial
 import com.superflow.notify.Reminders
+import com.superflow.ui.common.SfTheme
 import com.superflow.ui.common.snack
 import com.superflow.ui.common.visible
 import com.superflow.ui.engine.AiEngineActivity
@@ -90,26 +90,20 @@ class SettingsFragment : Fragment() {
 
     private fun render() {
         container.removeAllViews()
-        val inf = layoutInflater
 
-        // Appearance
-        val theme = inf.inflate(R.layout.item_theme_picker, container, false)
-        val group = theme.findViewById<MaterialButtonToggleGroup>(R.id.theme_group)
-        group.check(when (prefs.themeMode) {
-            Prefs.THEME_LIGHT -> R.id.theme_light
-            Prefs.THEME_DARK -> R.id.theme_dark
-            else -> R.id.theme_system
-        })
-        group.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (!isChecked) return@addOnButtonCheckedListener
-            prefs.themeMode = when (checkedId) {
-                R.id.theme_light -> Prefs.THEME_LIGHT
-                R.id.theme_dark -> Prefs.THEME_DARK
-                else -> Prefs.THEME_SYSTEM
+        // Appearance & Experience
+        //
+        // The full surface (palettes, dark styles, density, motion, haptics,
+        // sound, start screen, list behaviour) lives on its own screen; this
+        // row summarises the current state so the common case of "what am I
+        // set to?" is answered without a tap.
+        container.addView(section(getString(R.string.appearance)))
+        container.addView(group(listOf(
+            action(R.drawable.ic_palette, getString(R.string.appearance_experience),
+                appearanceSummary()) {
+                push(AppearanceFragment(), "appearance")
             }
-            SuperFlowApp.applyTheme(prefs.themeMode)
-        }
-        container.addView(theme)
+        )))
 
         // AI
         container.addView(section("AI"))
@@ -194,9 +188,12 @@ class SettingsFragment : Fragment() {
         }))
 
         // Experience
+        //
+        // Haptics moved to Appearance & Experience, where it is a three-way
+        // intensity rather than a switch. Leaving a duplicate boolean here
+        // would let the two controls disagree.
         container.addView(section("EXPERIENCE"))
         container.addView(group(listOf(
-            toggle("Haptics", null, prefs.hapticsEnabled) { prefs.hapticsEnabled = it },
             toggle("Celebrations", "A brief animation when you complete the day.",
                 prefs.celebrationsEnabled) { prefs.celebrationsEnabled = it }
         )))
@@ -206,10 +203,7 @@ class SettingsFragment : Fragment() {
         container.addView(group(listOf(
             action(R.drawable.ic_upload, "Data Management",
                 "Export, import, backup, integrity — all-inclusive data control") {
-                parentFragmentManager.beginTransaction()
-                    .replace(R.id.list, DataManagementFragment())
-                    .addToBackStack("data_management")
-                    .commit()
+                push(DataManagementFragment(), "data_management")
             }
         )))
         container.addView(note(
@@ -249,6 +243,19 @@ class SettingsFragment : Fragment() {
                 resources.getDimensionPixelSize(R.dimen.list_bottom_padding)
             )
         })
+    }
+
+    /**
+     * Opens a settings sub-screen.
+     *
+     * Settings is hosted by [SettingsActivity] now that it is a route rather
+     * than a tab, so sub-screens go on that activity's own back stack. The
+     * previous code replaced R.id.list — the RecyclerView inside this very
+     * fragment's layout — which worked only because the ids happened not to
+     * collide, and left back behaviour depending on which tab was underneath.
+     */
+    private fun push(fragment: Fragment, tag: String) {
+        (activity as? SettingsActivity)?.push(fragment, tag)
     }
 
     /* ------------------------------------------------------------- builders */
@@ -294,6 +301,26 @@ class SettingsFragment : Fragment() {
             onChange(sw.isChecked)
         }
         return v
+    }
+
+    /**
+     * One line describing the current appearance, for the settings row.
+     *
+     * Reads as "Calm - System - Comfortable". Dynamic colour replaces the
+     * palette name, because when it is on the palette choice is inert and
+     * naming it would be misleading.
+     */
+    private fun appearanceSummary(): String {
+        val palette =
+            if (prefs.dynamicColor && SfTheme.dynamicColorSupported()) getString(R.string.dynamic_color)
+            else Catalog.labelOf(Catalog.palettes, prefs.palette)
+        val mode = when (prefs.themeMode) {
+            Prefs.THEME_LIGHT -> getString(R.string.theme_light)
+            Prefs.THEME_DARK -> getString(R.string.theme_dark)
+            else -> getString(R.string.theme_system)
+        }
+        val density = Catalog.labelOf(Catalog.densities, prefs.density)
+        return "$palette \u00b7 $mode \u00b7 $density"
     }
 
     private fun action(icon: Int, title: String, subtitle: String?, onClick: () -> Unit): View {

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Density overlays (design system v2 §4.2).
+
+  Three information densities. Comfortable is the default and is baked into
+  the base theme; these overlays restate only the metrics that change, and
+  are applied on top of the palette overlay.
+
+  Density deliberately does not scale type. Changing text size is the
+  platform's job (and the user's accessibility setting); what changes here is
+  the whitespace around content, which is what actually governs how much fits
+  on screen without hurting legibility.
+
+              card padding   row height   line spacing
+    Compact       12dp          48dp         1.15
+    Comfortable   20dp          56dp         1.25   (default)
+    Spacious      24dp          64dp         1.40
+-->
+<resources>
+
+    <style name="ThemeOverlay.SuperFlow.Density.Compact" parent="">
+        <item name="sfCardPadding">12dp</item>
+        <item name="sfListItemHeight">48dp</item>
+        <item name="sfCardGap">8dp</item>
+        <item name="sfSectionSpacing">16dp</item>
+        <item name="sfLineSpacing">1.15</item>
+    </style>
+
+    <style name="ThemeOverlay.SuperFlow.Density.Comfortable" parent="">
+        <item name="sfCardPadding">20dp</item>
+        <item name="sfListItemHeight">56dp</item>
+        <item name="sfCardGap">12dp</item>
+        <item name="sfSectionSpacing">24dp</item>
+        <item name="sfLineSpacing">1.25</item>
+    </style>
+
+    <style name="ThemeOverlay.SuperFlow.Density.Spacious" parent="">
+        <item name="sfCardPadding">24dp</item>
+        <item name="sfListItemHeight">64dp</item>
+        <item name="sfCardGap">16dp</item>
+        <item name="sfSectionSpacing">32dp</item>
+        <item name="sfLineSpacing">1.40</item>
+    </style>
+</resources>

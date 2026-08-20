@@ -23,6 +23,15 @@ The result is a normal Android app — real `AppCompatActivity`, `Fragment`,
 | Preferences | DataStore 1.0 (core + preferences) |
 | Motion | Lottie 6.6.10, DynamicAnimation |
 | Net | OkHttp 5.1.0, Okio |
+| Compose *(listed, not yet vendored)* | Compose 1.7.6 (runtime, ui, foundation, animation), Material 3 1.3.1, activity-compose, lifecycle-*-compose, lottie-compose |
+
+**Compose is not resolvable in the current environment.** Google Maven is
+unreachable, so the Compose AARs cannot be fetched and the sources under
+`ui/theme`, `ui/components` and `ui/screens` do not compile here. They are
+listed at the end of `tools/libs.txt` in dependency order so the closure is
+correct the moment the repository is reachable. Until then
+`tools/build_apk.sh` cannot run at all - it also needs the other 76 AARs,
+`dx.jar` and `apksigner.jar`.
 
 ## Toolchain
 
@@ -89,7 +98,7 @@ is what those libraries' own code links against.
 tools/run_tests.sh
 ```
 
-143 assertions across four suites:
+3525 assertions across six suites, plus three static gates:
 
 - **CoreTest** (62) — injected clock, DST gaps and overlaps, leap days, locale
   week starts, every recurrence form, and the opportunity engine: planned skips
@@ -101,6 +110,28 @@ tools/run_tests.sh
   fenced, prose-wrapped, nested and escaped model output.
 - **AiTest** (33) — natural-language habit parsing, prompt-injection detection,
   Blueprint extraction with citations, conflicts and coverage.
+- **DesignTest** (2596) — design tokens, spacing and density, motion scaling,
+  haptic patterns, WCAG contrast, the history-state encoding (pinned against
+  `Insights.kt` itself), and all of `ChartGeometry` including an exhaustive
+  heatmap index round-trip.
+- **RoleTest** (786) — parses the real theme XML and asserts the Kotlin colour
+  and type models reproduce it, role by role, palette by palette, in both light
+  and dark. This is what stops the View and Compose layers drifting apart.
+
+Three further gates run as part of the same script:
+
+- `tools/check_compose.py` — static analysis of the Compose sources, which have
+  no compiler here. Catches missing imports, members shadowing imports they
+  call, `by` without `getValue`, Compose naming violations and dangling `R`
+  references. Each rule is verified against a deliberately broken canary.
+- `tools/check_generated.py` — fails if `design/Ramps.kt` is stale with respect
+  to the colour XML it is generated from.
+- `tools/check_policy.py` — fails if any preference in `Prefs.kt` is not
+  handled by `DataPolicy` export/import or carrying a documented exemption.
+
+Also run `python3 tools/check_res.py` before any resource change: it
+cross-checks every resource reference, catches duplicates, and verifies
+day/night parity.
 
 `tools/test/JsonShim.kt` supplies a real `org.json` for the desktop JVM (the
 stub in `android.jar` throws). It is never compiled into the APK.

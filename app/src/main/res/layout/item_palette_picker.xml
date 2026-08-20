@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Palette picker: a row of colour swatches.
+
+  The swatches are added in code rather than declared here, because the list
+  comes from design.Catalog and duplicating it in XML would let the two drift.
+  This file supplies the card and the horizontal scroller; SfSwatch fills it.
+-->
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="?attr/sfCardGap"
+    style="@style/Widget.SuperFlow.Card">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="?attr/sfCardPadding"
+        android:paddingBottom="?attr/sfCardPadding">
+
+        <TextView
+            android:id="@+id/palette_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="?attr/sfCardPadding"
+            android:paddingEnd="?attr/sfCardPadding"
+            android:text="@string/palette"
+            android:textAppearance="@style/Text.SuperFlow.TitleMedium"
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:id="@+id/palette_current"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="?attr/sfCardPadding"
+            android:paddingEnd="?attr/sfCardPadding"
+            android:paddingTop="2dp"
+            android:textAppearance="@style/Text.SuperFlow.BodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <!-- Horizontal scroll so a sixth palette can be added without a
+             layout change, and so the row still works at large font scales. -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_md"
+            android:paddingStart="?attr/sfCardPadding"
+            android:paddingEnd="?attr/sfCardPadding"
+            android:clipToPadding="false"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/palette_swatches"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

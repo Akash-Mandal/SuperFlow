@@ -58,6 +58,66 @@
         <item name="textAppearanceBodyMedium">@style/Text.SuperFlow.BodyMedium</item>
         <item name="textAppearanceLabelLarge">@style/Text.SuperFlow.LabelLarge</item>
 
+        <!-- Semantic tokens. The @color values resolve to the night
+             overrides in values-night/colors_semantic.xml; only the accents
+             and density metrics need restating. -->
+        <item name="sfSuccess">@color/sf_success</item>
+        <item name="sfOnSuccess">@color/sf_on_success</item>
+        <item name="sfSuccessContainer">@color/sf_success_container</item>
+        <item name="sfWarning">@color/sf_warning</item>
+        <item name="sfOnWarning">@color/sf_on_warning</item>
+        <item name="sfWarningContainer">@color/sf_warning_container</item>
+        <item name="sfCaution">@color/sf_caution</item>
+        <item name="sfCautionContainer">@color/sf_caution_container</item>
+        <item name="sfInfo">@color/sf_info</item>
+        <item name="sfInfoContainer">@color/sf_info_container</item>
+        <item name="sfRecovery">@color/sf_recovery</item>
+        <item name="sfRecoveryContainer">@color/sf_recovery_container</item>
+        <item name="sfCelebration">@color/sf_celebration</item>
+        <item name="sfCelebrationContainer">@color/sf_celebration_container</item>
+
+        <item name="sfEnergy1">@color/sf_energy_1</item>
+        <item name="sfEnergy2">@color/sf_energy_2</item>
+        <item name="sfEnergy3">@color/sf_energy_3</item>
+        <item name="sfEnergy4">@color/sf_energy_4</item>
+        <item name="sfEnergy5">@color/sf_energy_5</item>
+
+        <item name="sfLevelTiny">@color/level_tiny</item>
+        <item name="sfLevelMinimum">@color/level_minimum</item>
+        <item name="sfLevelStandard">@color/level_standard</item>
+        <item name="sfLevelStretch">@color/level_stretch</item>
+
+        <item name="sfStateSkipped">@color/state_skipped</item>
+        <item name="sfStateMissed">@color/state_missed</item>
+        <item name="sfStateEmpty">@color/state_empty</item>
+
+        <item name="sfAccentIdentity">?attr/colorPrimary</item>
+        <item name="sfAccentGoal">?attr/colorSecondary</item>
+        <item name="sfAccentSystem">?attr/colorTertiary</item>
+        <item name="sfAccentHabit">?attr/colorOutline</item>
+
+        <item name="sfSkeletonBase">@color/sf_skeleton_base</item>
+        <item name="sfSkeletonHighlight">@color/sf_skeleton_highlight</item>
+
+        <item name="sfCardPadding">20dp</item>
+        <item name="sfListItemHeight">56dp</item>
+        <item name="sfCardGap">12dp</item>
+        <item name="sfSectionSpacing">24dp</item>
+        <item name="sfLineSpacing">1.25</item>
+
+        <!-- Default border weight. The high-contrast overlay raises this. -->
+        <item name="sfCardStrokeWidth">1dp</item>
+        <item name="sfDividerColor">#FF3A382F</item>
+
+        <item name="sfSerifFontFamily">@font/source_serif</item>
+
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+
+        <item name="textAppearanceLabelMedium">@style/Text.SuperFlow.LabelMedium</item>
+        <item name="textAppearanceHeadlineLarge">@style/Text.SuperFlow.HeadlineLarge</item>
+        <item name="textAppearanceDisplayMedium">@style/Text.SuperFlow.Display</item>
+
         <item name="materialCardViewStyle">@style/Widget.SuperFlow.Card</item>
         <item name="bottomSheetDialogTheme">@style/Theme.SuperFlow.BottomSheet</item>
         <item name="materialAlertDialogTheme">@style/Theme.SuperFlow.Dialog</item>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  High-contrast overlay, dark mode.
+
+  Same overlay name as the light copy so the caller never branches on mode;
+  the resource system picks the right one. The direction inverts: text moves
+  to the lightest neutral and surfaces drop toward black.
+
+  Measured on the #1A1A1A surface below: colorOnSurfaceVariant sf_neutral_94
+  reaches 14.76:1, and the outlineVariant border sf_neutral_60 reaches 5.39:1
+  against a default of 1.47:1 - the same invisible-border problem as light
+  mode, and the same fix.
+
+  One deliberate difference from the light version. Light mode flattens
+  surfaces to pure white, but dark mode does NOT flatten to pure black,
+  because the surface/background distinction is the only thing separating a
+  card from the page once shadows are gone, and dark mode has no shadow to
+  fall back on. Instead the two are kept two tones apart and the border does
+  the rest of the work.
+-->
+<resources>
+
+    <style name="ThemeOverlay.SuperFlow.HighContrast" parent="">
+        <item name="colorOnSurface">@color/sf_neutral_100</item>
+        <item name="colorOnBackground">@color/sf_neutral_100</item>
+        <item name="colorOnSurfaceVariant">@color/sf_neutral_94</item>
+
+        <!-- On dark, a light border reads much stronger than a dark one does
+             on light, so these sit further from the text colour than their
+             light-mode counterparts. -->
+        <item name="colorOutline">@color/sf_neutral_80</item>
+        <item name="colorOutlineVariant">@color/sf_neutral_60</item>
+        <item name="sfDividerColor">@color/sf_neutral_60</item>
+        <item name="sfCardStrokeWidth">2dp</item>
+
+        <!-- Kept apart on purpose; see the file comment. -->
+        <item name="android:colorBackground">@color/sf_neutral_0</item>
+        <item name="colorSurface">#FF1A1A1A</item>
+
+        <item name="sfStateMissed">@color/sf_neutral_70</item>
+        <item name="sfStateSkipped">@color/sf_neutral_60</item>
+    </style>
+</resources>

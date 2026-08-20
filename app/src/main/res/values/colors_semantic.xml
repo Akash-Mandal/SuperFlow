@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Semantic colour tokens (design system v2 §6.4) and dark-variant surfaces
+  (§6.3).
+
+  These are the literal values the ?attr/sf* theme attributes resolve to. They
+  are declared here rather than inline in themes.xml so that the light and
+  night variants can be diffed side by side, and so a chart that genuinely
+  needs a raw @color (Canvas drawing cannot resolve ?attr) has a stable name.
+
+  Calm is a feature. A missed day is a warm caution, never a punitive red;
+  sf_caution is a muted coral, and the only true error colour is reserved for
+  destructive confirmation and validation failure.
+-->
+<resources>
+
+    <!-- ==================================================== status -->
+    <color name="sf_success">#FF3A7D5C</color>
+    <color name="sf_on_success">#FFFFFFFF</color>
+    <color name="sf_success_container">#FFC8E9D8</color>
+
+    <color name="sf_warning">#FFB4703A</color>
+    <color name="sf_on_warning">#FFFFFFFF</color>
+    <color name="sf_warning_container">#FFFAE3D0</color>
+
+    <!-- Muted coral. Deliberately NOT red: a miss is information, not alarm. -->
+    <color name="sf_caution">#FFC1674F</color>
+    <color name="sf_caution_container">#FFF7DED4</color>
+
+    <color name="sf_info">#FF3F5A8A</color>
+    <color name="sf_info_container">#FFD8E3F8</color>
+
+    <!-- Recovery: re-engaging after a lapse. Soft, welcoming, never shaming. -->
+    <color name="sf_recovery">#FF5C7F9B</color>
+    <color name="sf_recovery_container">#FFDCE8F1</color>
+
+    <!-- Celebration: milestones. Warm gold, used sparingly. -->
+    <color name="sf_celebration">#FFC59A3D</color>
+    <color name="sf_celebration_container">#FFF7EBCE</color>
+
+    <!-- ========================================== energy gradient -->
+    <!-- Five steps, cool depleted blue -> warm energised amber. Used by the
+         energy scatter plot and the check-in selector. -->
+    <color name="sf_energy_1">#FF6B7F94</color>
+    <color name="sf_energy_2">#FF7E9299</color>
+    <color name="sf_energy_3">#FF95A08C</color>
+    <color name="sf_energy_4">#FFB39A6E</color>
+    <color name="sf_energy_5">#FFD19A55</color>
+
+    <!-- ============================================== skeletons -->
+    <color name="sf_skeleton_base">#FFEDE8DC</color>
+    <color name="sf_skeleton_highlight">#FFF9F5EC</color>
+
+    <!-- ====================================== dark variants (§6.3) -->
+    <!-- Selectable dark flavours. Warm Dark is the default; OLED Black is a
+         battery/contrast option; Midnight Blue is a cooler alternative. -->
+    <color name="sf_dark_warm_background">#FF14130F</color>
+    <color name="sf_dark_warm_surface">#FF1C1B17</color>
+    <color name="sf_dark_warm_surface_variant">#FF2A2823</color>
+    <color name="sf_dark_warm_outline_variant">#FF3A382F</color>
+
+    <color name="sf_dark_oled_background">#FF000000</color>
+    <color name="sf_dark_oled_surface">#FF0D0D0D</color>
+    <color name="sf_dark_oled_surface_variant">#FF1A1A1A</color>
+    <color name="sf_dark_oled_outline_variant">#FF2B2B2B</color>
+
+    <color name="sf_dark_midnight_background">#FF0A0E1A</color>
+    <color name="sf_dark_midnight_surface">#FF121624</color>
+    <color name="sf_dark_midnight_surface_variant">#FF1D2233</color>
+    <color name="sf_dark_midnight_outline_variant">#FF2E3547</color>
+</resources>

@@ -2,7 +2,9 @@ package com.superflow.data
 
 import com.superflow.data.model.*
 import com.superflow.domain.Serial
+import com.superflow.util.jsonArrayOf
 import com.superflow.util.jsonOf
+import com.superflow.util.strings
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -240,12 +242,53 @@ object DataPolicy {
 
     /**
      * Export all SharedPreferences as a JSON object.
-     * Excludes the secrets file (API keys).
+     *
+     * All-inclusion: every user-settable preference is covered. The only
+     * omissions are deliberate, and each is omitted for a reason rather than
+     * by oversight:
+     *
+     *   * `apiKey` and the rest of the secrets file - credentials do not
+     *     belong in a plaintext export.
+     *   * `fullControlActivated` - exported for reference but never imported;
+     *     granting an app destructive autonomy is a decision that must be
+     *     made again on each device.
+     *   * `onboarded` - describes this install, not the user.
+     *   * `callsThisMonth` / `tokensThisMonth` / `costThisMonthCents` -
+     *     per-device usage meters; carrying them across would corrupt budget
+     *     accounting on the destination.
+     *   * `aiAdvancedMode` - a boolean alias over `aiSetupMode`, which is
+     *     exported. Writing both would let them contradict each other.
      */
     fun exportPreferences(prefs: Prefs): JSONObject = jsonOf(
         "themeMode" to prefs.themeMode,
         "dynamicColor" to prefs.dynamicColor,
+        // Appearance: palette, dark flavour, density and the type/contrast
+        // switches. All-inclusion means a restore should look identical to
+        // what the user left, not merely work.
+        "palette" to prefs.palette,
+        "darkVariant" to prefs.darkVariant,
+        "density" to prefs.density,
+        "highContrast" to prefs.highContrast,
+        "serifAccents" to prefs.serifAccents,
+        "monoFigures" to prefs.monoFigures,
+        // Experience
+        "motionLevel" to prefs.motionLevel,
+        "hapticIntensity" to prefs.hapticIntensity,
         "hapticsEnabled" to prefs.hapticsEnabled,
+        "soundEnabled" to prefs.soundEnabled,
+        "soundVolume" to prefs.soundVolume,
+        // Sets go out as arrays rather than the joined string they are
+        // stored as: the export format is a contract with other tools, and
+        // it should not leak how SharedPreferences happens to hold a set.
+        "soundCues" to jsonArrayOf(prefs.soundCues),
+        "gestures" to jsonArrayOf(prefs.gestures),
+        "colorVision" to prefs.colorVision,
+        "tabLabels" to prefs.tabLabels,
+        "appIcon" to prefs.appIcon,
+        "startDestination" to prefs.startDestination,
+        "confirmCompletion" to prefs.confirmCompletion,
+        "showHistoryStrip" to prefs.showHistoryStrip,
+        "swipeActions" to prefs.swipeActionsEnabled,
         "celebrationsEnabled" to prefs.celebrationsEnabled,
         "remindersEnabled" to prefs.remindersEnabled,
         "quietFrom" to prefs.quietFrom,
@@ -324,10 +367,45 @@ object DataPolicy {
         fun str(k: String) = if (json.has(k)) json.optString(k) else null
         fun bool(k: String) = if (json.has(k)) json.optBoolean(k) else null
         fun int(k: String) = if (json.has(k)) json.optInt(k) else null
+        fun num(k: String) = if (json.has(k)) json.optDouble(k).toFloat() else null
+        fun set(k: String): Set<String>? =
+            if (json.has(k)) json.optJSONArray(k)?.strings()?.toSet() ?: emptySet() else null
 
         int("themeMode")?.let { prefs.themeMode = it }
-        bool("dynamicColor")?.let { prefs.dynamicColor = it }
+
+        // Appearance goes through setAppearance so the revision counter is
+        // bumped once for the whole group; assigning the properties one by
+        // one would leave open Activities showing the old overlays. Each
+        // property still coerces its own value, so a hand-edited or
+        // downgraded export cannot produce an out-of-range palette.
+        prefs.setAppearance(
+            palette = int("palette") ?: prefs.palette,
+            darkVariant = int("darkVariant") ?: prefs.darkVariant,
+            density = int("density") ?: prefs.density,
+            highContrast = bool("highContrast") ?: prefs.highContrast,
+            serifAccents = bool("serifAccents") ?: prefs.serifAccents,
+            monoFigures = bool("monoFigures") ?: prefs.monoFigures,
+            dynamicColor = bool("dynamicColor") ?: prefs.dynamicColor
+        )
+
+        int("motionLevel")?.let { prefs.motionLevel = it }
+        // hapticIntensity supersedes hapticsEnabled; apply the boolean first
+        // so a newer export's explicit intensity wins over the legacy flag.
         bool("hapticsEnabled")?.let { prefs.hapticsEnabled = it }
+        int("hapticIntensity")?.let { prefs.hapticIntensity = it }
+        bool("soundEnabled")?.let { prefs.soundEnabled = it }
+        num("soundVolume")?.let { prefs.soundVolume = it }
+        // An empty array is meaningful — every cue switched off by hand —
+        // so presence of the key, not emptiness of the list, is the test.
+        set("soundCues")?.let { prefs.soundCues = it }
+        set("gestures")?.let { prefs.gestures = it }
+        int("colorVision")?.let { prefs.colorVision = it }
+        int("tabLabels")?.let { prefs.tabLabels = it }
+        int("appIcon")?.let { prefs.appIcon = it }
+        int("startDestination")?.let { prefs.startDestination = it }
+        bool("confirmCompletion")?.let { prefs.confirmCompletion = it }
+        bool("showHistoryStrip")?.let { prefs.showHistoryStrip = it }
+        bool("swipeActions")?.let { prefs.swipeActionsEnabled = it }
         bool("celebrationsEnabled")?.let { prefs.celebrationsEnabled = it }
         bool("remindersEnabled")?.let { prefs.remindersEnabled = it }
         str("quietFrom")?.let { prefs.quietFrom = it }

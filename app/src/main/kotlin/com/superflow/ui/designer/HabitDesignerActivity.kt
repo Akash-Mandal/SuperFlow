@@ -33,6 +33,7 @@ import com.superflow.core.schedule.Recurrence
 import com.superflow.core.time.SfTime
 import com.superflow.domain.CommandBus
 import com.superflow.notify.Reminders
+import com.superflow.ui.common.SfTheme
 import com.superflow.ui.common.snack
 import com.superflow.ui.common.visible
 import com.superflow.util.Dates
@@ -68,6 +69,8 @@ class HabitDesignerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        // Theme overlays must be merged before the first inflate.
+        SfTheme.apply(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_designer)
         bus = CommandBus.get(this)

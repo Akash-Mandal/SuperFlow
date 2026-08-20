@@ -1,25 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout
+<!--
+    The shell (plan 10.2).
+
+    Both navigation surfaces are inflated and exactly one is shown, chosen at
+    runtime by Navigation.placementFor from the real window size. Inflating
+    both is cheaper than swapping layouts on a fold or rotation, and it keeps
+    the ViewPager2 - and therefore every fragment's state - alive across the
+    change, which is the whole reason a foldable user notices nothing.
+
+    The rail sits outside the CoordinatorLayout so the bottom bar's scroll
+    behaviour and the rail's fixed position do not fight over insets.
+-->
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/root"
+    android:id="@+id/shell"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="horizontal"
     android:fitsSystemWindows="false">
 
-    <androidx.viewpager2.widget.ViewPager2
-        android:id="@+id/pager"
-        android:layout_width="match_parent"
+    <com.google.android.material.navigationrail.NavigationRailView
+        android:id="@+id/nav_rail"
+        style="@style/Widget.SuperFlow.NavRail"
+        android:layout_width="wrap_content"
         android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
-
-    <com.google.android.material.bottomnavigation.BottomNavigationView
-        android:id="@+id/bottom_nav"
-        style="@style/Widget.SuperFlow.BottomNav"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        app:elevation="8dp"
+        android:visibility="gone"
         app:menu="@menu/bottom_nav" />
 
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:id="@+id/root"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:fitsSystemWindows="false">
+
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/pager"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
+        <com.google.android.material.bottomnavigation.BottomNavigationView
+            android:id="@+id/bottom_nav"
+            style="@style/Widget.SuperFlow.BottomNav"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            app:elevation="8dp"
+            app:menu="@menu/bottom_nav" />
+
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+</LinearLayout>

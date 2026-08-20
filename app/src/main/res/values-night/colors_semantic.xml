@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Night overrides for the semantic tokens.
+
+  Status hues shift toward the light end of their ramp so they keep a 4.5:1
+  contrast ratio against the dark surface, and the container tones invert to
+  low-lightness fills. The dark-variant surface colours themselves are not
+  redeclared here: they are absolute values chosen per flavour and live in
+  values/colors_semantic.xml.
+-->
+<resources>
+
+    <color name="sf_success">#FF9FD2B8</color>
+    <color name="sf_on_success">#FF06231A</color>
+    <color name="sf_success_container">#FF17513C</color>
+
+    <color name="sf_warning">#FFF2C6A2</color>
+    <color name="sf_on_warning">#FF2B1600</color>
+    <color name="sf_warning_container">#FF663800</color>
+
+    <color name="sf_caution">#FFEFB4A8</color>
+    <color name="sf_caution_container">#FF7A2E22</color>
+
+    <color name="sf_info">#FFB2C6EC</color>
+    <color name="sf_info_container">#FF27406B</color>
+
+    <color name="sf_recovery">#FFA9C4D8</color>
+    <color name="sf_recovery_container">#FF33495C</color>
+
+    <color name="sf_celebration">#FFE8C77E</color>
+    <color name="sf_celebration_container">#FF5C4718</color>
+
+    <!-- Energy gradient lifted for legibility on dark surfaces. -->
+    <color name="sf_energy_1">#FF8FA3B8</color>
+    <color name="sf_energy_2">#FF9DB3BA</color>
+    <color name="sf_energy_3">#FFB2BCA8</color>
+    <color name="sf_energy_4">#FFCFB88A</color>
+    <color name="sf_energy_5">#FFE5B673</color>
+
+    <color name="sf_skeleton_base">#FF26251F</color>
+    <color name="sf_skeleton_highlight">#FF332F28</color>
+</resources>

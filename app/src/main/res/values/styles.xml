@@ -6,7 +6,7 @@
         <item name="cardElevation">0dp</item>
         <item name="cardBackgroundColor">?attr/colorSurface</item>
         <item name="strokeColor">?attr/colorOutlineVariant</item>
-        <item name="strokeWidth">1dp</item>
+        <item name="strokeWidth">?attr/sfCardStrokeWidth</item>
         <item name="contentPadding">0dp</item>
         <item name="rippleColor">?attr/colorPrimary</item>
     </style>
@@ -60,6 +60,18 @@
     </style>
 
     <style name="Widget.SuperFlow.BottomNav" parent="Widget.Material3.BottomNavigationView">
+        <item name="android:background">?attr/colorSurface</item>
+        <item name="itemActiveIndicatorStyle">@style/Widget.SuperFlow.NavIndicator</item>
+        <item name="labelVisibilityMode">labeled</item>
+    </style>
+
+    <!--
+        The rail (10.2). Shown instead of the bottom bar on landscape phones,
+        foldables and tablets. Always labelled, whatever the tab-label
+        setting says: a vertical strip of bare icons has no bottom-bar
+        convention behind it, so it is a guessing game.
+    -->
+    <style name="Widget.SuperFlow.NavRail" parent="Widget.Material3.NavigationRailView">
         <item name="android:background">?attr/colorSurface</item>
         <item name="itemActiveIndicatorStyle">@style/Widget.SuperFlow.NavIndicator</item>
         <item name="labelVisibilityMode">labeled</item>

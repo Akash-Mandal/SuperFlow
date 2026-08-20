@@ -1,8 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Today's toolbar.
+
+    Settings lives here now (10.1) rather than in the tab bar. It is pinned
+    to the toolbar rather than dropped into the parallax header, because the
+    header collapses on scroll and a settings affordance that disappears
+    when you scroll is a settings affordance people cannot find.
+-->
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item android:id="@+id/action_plan_tomorrow" android:title="@string/plan_tomorrow"
         android:icon="@drawable/ic_calendar" app:showAsAction="ifRoom" />
+    <item android:id="@+id/action_settings" android:title="@string/open_settings"
+        android:icon="@drawable/ic_settings" app:showAsAction="always" />
     <item android:id="@+id/action_minimum_mode" android:title="@string/minimum_mode"
         app:showAsAction="never" />
     <item android:id="@+id/action_recovery" android:title="@string/recovery_center"

@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Four primary destinations (plan 10.1). Settings used to be the fifth and
+    is now reached from the Today header: a tab spent a fifth of the app's
+    most valuable surface on a screen people open twice a month.
+
+    Order and ids must match com.superflow.design.Navigation.Tab, which is
+    what resolves incoming keys and migrates stored indices.
+-->
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@+id/nav_today" android:icon="@drawable/ic_today" android:title="@string/tab_today" />
     <item android:id="@+id/nav_journey" android:icon="@drawable/ic_journey" android:title="@string/tab_journey" />
     <item android:id="@+id/nav_insights" android:icon="@drawable/ic_insights" android:title="@string/tab_insights" />
-    <item android:id="@+id/nav_coach" android:icon="@drawable/ic_coach" android:title="@string/tab_coach" />
-    <item android:id="@+id/nav_settings" android:icon="@drawable/ic_settings" android:title="@string/tab_settings" />
+    <item android:id="@+id/nav_studio" android:icon="@drawable/ic_sparkle" android:title="@string/tab_studio" />
 </menu>

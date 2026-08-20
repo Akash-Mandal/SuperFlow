@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.util.TypedValue
-import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AnimationUtils
@@ -14,6 +13,8 @@ import com.google.android.material.color.MaterialColors
 import com.google.android.material.snackbar.Snackbar
 import com.superflow.R
 import com.superflow.data.Prefs
+import com.superflow.design.HapticPattern
+import com.superflow.design.Haptics
 
 /** Shared UI helpers: theme lookups, haptics, snackbars, insets. */
 
@@ -42,21 +43,26 @@ fun View.tint(color: Int) {
 fun blend(color: Int, towards: Int, ratio: Float): Int =
     ColorUtils.blendARGB(color, towards, ratio)
 
-fun View.haptic(prefs: Prefs? = null) {
-    if (prefs != null && !prefs.hapticsEnabled) return
-    performHapticFeedback(
-        HapticFeedbackConstants.VIRTUAL_KEY,
-        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
-    )
-}
+/**
+ * A light selection tick.
+ *
+ * Kept as an extension because it is called from dozens of places, but the
+ * implementation now goes through [SfHaptics] so it respects the user's
+ * haptic intensity and uses the tuned waveform rather than the system's
+ * generic key click.
+ *
+ * Note this no longer passes FLAG_IGNORE_GLOBAL_SETTING. Overriding a
+ * system-wide "touch feedback off" was never the app's call to make, and the
+ * intensity preference now covers the case that flag was reaching for.
+ */
+fun View.haptic(prefs: Prefs? = null) = SfHaptics.perform(this, Haptics.SELECT, prefs)
 
-fun View.confirmHaptic(prefs: Prefs? = null) {
-    if (prefs != null && !prefs.hapticsEnabled) return
-    performHapticFeedback(
-        if (android.os.Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM
-        else HapticFeedbackConstants.VIRTUAL_KEY
-    )
-}
+/** The heavier confirmation pattern, for a completed or committed action. */
+fun View.confirmHaptic(prefs: Prefs? = null) = SfHaptics.perform(this, Haptics.COMPLETE, prefs)
+
+/** Plays any pattern from the [Haptics] vocabulary. */
+fun View.haptic(pattern: HapticPattern, prefs: Prefs? = null) =
+    SfHaptics.perform(this, pattern, prefs)
 
 fun View.snack(message: String, actionLabel: String? = null, action: (() -> Unit)? = null) {
     val bar = Snackbar.make(this, message, Snackbar.LENGTH_LONG)

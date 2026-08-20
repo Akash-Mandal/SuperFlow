@@ -2,6 +2,8 @@ package com.superflow.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.superflow.design.Navigation
+import com.superflow.design.SoundDesign
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +40,58 @@ class Prefs private constructor(context: Context) {
         const val THEME_SYSTEM = 0
         const val THEME_LIGHT = 1
         const val THEME_DARK = 2
+
+        /* -------------------------------------------------- appearance */
+
+        /** Colour palettes. Values are persisted, so never renumber them. */
+        const val PALETTE_CALM = 0
+        const val PALETTE_FOREST = 1
+        const val PALETTE_OCEAN = 2
+        const val PALETTE_DUSK = 3
+        const val PALETTE_MONO = 4
+        const val PALETTE_COUNT = 5
+
+        /** Dark-mode flavours. Only consulted when the app renders dark. */
+        const val DARK_WARM = 0
+        const val DARK_OLED = 1
+        const val DARK_MIDNIGHT = 2
+
+        /** Information density. Governs whitespace, never type size. */
+        const val DENSITY_COMPACT = 0
+        const val DENSITY_COMFORTABLE = 1
+        const val DENSITY_SPACIOUS = 2
+
+        /**
+         * Motion level. [MOTION_NONE] is honoured independently of the
+         * system "remove animations" setting, which we also respect: either
+         * one being set is enough to disable non-essential motion.
+         */
+        const val MOTION_NONE = 0
+        const val MOTION_REDUCED = 1
+        const val MOTION_STANDARD = 2
+        const val MOTION_EXPRESSIVE = 3
+
+        /** Haptic intensity multiplier steps. */
+        const val HAPTICS_OFF = 0
+        const val HAPTICS_LIGHT = 1
+        const val HAPTICS_MEDIUM = 2
+        const val HAPTICS_STRONG = 3
+
+        /** Which surface the app opens on. */
+        const val START_TODAY = 0
+        const val START_JOURNEY = 1
+        const val START_INSIGHTS = 2
+        const val START_STUDIO = 3
+
+        /**
+         * Launcher icon variants (plan 19.3).
+         *
+         * Each maps to an activity-alias in the manifest. The ordinals are
+         * persisted, so entries may be appended but never reordered.
+         */
+        const val ICON_DEFAULT = 0
+        const val ICON_MINIMAL = 1
+        const val ICON_MONO = 2
     }
 
     private fun bool(key: String, def: Boolean) = p.getBoolean(key, def)
@@ -74,6 +128,290 @@ class Prefs private constructor(context: Context) {
     var celebrationsEnabled: Boolean
         get() = bool("celebrations", true)
         set(v) = setBool("celebrations", v)
+
+    /* ---------------------------------------------------------- appearance */
+
+    /**
+     * Selected colour palette, one of the `PALETTE_*` constants.
+     *
+     * Out-of-range values coerce to [PALETTE_CALM] rather than throwing: the
+     * stored value can outlive a downgrade that removed a palette, and a
+     * cosmetic preference is never worth crashing the launch over.
+     */
+    var palette: Int
+        get() = num("palette", PALETTE_CALM).let {
+            if (it in 0 until PALETTE_COUNT) it else PALETTE_CALM
+        }
+        set(v) = setNum("palette", v)
+
+    /** Dark flavour, one of the `DARK_*` constants. Ignored in light mode. */
+    var darkVariant: Int
+        get() = num("darkVariant", DARK_WARM).coerceIn(DARK_WARM, DARK_MIDNIGHT)
+        set(v) = setNum("darkVariant", v)
+
+    /** Information density, one of the `DENSITY_*` constants. */
+    var density: Int
+        get() = num("density", DENSITY_COMFORTABLE)
+            .coerceIn(DENSITY_COMPACT, DENSITY_SPACIOUS)
+        set(v) = setNum("density", v)
+
+    /** Motion level, one of the `MOTION_*` constants. */
+    var motionLevel: Int
+        get() = num("motionLevel", MOTION_STANDARD)
+            .coerceIn(MOTION_NONE, MOTION_EXPRESSIVE)
+        set(v) = setNum("motionLevel", v)
+
+    /**
+     * Multiplier applied to every animation duration.
+     *
+     * Derived from [motionLevel] rather than stored, so the two can never
+     * disagree. A value of 0 means "snap immediately"; callers must treat it
+     * as "skip the animation" rather than running a zero-length one, since a
+     * zero-duration animator still posts a frame.
+     */
+    val motionScale: Float
+        get() = when (motionLevel) {
+            MOTION_NONE -> 0f
+            MOTION_REDUCED -> 0.5f
+            MOTION_EXPRESSIVE -> 1.25f
+            else -> 1f
+        }
+
+    /** True when non-essential motion should be skipped entirely. */
+    val motionDisabled: Boolean
+        get() = motionLevel == MOTION_NONE
+
+    /** Serif face for identity statements and journal entries. */
+    var serifAccents: Boolean
+        get() = bool("serifAccents", true)
+        set(v) = setBool("serifAccents", v)
+
+    /** Monospaced figures in stats and chart axes. */
+    var monoFigures: Boolean
+        get() = bool("monoFigures", true)
+        set(v) = setBool("monoFigures", v)
+
+    /**
+     * Extra contrast: opaque borders on every card and a darker outline.
+     * Independent of the system high-contrast setting, which we also honour.
+     */
+    var highContrast: Boolean
+        get() = bool("highContrast", false)
+        set(v) = setBool("highContrast", v)
+
+    /**
+     * Counter bumped whenever a preference changes that can only take effect
+     * on a fresh Activity.
+     *
+     * Theme attributes resolve once, at view inflation, so changing a palette
+     * or density does nothing to an Activity that is already on screen. An
+     * Activity records this value in onCreate and compares it in onResume; if
+     * it moved, it recreates itself. That is cheaper and far less error-prone
+     * than trying to retint a live view hierarchy, and it is how the settings
+     * screen can offer a live preview without every screen subscribing to
+     * every appearance preference.
+     *
+     * Deliberately separate from the general [changes] flow, which fires for
+     * any write at all - recreating every Activity because a reminder time
+     * changed would be a bug, not a feature.
+     */
+    val appearanceRevision: Int
+        get() = num("appearanceRevision", 0)
+
+    /** Called by the appearance setters; see [appearanceRevision]. */
+    private fun bumpAppearance() {
+        setNum("appearanceRevision", num("appearanceRevision", 0) + 1)
+    }
+
+    /**
+     * Applies an appearance change and signals that open Activities must be
+     * recreated. Use this rather than assigning the properties directly when
+     * the change comes from the settings screen.
+     */
+    fun setAppearance(
+        palette: Int = this.palette,
+        darkVariant: Int = this.darkVariant,
+        density: Int = this.density,
+        highContrast: Boolean = this.highContrast,
+        serifAccents: Boolean = this.serifAccents,
+        monoFigures: Boolean = this.monoFigures,
+        dynamicColor: Boolean = this.dynamicColor,
+    ) {
+        val changed = palette != this.palette ||
+            darkVariant != this.darkVariant ||
+            density != this.density ||
+            highContrast != this.highContrast ||
+            serifAccents != this.serifAccents ||
+            monoFigures != this.monoFigures ||
+            dynamicColor != this.dynamicColor
+        this.palette = palette
+        this.darkVariant = darkVariant
+        this.density = density
+        this.highContrast = highContrast
+        this.serifAccents = serifAccents
+        this.monoFigures = monoFigures
+        this.dynamicColor = dynamicColor
+        // Only bump on a real change, so a settings screen that writes back
+        // its current state on every bind does not cause a recreate loop.
+        if (changed) bumpAppearance()
+    }
+
+    /* ---------------------------------------------------------- experience */
+
+    /** Haptic intensity, one of the `HAPTICS_*` constants. */
+    var hapticIntensity: Int
+        get() {
+            // Migration: hapticsEnabled predates this setting. An explicit
+            // intensity wins; otherwise fall back to the old boolean so an
+            // upgrading user keeps the behaviour they had.
+            val stored = num("hapticIntensity", -1)
+            if (stored in HAPTICS_OFF..HAPTICS_STRONG) return stored
+            return if (hapticsEnabled) HAPTICS_MEDIUM else HAPTICS_OFF
+        }
+        set(v) {
+            setNum("hapticIntensity", v.coerceIn(HAPTICS_OFF, HAPTICS_STRONG))
+            // Keep the legacy flag consistent for code still reading it.
+            setBool("haptics", v != HAPTICS_OFF)
+        }
+
+    /** Amplitude multiplier for waveform haptics, derived from intensity. */
+    val hapticScale: Float
+        get() = when (hapticIntensity) {
+            HAPTICS_OFF -> 0f
+            HAPTICS_LIGHT -> 0.6f
+            HAPTICS_STRONG -> 1.4f
+            else -> 1f
+        }
+
+    /** Opt-in sound design. Off by default: silence is the polite default. */
+    var soundEnabled: Boolean
+        get() = bool("soundEnabled", false)
+        set(v) = setBool("soundEnabled", v)
+
+    var soundVolume: Float
+        get() = floatNum("soundVolume", 0.5f).coerceIn(0f, 1f)
+        set(v) = setFloatNum("soundVolume", v.coerceIn(0f, 1f))
+
+    /**
+     * Which individual sound cues are on, as `SoundDesign.Cue` keys.
+     *
+     * Stored as a comma-joined string rather than a StringSet because
+     * SharedPreferences returns the *same mutable set instance* it holds for
+     * a StringSet, so a caller who mutates the result silently corrupts the
+     * store without a write. A string cannot be mutated behind our back.
+     *
+     * An absent value means "all of them" — the master switch is the opt-in,
+     * and someone who turns sound on should hear the whole vocabulary before
+     * being asked to tune it. An empty string means the user switched every
+     * cue off individually, which is a different state and is preserved.
+     */
+    var soundCues: Set<String>
+        get() {
+            val raw = p.getString("soundCues", null) ?: return SoundDesign.allCues
+            return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        }
+        set(v) {
+            // Unknown keys are dropped: an import from a newer version must
+            // not resurrect a cue this build has no sample for.
+            val clean = v.filter { it in SoundDesign.allCues }
+            setStr("soundCues", clean.joinToString(","))
+        }
+
+    /** Whether a single sound cue may play. */
+    fun soundCueEnabled(key: String): Boolean = key in soundCues
+
+    fun setSoundCueEnabled(key: String, on: Boolean) {
+        val next = soundCues.toMutableSet()
+        if (on) next.add(key) else next.remove(key)
+        soundCues = next
+    }
+
+    /**
+     * Colour-vision mode, one of `Accessibility.ColorVision.id`.
+     *
+     * This does not recolour the whole app — it changes the *hue pairs* used
+     * for state, so done and missed never differ by red versus green alone.
+     * Shape and glyph carry the same information regardless of this setting;
+     * it exists to make the colour layer agree with them rather than to be
+     * the only accommodation.
+     */
+    var colorVision: Int
+        get() = num("colorVision", 0)
+        set(v) {
+            if (v != colorVision) {
+                setNum("colorVision", v)
+                bumpAppearance()
+            }
+        }
+
+    /**
+     * Tab label style, one of `Navigation.TabLabels` ids.
+     *
+     * Not an appearance-revision change: the bar re-reads it in onResume,
+     * which is cheaper than recreating every activity in the back stack.
+     */
+    var tabLabels: Int
+        get() = num("tabLabels", 0)
+        set(v) = setNum("tabLabels", v)
+
+    /**
+     * Which gesture shortcuts are armed, as `Navigation.Gesture` keys.
+     *
+     * Same storage reasoning as [soundCues]. Absent means all of them; every
+     * gesture has a visible equivalent, so switching one off costs
+     * discoverability rather than capability.
+     */
+    var gestures: Set<String>
+        get() {
+            val raw = p.getString("gestures", null) ?: return Navigation.allGestures
+            return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        }
+        set(v) {
+            val clean = v.filter { it in Navigation.allGestures }
+            setStr("gestures", clean.joinToString(","))
+        }
+
+    fun gestureEnabled(gesture: Navigation.Gesture): Boolean =
+        Navigation.gestureEnabled(gesture, gestures, confirmCompletion)
+
+    fun setGestureEnabled(key: String, on: Boolean) {
+        val next = gestures.toMutableSet()
+        if (on) next.add(key) else next.remove(key)
+        gestures = next
+    }
+
+    /**
+     * Launcher icon variant, one of the `ICON_*` constants.
+     *
+     * Applied by enabling one activity-alias and disabling the rest, which
+     * the launcher notices only on the next refresh — so the setting is
+     * stored here and reconciled at startup rather than assumed to have
+     * taken effect the moment it was written.
+     */
+    var appIcon: Int
+        get() = num("appIcon", ICON_DEFAULT).coerceIn(ICON_DEFAULT, ICON_MONO)
+        set(v) = setNum("appIcon", v.coerceIn(ICON_DEFAULT, ICON_MONO))
+
+    /** Which tab the app opens on, one of the `START_*` constants. */
+    var startDestination: Int
+        get() = num("startDestination", START_TODAY)
+            .coerceIn(START_TODAY, START_STUDIO)
+        set(v) = setNum("startDestination", v)
+
+    /** Confirm before marking a habit complete. Off by default. */
+    var confirmCompletion: Boolean
+        get() = bool("confirmCompletion", false)
+        set(v) = setBool("confirmCompletion", v)
+
+    /** Show the weekly history strip on habit cards. */
+    var showHistoryStrip: Boolean
+        get() = bool("showHistoryStrip", true)
+        set(v) = setBool("showHistoryStrip", v)
+
+    /** Swipe gestures on habit cards. Buttons remain available regardless. */
+    var swipeActionsEnabled: Boolean
+        get() = bool("swipeActions", true)
+        set(v) = setBool("swipeActions", v)
 
     /* ----------------------------------------------------------- reminders */
 

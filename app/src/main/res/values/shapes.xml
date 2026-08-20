@@ -1,5 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shape system (design system v2 §7.1).
+
+  Corner radius scale:
+    none  0dp   full-width elements
+    2xs   4dp   chips, small badges
+    xs    8dp   input fields, toggles
+    sm   12dp   list items
+    md   16dp   cards (standard)
+    lg   24dp   cards (featured), sheets
+    xl   32dp   dialogs, hero cards
+    full 50%    avatars, circular buttons
+
+  The Material 3 corner slots are mapped onto that scale below. Card radius
+  moves 24dp -> 18dp (the "md" slot, nudged up for optical weight at this
+  card size); featured surfaces keep 24dp via the Large slot.
+-->
 <resources>
+
+    <!-- ===================================== Material 3 corner slots -->
     <style name="Shape.SuperFlow.ExtraSmall" parent="ShapeAppearance.Material3.Corner.ExtraSmall">
         <item name="cornerSize">8dp</item>
     </style>
@@ -15,6 +34,40 @@
     <style name="Shape.SuperFlow.ExtraLarge" parent="ShapeAppearance.Material3.Corner.ExtraLarge">
         <item name="cornerSize">32dp</item>
     </style>
+
+    <!-- ============================================ explicit scale steps -->
+    <!-- Named steps for surfaces that must not drift when a Material slot
+         is retuned. Chips and badges in particular need a stable radius. -->
+    <style name="Shape.SuperFlow.None" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">0dp</item>
+    </style>
+    <style name="Shape.SuperFlow.Badge" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">4dp</item>
+    </style>
+    <style name="Shape.SuperFlow.Field" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">8dp</item>
+    </style>
+    <style name="Shape.SuperFlow.ListItem" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">12dp</item>
+    </style>
+    <style name="Shape.SuperFlow.Card" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">18dp</item>
+    </style>
+    <style name="Shape.SuperFlow.CardFeatured" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">24dp</item>
+    </style>
+    <style name="Shape.SuperFlow.Hero" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">32dp</item>
+    </style>
+
+    <!-- ======================================================= surfaces -->
     <style name="Shape.SuperFlow.BottomSheet" parent="ShapeAppearance.Material3.Corner.ExtraLarge">
         <item name="cornerSizeTopLeft">28dp</item>
         <item name="cornerSizeTopRight">28dp</item>

@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Palette overlays (design system v2 §6.2).
+
+  Each palette is a ThemeOverlay applied on top of Theme.SuperFlow by
+  Activity.setTheme() before super.onCreate(). Overlays only restate the
+  colour roles that differ, so shape, type, density and semantic tokens are
+  inherited from the base theme and stay in one place.
+
+  Light and dark differ in which tone fills which role: light uses tone 40
+  for the accent and 90 for containers, dark inverts to 80 for the accent and
+  30 for containers. The values-night copy of this file carries the dark
+  mapping under the same overlay names, so the caller never branches on mode.
+
+  Light accents are tone 40, not 50. Tone 50 fails WCAG AA against white:
+  it lands at 3.95:1 for Calm amber and 4.48:1 for Ocean coral and Mono
+  stone, and no "on" colour rescues it, because tone 50 sits in the dead
+  band where neither white nor near-black reaches 4.5:1. Tone 40 clears it
+  at 6.4:1 or better across every ramp. RoleTest asserts this, so lifting an
+  accent back to 50 fails the suite rather than shipping.
+
+  Calm is the default and needs no overlay.
+-->
+<resources>
+
+    <!-- ======================================================== forest -->
+    <!-- Deep forest green + olive. Heavier and more saturated than Calm. -->
+    <style name="ThemeOverlay.SuperFlow.Palette.Forest" parent="">
+        <item name="colorPrimary">@color/sf_forest_green_40</item>
+        <item name="colorOnPrimary">@color/sf_neutral_100</item>
+        <item name="colorPrimaryContainer">@color/sf_forest_green_90</item>
+        <item name="colorOnPrimaryContainer">@color/sf_forest_green_10</item>
+        <item name="colorPrimaryInverse">@color/sf_forest_green_80</item>
+
+        <item name="colorSecondary">@color/sf_forest_olive_40</item>
+        <item name="colorOnSecondary">@color/sf_neutral_100</item>
+        <item name="colorSecondaryContainer">@color/sf_forest_olive_90</item>
+        <item name="colorOnSecondaryContainer">@color/sf_forest_olive_10</item>
+
+        <item name="sfLevelTiny">@color/sf_forest_green_80</item>
+        <item name="sfLevelMinimum">@color/sf_forest_green_70</item>
+        <item name="sfLevelStandard">@color/sf_forest_green_50</item>
+        <item name="sfLevelStretch">@color/sf_forest_green_30</item>
+        <item name="sfSuccess">@color/sf_forest_green_40</item>
+        <item name="sfSuccessContainer">@color/sf_forest_green_90</item>
+    </style>
+
+    <!-- ========================================================= ocean -->
+    <!-- Teal + coral. Cooler, brighter, higher chroma. -->
+    <style name="ThemeOverlay.SuperFlow.Palette.Ocean" parent="">
+        <item name="colorPrimary">@color/sf_ocean_teal_40</item>
+        <item name="colorOnPrimary">@color/sf_neutral_100</item>
+        <item name="colorPrimaryContainer">@color/sf_ocean_teal_90</item>
+        <item name="colorOnPrimaryContainer">@color/sf_ocean_teal_10</item>
+        <item name="colorPrimaryInverse">@color/sf_ocean_teal_80</item>
+
+        <item name="colorSecondary">@color/sf_ocean_coral_40</item>
+        <item name="colorOnSecondary">@color/sf_neutral_100</item>
+        <item name="colorSecondaryContainer">@color/sf_ocean_coral_90</item>
+        <item name="colorOnSecondaryContainer">@color/sf_ocean_coral_10</item>
+
+        <item name="sfLevelTiny">@color/sf_ocean_teal_80</item>
+        <item name="sfLevelMinimum">@color/sf_ocean_teal_70</item>
+        <item name="sfLevelStandard">@color/sf_ocean_teal_50</item>
+        <item name="sfLevelStretch">@color/sf_ocean_teal_30</item>
+        <item name="sfSuccess">@color/sf_ocean_teal_40</item>
+        <item name="sfSuccessContainer">@color/sf_ocean_teal_90</item>
+        <item name="sfStateMissed">@color/sf_ocean_coral_80</item>
+    </style>
+
+    <!-- ========================================================== dusk -->
+    <!-- Violet + dusty rose. Softest of the set, low contrast by design. -->
+    <style name="ThemeOverlay.SuperFlow.Palette.Dusk" parent="">
+        <item name="colorPrimary">@color/sf_dusk_violet_40</item>
+        <item name="colorOnPrimary">@color/sf_neutral_100</item>
+        <item name="colorPrimaryContainer">@color/sf_dusk_violet_90</item>
+        <item name="colorOnPrimaryContainer">@color/sf_dusk_violet_10</item>
+        <item name="colorPrimaryInverse">@color/sf_dusk_violet_80</item>
+
+        <item name="colorSecondary">@color/sf_dusk_rose_40</item>
+        <item name="colorOnSecondary">@color/sf_neutral_100</item>
+        <item name="colorSecondaryContainer">@color/sf_dusk_rose_90</item>
+        <item name="colorOnSecondaryContainer">@color/sf_dusk_rose_10</item>
+
+        <item name="sfLevelTiny">@color/sf_dusk_violet_80</item>
+        <item name="sfLevelMinimum">@color/sf_dusk_violet_70</item>
+        <item name="sfLevelStandard">@color/sf_dusk_violet_50</item>
+        <item name="sfLevelStretch">@color/sf_dusk_violet_30</item>
+        <item name="sfSuccess">@color/sf_dusk_violet_40</item>
+        <item name="sfSuccessContainer">@color/sf_dusk_violet_90</item>
+        <item name="sfStateMissed">@color/sf_dusk_rose_80</item>
+    </style>
+
+    <!-- ========================================================== mono -->
+    <!-- Near-achromatic warm greys. Primary and secondary are separated by
+         tone rather than hue, so emphasis comes from weight and space. -->
+    <style name="ThemeOverlay.SuperFlow.Palette.Mono" parent="">
+        <item name="colorPrimary">@color/sf_mono_stone_30</item>
+        <item name="colorOnPrimary">@color/sf_neutral_100</item>
+        <item name="colorPrimaryContainer">@color/sf_mono_stone_90</item>
+        <item name="colorOnPrimaryContainer">@color/sf_mono_stone_10</item>
+        <item name="colorPrimaryInverse">@color/sf_mono_stone_80</item>
+
+        <item name="colorSecondary">@color/sf_mono_stone_40</item>
+        <item name="colorOnSecondary">@color/sf_neutral_100</item>
+        <item name="colorSecondaryContainer">@color/sf_mono_stone_95</item>
+        <item name="colorOnSecondaryContainer">@color/sf_mono_stone_20</item>
+
+        <item name="colorTertiary">@color/sf_mono_stone_40</item>
+        <item name="colorTertiaryContainer">@color/sf_mono_stone_90</item>
+        <item name="colorOnTertiaryContainer">@color/sf_mono_stone_10</item>
+
+        <item name="sfLevelTiny">@color/sf_mono_stone_80</item>
+        <item name="sfLevelMinimum">@color/sf_mono_stone_60</item>
+        <item name="sfLevelStandard">@color/sf_mono_stone_40</item>
+        <item name="sfLevelStretch">@color/sf_mono_stone_20</item>
+        <item name="sfSuccess">@color/sf_mono_stone_30</item>
+        <item name="sfSuccessContainer">@color/sf_mono_stone_90</item>
+        <item name="sfCelebration">@color/sf_mono_stone_40</item>
+        <item name="sfCelebrationContainer">@color/sf_mono_stone_90</item>
+    </style>
+
+    <!-- ============================================== dark flavours (§6.3) -->
+    <!-- Applied in addition to a palette overlay when the app is in dark
+         mode. Warm Dark is the default and is already baked into the
+         values-night base theme, so only the two alternatives are overlays. -->
+    <style name="ThemeOverlay.SuperFlow.Dark.Oled" parent="">
+        <item name="android:colorBackground">@color/sf_dark_oled_background</item>
+        <item name="colorSurface">@color/sf_dark_oled_surface</item>
+        <item name="colorSurfaceVariant">@color/sf_dark_oled_surface_variant</item>
+        <item name="colorOutlineVariant">@color/sf_dark_oled_outline_variant</item>
+    </style>
+
+    <style name="ThemeOverlay.SuperFlow.Dark.Midnight" parent="">
+        <item name="android:colorBackground">@color/sf_dark_midnight_background</item>
+        <item name="colorSurface">@color/sf_dark_midnight_surface</item>
+        <item name="colorSurfaceVariant">@color/sf_dark_midnight_surface_variant</item>
+        <item name="colorOutlineVariant">@color/sf_dark_midnight_outline_variant</item>
+    </style>
+</resources>

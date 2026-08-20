@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.superflow.R
+import com.superflow.data.Prefs
 
 /**
  * Base for the secondary screens.
@@ -24,6 +25,9 @@ abstract class ScrollActivity : AppCompatActivity() {
 
     protected lateinit var content: LinearLayout
 
+    /** Appearance revision this instance inflated against; see [onResume]. */
+    private var builtAtRevision = 0
+
     protected lateinit var toolbar: MaterialToolbar
     protected lateinit var fab: ExtendedFloatingActionButton
 
@@ -34,6 +38,10 @@ abstract class ScrollActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        // Theme overlays have to be merged before anything inflates.
+        val prefs = Prefs.get(this)
+        SfTheme.apply(this, prefs)
+        builtAtRevision = prefs.appearanceRevision
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_scroll)
 
@@ -62,6 +70,13 @@ abstract class ScrollActivity : AppCompatActivity() {
     }
 
     protected fun contentReady(): Boolean = ::content.isInitialized
+
+    override fun onResume() {
+        super.onResume()
+        // Picks up a palette / density / contrast change made while this
+        // screen was in the back stack.
+        if (SfTheme.needsRecreate(Prefs.get(this), builtAtRevision)) recreate()
+    }
 
     protected fun rebuild() {
         content.removeAllViews()

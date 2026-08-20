@@ -6,7 +6,14 @@ partial, and what is not built.
 
 **Build:** `com.superflow` 2.0.0 · minSdk 26 · targetSdk 34 · ~7.8 MB ·
 v2+v3 signed · 76 AndroidX/Material libraries · 343 app classes ·
-49 capabilities · **143 logic assertions passing**.
+49 capabilities · **3525 logic assertions passing**.
+
+> **Build environment caveat (current):** Google Maven is unreachable from
+> this environment, so the AAR set cannot be fetched and **no APK can be
+> produced right now**. The XML, resource and `design/` layers are fully
+> verified by the offline suites; the Compose layer under `ui/theme`,
+> `ui/components` and `ui/screens` is **written but has never been
+> compiled**. See "UI/UX upgrade" below.
 
 ---
 
@@ -173,9 +180,66 @@ the reminder step.
 | Room | Uses `androidx.sqlite` (Room's own support layer) with hand-written DAOs and a real versioned migration (v2→v3 converts `daysMask` to recurrence rules). Room's annotation processor is unavailable offline; the runtime contract is identical, but there is no compile-time query verification. |
 | DataStore | Linked and available; settings still read through `Prefs` (SharedPreferences) with a StateFlow change feed. Migrating the backing store is a mechanical follow-up. |
 | PDF ingestion | Text extraction for digitally generated, Flate-compressed PDFs including hex strings. Scanned PDFs yield nothing and the UI says so. No OCR. |
-| Dynamic colour | Material You wallpaper extraction is not wired up; the app ships a fixed brand palette in light and dark. |
+| Dynamic colour | Resolved and applied in the View layer (`SfTheme.apply`, Android 12+), and honoured only on the default palette so an explicitly chosen palette outranks the wallpaper. Untested on a device, since none was available. |
 | Localization | English only; strings are fully externalized and ready to translate. |
 | Navigation component | Uses `ViewPager2` + explicit Activities rather than a nav graph. |
+
+## UI/UX upgrade (Calm Precision)
+
+Work against `docs/UI_UX_GRAND_UPGRADE_PLAN.md`. The design system is real
+and verified; the Compose rendering layer is written but unverified.
+
+**Verified — pure logic, covered by the offline suites**
+
+| Module | What it owns |
+|---|---|
+| `design/DesignTokens` | Spacing, radius, type scale, motion, 10 haptic patterns, density metrics |
+| `design/ThemeSelection` | Which theme overlays apply, in what order, and when dynamic colour wins |
+| `design/ColorRoles` | Which tone fills which colour role, per palette and mode |
+| `design/SurfaceRoles` | Surfaces, outlines and error roles per mode and dark flavour |
+| `design/TypeRoles` | The type scale as data, including tracking and weight |
+| `design/Ramps` | Tonal ramps and flat colours, generated from the XML |
+| `design/Contrast` | WCAG ratios and legible-on-colour selection |
+| `design/HistoryStates` | The day-state encoding, streak and completion rules |
+| `design/ChartGeometry` | Axis ticks, bar metrics and hit testing, heatmap bucketing, correlation |
+| `design/Catalog` | The option lists every appearance surface shares |
+| `design/Periods` | Insight windows, chart bucketing, and the sample-size thresholds that gate every claim |
+
+`RoleTest` parses the real theme XML and asserts the Kotlin model reproduces
+it role by role, so the two rendering layers cannot drift apart. It found
+three shipped bugs when first written, including a WCAG AA failure on
+light-mode `colorSecondary` in three of five palettes.
+
+**Shipped in the View layer**
+
+- Five palettes, three dark flavours, three densities, high contrast, all as
+  stacking theme overlays
+- Inter / Source Serif 4 / JetBrains Mono, SIL OFL 1.1, with the full type scale
+- Appearance & Experience settings screen
+- `SfHaptics`: 10 tuned patterns across three device capability tiers
+- Theme application and recreate-on-change across every Activity
+- Appearance and experience preferences, round-tripped through export/import
+
+**Written but never compiled — Compose**
+
+`ui/theme/` (SfTheme, SfPalette, SfTypography, SfShapes, SfMotion),
+`ui/components/` (SfCard, SfChipGroup, SfTextField, SfSectionHeader,
+SfSkeleton, SfHistoryStrip, SfProgressRing, SfHabitCard, SfBarChart,
+SfHeatmap) and `ui/screens/` (TodayScreen, InsightsScreen).
+
+These are checked by `tools/check_compose.py`, which catches missing imports,
+recursive shadowing, delegation without `getValue`, naming violations and
+dangling resource references — but a static checker is not a compiler. **Treat
+this layer as unreviewed until it builds.** The Compose artifacts are listed
+in `tools/libs.txt` ready to resolve.
+
+**Not started**
+
+Phase 3 Journey screen, Phase 4 Studio merge, onboarding redesign, Glance
+widgets, sound design, Phase 5 refinement. The Compose screens are also not
+yet hosted - `TodayFragment` and `InsightsFragment` still inflate the XML
+implementations, and swapping them over is deliberately left until the
+Compose layer compiles.
 
 ## Not built
 
