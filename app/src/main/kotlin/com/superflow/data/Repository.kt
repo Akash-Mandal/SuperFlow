@@ -445,12 +445,213 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         "label" to v.label, "ledgerJson" to v.ledgerJson, "createdAt" to v.createdAt
     ))
 
+    /* ────────────────────────────────────────────────────── NEW ENTITIES ── */
+
+    /* -------------------------------------------------------- growth plans */
+
+    fun growthPlans(): List<GrowthPlan> =
+        query("SELECT * FROM growth_plan ORDER BY created_at").mapAll(Rows::growthPlan)
+
+    fun growthPlan(id: String?): GrowthPlan? =
+        if (id == null) null
+        else query("SELECT * FROM growth_plan WHERE id=?", arrayOf(id)).mapAll(Rows::growthPlan).firstOrNull()
+
+    fun growthPlansForHabit(habitId: String): List<GrowthPlan> =
+        query("SELECT * FROM growth_plan WHERE habit_id=? ORDER BY created_at", arrayOf(habitId))
+            .mapAll(Rows::growthPlan)
+
+    fun saveGrowthPlan(g: GrowthPlan) = insert("growth_plan", contentValuesOf(
+        "id" to g.id, "habit_id" to g.habitId, "user_id" to g.userId,
+        "phases_json" to phasesToJson(g.phases),
+        "current_phase_index" to g.currentPhaseIndex,
+        "upgrade_policy_json" to upgradePolicyToJson(g.upgradePolicy),
+        "weekly_snapshots_json" to snapshotsToJson(g.weeklySnapshots),
+        "last_upgrade_date" to g.lastUpgradeDate,
+        "next_review_date" to g.nextReviewDate,
+        "created_at" to g.createdAt
+    ))
+
+    fun deleteGrowthPlan(id: String) {
+        delete("growth_plan", "id=?", arrayOf(id))
+        delete("growth_phase_history", "growth_plan_id=?", arrayOf(id))
+    }
+
+    /* ----------------------------------------------------------- milestones */
+
+    fun milestones(): List<Milestone> =
+        query("SELECT * FROM milestone ORDER BY achieved_at DESC").mapAll(Rows::milestone)
+
+    fun milestonesForHabit(habitId: String): List<Milestone> =
+        query("SELECT * FROM milestone WHERE habit_id=? ORDER BY achieved_at DESC", arrayOf(habitId))
+            .mapAll(Rows::milestone)
+
+    fun saveMilestone(m: Milestone) = insert("milestone", contentValuesOf(
+        "id" to m.id, "habit_id" to m.habitId, "type" to m.type.name,
+        "value" to m.value, "label" to m.label, "acknowledged" to m.acknowledged,
+        "achieved_at" to m.achievedAt
+    ))
+
+    fun deleteMilestone(id: String) = delete("milestone", "id=?", arrayOf(id))
+
+    /* -------------------------------------------------------------- sprints */
+
+    fun sprints(): List<Sprint> =
+        query("SELECT * FROM sprint ORDER BY created_at DESC").mapAll(Rows::sprint)
+
+    fun sprint(id: String?): Sprint? =
+        if (id == null) null
+        else query("SELECT * FROM sprint WHERE id=?", arrayOf(id)).mapAll(Rows::sprint).firstOrNull()
+
+    fun saveSprint(s: Sprint) = insert("sprint", contentValuesOf(
+        "id" to s.id, "title" to s.title, "start_date" to s.startDate,
+        "end_date" to s.endDate, "focus_habits_json" to strListToJson(s.focusHabits),
+        "goals_json" to strListToJson(s.goals), "status" to s.status.name,
+        "review_notes" to s.reviewNotes, "created_at" to s.createdAt
+    ))
+
+    fun deleteSprint(id: String) = delete("sprint", "id=?", arrayOf(id))
+
+    /* --------------------------------------------------------- journal */
+
+    fun journalEntries(): List<JournalEntry> =
+        query("SELECT * FROM journal_entry ORDER BY created_at DESC").mapAll(Rows::journalEntry)
+
+    fun journalEntriesFor(date: String): List<JournalEntry> =
+        query("SELECT * FROM journal_entry WHERE date=? ORDER BY created_at", arrayOf(date))
+            .mapAll(Rows::journalEntry)
+
+    fun journalEntry(id: String?): JournalEntry? =
+        if (id == null) null
+        else query("SELECT * FROM journal_entry WHERE id=?", arrayOf(id)).mapAll(Rows::journalEntry).firstOrNull()
+
+    fun saveJournalEntry(e: JournalEntry) = insert("journal_entry", contentValuesOf(
+        "id" to e.id, "date" to e.date, "prompt" to e.prompt, "content" to e.content,
+        "mood" to e.mood, "tags_json" to strListToJson(e.tags), "created_at" to e.createdAt
+    ))
+
+    fun deleteJournalEntry(id: String) = delete("journal_entry", "id=?", arrayOf(id))
+
+    /* ------------------------------------------------------------- routines */
+
+    fun routines(): List<Routine> =
+        query("SELECT * FROM routine ORDER BY created_at").mapAll(Rows::routine)
+
+    fun routine(id: String?): Routine? =
+        if (id == null) null
+        else query("SELECT * FROM routine WHERE id=?", arrayOf(id)).mapAll(Rows::routine).firstOrNull()
+
+    fun saveRoutine(r: Routine) = insert("routine", contentValuesOf(
+        "id" to r.id, "title" to r.title, "trigger_text" to r.trigger,
+        "estimated_minutes" to r.estimatedMinutes, "status" to r.status.name,
+        "created_at" to r.createdAt
+    ))
+
+    fun deleteRoutine(id: String) {
+        delete("routine", "id=?", arrayOf(id))
+        delete("routine_step", "routine_id=?", arrayOf(id))
+    }
+
+    fun routineSteps(routineId: String): List<RoutineStep> =
+        query("SELECT * FROM routine_step WHERE routine_id=? ORDER BY order_index", arrayOf(routineId))
+            .mapAll(Rows::routineStep)
+
+    fun saveRoutineStep(s: RoutineStep) = insert("routine_step", contentValuesOf(
+        "id" to s.id, "routine_id" to s.routineId, "habit_id" to s.habitId,
+        "title" to s.title, "duration_minutes" to s.durationMinutes,
+        "order_index" to s.orderIndex, "transition_note" to s.transitionNote
+    ))
+
+    fun deleteRoutineStep(id: String) = delete("routine_step", "id=?", arrayOf(id))
+
+    /* ---------------------------------------------------- environment design */
+
+    fun environmentDesign(habitId: String): EnvironmentDesign? =
+        query("SELECT * FROM environment_design WHERE habit_id=?", arrayOf(habitId))
+            .mapAll(Rows::environmentDesign).firstOrNull()
+
+    fun saveEnvironmentDesign(e: EnvironmentDesign) = insert("environment_design", contentValuesOf(
+        "habit_id" to e.habitId,
+        "make_obvious_json" to strListToJson(e.makeObvious),
+        "make_attractive_json" to strListToJson(e.makeAttractive),
+        "make_easy_json" to strListToJson(e.makeEasy),
+        "make_satisfying_json" to strListToJson(e.makeSatisfying),
+        "make_invisible_json" to strListToJson(e.makeInvisible),
+        "make_unattractive_json" to strListToJson(e.makeUnattractive),
+        "make_difficult_json" to strListToJson(e.makeDifficult),
+        "make_unsatisfying_json" to strListToJson(e.makeUnsatisfying)
+    ))
+
+    fun deleteEnvironmentDesign(habitId: String) =
+        delete("environment_design", "habit_id=?", arrayOf(habitId))
+
+    /* ------------------------------------------------------------- ai memory */
+
+    fun memories(category: MemoryCategory? = null): List<AiMemory> =
+        if (category == null)
+            query("SELECT * FROM ai_memory ORDER BY created_at DESC").mapAll(Rows::aiMemory)
+        else
+            query("SELECT * FROM ai_memory WHERE category=? ORDER BY created_at DESC", arrayOf(category.name))
+                .mapAll(Rows::aiMemory)
+
+    fun saveMemory(m: AiMemory) = insert("ai_memory", contentValuesOf(
+        "id" to m.id, "category" to m.category.name, "content" to m.content,
+        "importance" to m.importance, "last_accessed" to m.lastAccessed,
+        "access_count" to m.accessCount, "created_at" to m.createdAt
+    ))
+
+    fun deleteMemory(id: String) = delete("ai_memory", "id=?", arrayOf(id))
+
+    fun touchMemory(id: String) {
+        db.execSQL("UPDATE ai_memory SET last_accessed=?, access_count=access_count+1 WHERE id=?",
+            arrayOf(System.currentTimeMillis(), id))
+        invalidate()
+    }
+
+    /* --------------------------------------------------- proactive suggestions */
+
+    fun proactiveSuggestions(includeDismissed: Boolean = false): List<ProactiveSuggestion> =
+        query(
+            "SELECT * FROM proactive_suggestion ${if (includeDismissed) "" else "WHERE dismissed=0"} ORDER BY created_at DESC"
+        ).mapAll(Rows::proactiveSuggestion)
+
+    fun saveProactiveSuggestion(s: ProactiveSuggestion) = insert("proactive_suggestion", contentValuesOf(
+        "id" to s.id, "type" to s.type.name, "text" to s.text,
+        "priority" to s.priority.name, "auto_action_json" to s.autoActionJson,
+        "habit_id" to s.habitId, "dismissed" to s.dismissed,
+        "applied" to s.applied, "created_at" to s.createdAt
+    ))
+
+    fun dismissProactiveSuggestion(id: String) {
+        db.execSQL("UPDATE proactive_suggestion SET dismissed=1 WHERE id=?", arrayOf(id))
+        invalidate()
+    }
+
+    fun applyProactiveSuggestion(id: String) {
+        db.execSQL("UPDATE proactive_suggestion SET applied=1 WHERE id=?", arrayOf(id))
+        invalidate()
+    }
+
+    /* ------------------------------------------------- growth phase history */
+
+    fun growthPhaseHistories(growthPlanId: String): List<GrowthPhaseHistory> =
+        query("SELECT * FROM growth_phase_history WHERE growth_plan_id=? ORDER BY created_at",
+            arrayOf(growthPlanId)).mapAll(Rows::growthPhaseHistory)
+
+    fun saveGrowthPhaseHistory(h: GrowthPhaseHistory) = insert("growth_phase_history", contentValuesOf(
+        "id" to h.id, "growth_plan_id" to h.growthPlanId, "phase_index" to h.phaseIndex,
+        "action" to h.action, "consistency" to h.consistency,
+        "date" to h.date, "notes" to h.notes
+    ))
+
     /* ----------------------------------------------------------------- data */
 
     fun deleteAllData() {
         for (t in listOf("identity", "goal", "sys", "habit", "checkin", "focus", "obstacle",
             "scorecard", "flow", "flowstep", "review", "energy", "audit", "aimsg",
-            "bp_project", "bp_source", "bp_req", "bp_version", "pause", "profile")) {
+            "bp_project", "bp_source", "bp_req", "bp_version", "pause", "profile",
+            "growth_plan", "milestone", "sprint", "journal_entry", "routine",
+            "routine_step", "environment_design", "ai_memory", "proactive_suggestion",
+            "growth_phase_history")) {
             db.delete(t, null, null)
         }
         invalidate()
@@ -459,11 +660,73 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     fun counts(): Map<String, Int> {
         val out = LinkedHashMap<String, Int>()
         for (t in listOf("identity", "goal", "sys", "habit", "checkin", "focus", "obstacle",
-            "scorecard", "flow", "review", "energy", "audit", "bp_project")) {
+            "scorecard", "flow", "review", "energy", "audit", "bp_project",
+            "growth_plan", "milestone", "sprint", "journal_entry", "routine",
+            "ai_memory", "proactive_suggestion")) {
             query("SELECT COUNT(*) FROM $t").use { c ->
                 out[t] = if (c.moveToFirst()) c.getInt(0) else 0
             }
         }
         return out
+    }
+
+    /* ───────────────────────────────────────────────────── JSON helpers ── */
+
+    private fun phasesToJson(phases: List<GrowthPhase>): String {
+        val arr = org.json.JSONArray()
+        for (p in phases) {
+            val metrics = org.json.JSONObject().apply {
+                put("minConsistency", p.metrics.minConsistency)
+                put("minRecoveries", p.metrics.minRecoveries)
+                put("maxMissesInARow", p.metrics.maxMissesInARow)
+                put("minEnergy", p.metrics.minEnergy)
+            }
+            arr.put(org.json.JSONObject().apply {
+                put("weekNumber", p.weekNumber)
+                put("label", p.label)
+                put("tinyStart", p.tinyStart)
+                put("minimumVersion", p.minimumVersion)
+                put("standardVersion", p.standardVersion)
+                put("stretchVersion", p.stretchVersion)
+                put("targetDays", p.targetDays)
+                put("notes", p.notes)
+                put("metrics", metrics)
+            })
+        }
+        return arr.toString()
+    }
+
+    private fun upgradePolicyToJson(p: UpgradePolicy): String =
+        org.json.JSONObject().apply {
+            put("autoUpgrade", p.autoUpgrade)
+            put("upgradeDay", p.upgradeDay)
+            put("minWeeksInPhase", p.minWeeksInPhase)
+            put("maxWeeksInPhase", p.maxWeeksInPhase)
+            put("downgradeOnStruggle", p.downgradeOnStruggle)
+            put("struggleThreshold", p.struggleThreshold)
+        }.toString()
+
+    private fun snapshotsToJson(snapshots: List<WeeklySnapshot>): String {
+        val arr = org.json.JSONArray()
+        for (s in snapshots) {
+            arr.put(org.json.JSONObject().apply {
+                put("weekNumber", s.weekNumber)
+                put("phaseIndex", s.phaseIndex)
+                put("consistency", s.consistency)
+                put("repetitions", s.repetitions)
+                put("misses", s.misses)
+                put("recoveries", s.recoveries)
+                put("averageEnergy", s.averageEnergy)
+                put("decision", s.decision.name)
+                put("date", s.date)
+            })
+        }
+        return arr.toString()
+    }
+
+    private fun strListToJson(list: List<String>): String {
+        val arr = org.json.JSONArray()
+        list.forEach { arr.put(it) }
+        return arr.toString()
     }
 }

@@ -45,8 +45,11 @@ class DailyRolloverWorker(
     override suspend fun doWork(): Result {
         return try {
             val repo = Repository.get(applicationContext)
+            val prefs = Prefs.get(applicationContext)
             val today = repo.clock.today()
             closeOut(repo, today.minusDays(1))
+            // Evaluate growth plans daily
+            com.superflow.domain.GrowthEngine.evaluate(repo, prefs)
             Reminders.rescheduleAll(applicationContext)
             TodayWidget.refresh(applicationContext)
             Result.success()
@@ -139,6 +142,16 @@ object BackgroundWork {
                 ReminderRefreshWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, refresh
             )
         }
+
+        val proactive = PeriodicWorkRequestBuilder<ProactiveAiWorker>(6, TimeUnit.HOURS)
+            .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(false).build())
+            .setInitialDelay(java.time.Duration.ofMinutes(30))
+            .build()
+        runCatching {
+            manager.enqueueUniquePeriodicWork(
+                ProactiveAiWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, proactive
+            )
+        }
     }
 
     fun cancel(context: Context) {
@@ -146,6 +159,7 @@ object BackgroundWork {
             WorkManager.getInstance(context).apply {
                 cancelUniqueWork(DailyRolloverWorker.NAME)
                 cancelUniqueWork(ReminderRefreshWorker.NAME)
+                cancelUniqueWork(ProactiveAiWorker.NAME)
             }
         }
     }

@@ -260,6 +260,12 @@ object Serial {
         root.put("projects", arr(projects.map { of(it) }))
         root.put("sources", arr(projects.flatMap { repo.sources(it.id) }.map { of(it) }))
         root.put("requirements", arr(projects.flatMap { repo.requirements(it.id) }.map { of(it) }))
+        root.put("routines", arr(repo.routines().map { of(it) }))
+        root.put("routineSteps", arr(repo.routines().flatMap { repo.routineSteps(it.id) }.map { of(it) }))
+        root.put("journalEntries", arr(repo.journalEntries().map { of(it) }))
+        root.put("sprints", arr(repo.sprints().map { of(it) }))
+        root.put("milestones", arr(repo.milestones().map { of(it) }))
+        root.put("memories", arr(repo.memories().map { of(it) }))
         return root
     }
 
@@ -275,6 +281,12 @@ object Serial {
         root.optJSONArray("scorecard")?.objects()?.forEach { repo.saveScorecard(scorecard(it)) }
         root.optJSONArray("flows")?.objects()?.forEach { repo.saveFlow(flow(it)) }
         root.optJSONArray("flowSteps")?.objects()?.forEach { repo.saveFlowStep(flowStep(it)) }
+        root.optJSONArray("routines")?.objects()?.forEach { repo.saveRoutine(routine(it)) }
+        root.optJSONArray("routineSteps")?.objects()?.forEach { repo.saveRoutineStep(routineStep(it)) }
+        root.optJSONArray("journalEntries")?.objects()?.forEach { repo.saveJournalEntry(journalEntry(it)) }
+        root.optJSONArray("sprints")?.objects()?.forEach { repo.saveSprint(sprint(it)) }
+        root.optJSONArray("milestones")?.objects()?.forEach { repo.saveMilestone(milestone(it)) }
+        root.optJSONArray("memories")?.objects()?.forEach { repo.saveMemory(memory(it)) }
         root.optJSONArray("reviews")?.objects()?.forEach { repo.saveReview(review(it)) }
         root.optJSONArray("energy")?.objects()?.forEach { repo.saveEnergy(energy(it)) }
         root.optJSONArray("pauses")?.objects()?.forEach { repo.savePause(pause(it)) }
@@ -282,4 +294,168 @@ object Serial {
         root.optJSONArray("sources")?.objects()?.forEach { repo.saveSource(source(it)) }
         root.optJSONArray("requirements")?.objects()?.forEach { repo.saveRequirement(requirement(it)) }
     }
+
+    /* ───────────────────────────────────────────────────── Phase 1 models ── */
+
+    fun of(r: Routine): JSONObject = jsonOf(
+        "table" to "routine", "id" to r.id, "title" to r.title, "trigger" to r.trigger,
+        "estimatedMinutes" to r.estimatedMinutes, "status" to r.status.name, "createdAt" to r.createdAt
+    )
+
+    fun of(s: RoutineStep): JSONObject = jsonOf(
+        "table" to "routine_step", "id" to s.id, "routineId" to s.routineId, "habitId" to s.habitId,
+        "title" to s.title, "durationMinutes" to s.durationMinutes, "orderIndex" to s.orderIndex,
+        "transitionNote" to s.transitionNote
+    )
+
+    fun of(e: JournalEntry): JSONObject = jsonOf(
+        "table" to "journal_entry", "id" to e.id, "date" to e.date, "prompt" to e.prompt,
+        "content" to e.content, "mood" to e.mood, "tags" to e.tags.joinToString(","),
+        "createdAt" to e.createdAt
+    )
+
+    fun of(s: Sprint): JSONObject = jsonOf(
+        "table" to "sprint", "id" to s.id, "title" to s.title, "startDate" to s.startDate,
+        "endDate" to s.endDate, "status" to s.status.name, "reviewNotes" to s.reviewNotes,
+        "createdAt" to s.createdAt
+    )
+
+    fun of(m: Milestone): JSONObject = jsonOf(
+        "table" to "milestone", "id" to m.id, "habitId" to m.habitId, "type" to m.type.name,
+        "value" to m.value, "label" to m.label, "acknowledged" to m.acknowledged,
+        "achievedAt" to m.achievedAt
+    )
+
+    fun of(m: AiMemory): JSONObject = jsonOf(
+        "table" to "ai_memory", "id" to m.id, "category" to m.category.name, "content" to m.content,
+        "importance" to m.importance, "lastAccessed" to m.lastAccessed,
+        "accessCount" to m.accessCount, "createdAt" to m.createdAt
+    )
+
+    /* ── Deserializers ── */
+
+    fun routine(o: JSONObject) = Routine(
+        id = o.string("id", newId()), title = o.string("title"), trigger = o.string("trigger"),
+        estimatedMinutes = o.optInt("estimatedMinutes", 30),
+        status = Status.valueOf(o.string("status", "ACTIVE")), createdAt = long(o, "createdAt")
+    )
+
+    fun routineStep(o: JSONObject) = RoutineStep(
+        id = o.string("id", newId()), routineId = o.string("routineId"),
+        habitId = o.stringOrNull("habitId"), title = o.string("title"),
+        durationMinutes = o.optInt("durationMinutes", 5),
+        orderIndex = o.optInt("orderIndex", 0), transitionNote = o.string("transitionNote")
+    )
+
+    fun journalEntry(o: JSONObject) = JournalEntry(
+        id = o.string("id", newId()), date = o.string("date"), prompt = o.string("prompt"),
+        content = o.string("content"), mood = if (o.isNull("mood")) null else o.optInt("mood"),
+        tags = o.string("tags").split(",").map { it.trim() }.filter { it.isNotBlank() },
+        createdAt = long(o, "createdAt")
+    )
+
+    fun sprint(o: JSONObject) = Sprint(
+        id = o.string("id", newId()), title = o.string("title"),
+        startDate = o.string("startDate"), endDate = o.string("endDate"),
+        status = SprintStatus.valueOf(o.string("status", "PLANNED")),
+        reviewNotes = o.string("reviewNotes"), createdAt = long(o, "createdAt")
+    )
+
+    fun milestone(o: JSONObject) = Milestone(
+        id = o.string("id", newId()), habitId = o.stringOrNull("habitId"),
+        type = MilestoneType.valueOf(o.string("type", "FIRST_CHECKIN")),
+        value = o.optInt("value", 1), label = o.string("label"),
+        acknowledged = o.optBoolean("acknowledged", false), achievedAt = long(o, "achievedAt")
+    )
+
+    fun memory(o: JSONObject) = AiMemory(
+        id = o.string("id", newId()),
+        category = MemoryCategory.valueOf(o.string("category", "USER_PREFERENCE")),
+        content = o.string("content"), importance = o.optInt("importance", 5),
+        lastAccessed = long(o, "lastAccessed"), accessCount = o.optInt("accessCount", 0),
+        createdAt = long(o, "createdAt")
+    )
+
+
+    /* ───────────────────────────────────────────────────── Phase 1 models ── */
+
+    fun of(r: Routine): JSONObject = jsonOf(
+        "table" to "routine", "id" to r.id, "title" to r.title, "trigger" to r.trigger,
+        "estimatedMinutes" to r.estimatedMinutes, "status" to r.status.name, "createdAt" to r.createdAt
+    )
+
+    fun of(s: RoutineStep): JSONObject = jsonOf(
+        "table" to "routine_step", "id" to s.id, "routineId" to s.routineId, "habitId" to s.habitId,
+        "title" to s.title, "durationMinutes" to s.durationMinutes, "orderIndex" to s.orderIndex,
+        "transitionNote" to s.transitionNote
+    )
+
+    fun of(e: JournalEntry): JSONObject = jsonOf(
+        "table" to "journal_entry", "id" to e.id, "date" to e.date, "prompt" to e.prompt,
+        "content" to e.content, "mood" to e.mood, "tags" to e.tags.joinToString(","),
+        "createdAt" to e.createdAt
+    )
+
+    fun of(s: Sprint): JSONObject = jsonOf(
+        "table" to "sprint", "id" to s.id, "title" to s.title, "startDate" to s.startDate,
+        "endDate" to s.endDate, "status" to s.status.name, "reviewNotes" to s.reviewNotes,
+        "createdAt" to s.createdAt
+    )
+
+    fun of(m: Milestone): JSONObject = jsonOf(
+        "table" to "milestone", "id" to m.id, "habitId" to m.habitId, "type" to m.type.name,
+        "value" to m.value, "label" to m.label, "acknowledged" to m.acknowledged,
+        "achievedAt" to m.achievedAt
+    )
+
+    fun of(m: AiMemory): JSONObject = jsonOf(
+        "table" to "ai_memory", "id" to m.id, "category" to m.category.name, "content" to m.content,
+        "importance" to m.importance, "lastAccessed" to m.lastAccessed,
+        "accessCount" to m.accessCount, "createdAt" to m.createdAt
+    )
+
+    /* ── Deserializers ── */
+
+    fun routine(o: JSONObject) = Routine(
+        id = o.string("id", newId()), title = o.string("title"), trigger = o.string("trigger"),
+        estimatedMinutes = o.optInt("estimatedMinutes", 30),
+        status = Status.valueOf(o.string("status", "ACTIVE")), createdAt = long(o, "createdAt")
+    )
+
+    fun routineStep(o: JSONObject) = RoutineStep(
+        id = o.string("id", newId()), routineId = o.string("routineId"),
+        habitId = o.stringOrNull("habitId"), title = o.string("title"),
+        durationMinutes = o.optInt("durationMinutes", 5),
+        orderIndex = o.optInt("orderIndex", 0), transitionNote = o.string("transitionNote")
+    )
+
+    fun journalEntry(o: JSONObject) = JournalEntry(
+        id = o.string("id", newId()), date = o.string("date"), prompt = o.string("prompt"),
+        content = o.string("content"), mood = if (o.isNull("mood")) null else o.optInt("mood"),
+        tags = o.string("tags").split(",").map { it.trim() }.filter { it.isNotBlank() },
+        createdAt = long(o, "createdAt")
+    )
+
+    fun sprint(o: JSONObject) = Sprint(
+        id = o.string("id", newId()), title = o.string("title"),
+        startDate = o.string("startDate"), endDate = o.string("endDate"),
+        status = SprintStatus.valueOf(o.string("status", "PLANNED")),
+        reviewNotes = o.string("reviewNotes"), createdAt = long(o, "createdAt")
+    )
+
+    fun milestone(o: JSONObject) = Milestone(
+        id = o.string("id", newId()), habitId = o.stringOrNull("habitId"),
+        type = MilestoneType.valueOf(o.string("type", "FIRST_CHECKIN")),
+        value = o.optInt("value", 1), label = o.string("label"),
+        acknowledged = o.optBoolean("acknowledged", false), achievedAt = long(o, "achievedAt")
+    )
+
+    fun memory(o: JSONObject) = AiMemory(
+        id = o.string("id", newId()),
+        category = MemoryCategory.valueOf(o.string("category", "USER_PREFERENCE")),
+        content = o.string("content"), importance = o.optInt("importance", 5),
+        lastAccessed = long(o, "lastAccessed"), accessCount = o.optInt("accessCount", 0),
+        createdAt = long(o, "createdAt")
+    )
+
 }

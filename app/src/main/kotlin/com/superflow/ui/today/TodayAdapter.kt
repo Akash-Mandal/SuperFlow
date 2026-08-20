@@ -59,9 +59,10 @@ class TodayAdapter(
         private const val T_RETURN = 2
         private const val T_FOCUS = 3
         private const val T_CHECKPOINT = 4
-        private const val T_SECTION = 5
-        private const val T_HABIT = 6
-        private const val T_EMPTY = 7
+        private const val T_GROWTH = 5
+        private const val T_SECTION = 6
+        private const val T_HABIT = 7
+        private const val T_EMPTY = 8
 
         private val DIFF = object : DiffUtil.ItemCallback<TodayRow>() {
             override fun areItemsTheSame(a: TodayRow, b: TodayRow) = a.stableId == b.stableId
@@ -81,6 +82,7 @@ class TodayAdapter(
         is TodayRow.Returning -> T_RETURN
         is TodayRow.Focus -> T_FOCUS
         is TodayRow.Checkpoints -> T_CHECKPOINT
+        is TodayRow.GrowthPlanStatus -> T_GROWTH
         is TodayRow.Section -> T_SECTION
         is TodayRow.HabitRow -> T_HABIT
         is TodayRow.Empty -> T_EMPTY
@@ -94,6 +96,7 @@ class TodayAdapter(
             T_RETURN -> ReturnVH(inflater.inflate(R.layout.item_return, parent, false))
             T_FOCUS -> FocusVH(inflater.inflate(R.layout.item_focus, parent, false))
             T_CHECKPOINT -> CheckpointVH(inflater.inflate(R.layout.item_checkpoint, parent, false))
+            T_GROWTH -> GrowthVH(inflater.inflate(R.layout.item_habit_stat, parent, false))
             T_SECTION -> SectionVH(inflater.inflate(R.layout.item_section, parent, false))
             T_HABIT -> HabitVH(inflater.inflate(R.layout.item_habit, parent, false))
             else -> EmptyVH(inflater.inflate(R.layout.item_empty, parent, false))
@@ -107,6 +110,7 @@ class TodayAdapter(
             is TodayRow.Returning -> (holder as ReturnVH).bind(row)
             is TodayRow.Focus -> (holder as FocusVH).bind(row)
             is TodayRow.Checkpoints -> (holder as CheckpointVH).bind(row)
+            is TodayRow.GrowthPlanStatus -> (holder as GrowthVH).bind(row)
             is TodayRow.Section -> (holder as SectionVH).bind(row)
             is TodayRow.HabitRow -> (holder as HabitVH).bind(row)
             is TodayRow.Empty -> (holder as EmptyVH).bind(row)
@@ -139,6 +143,19 @@ class TodayAdapter(
             text.text = row.statement
             votes.text = if (row.votes == 0) "Your first repetition becomes the first piece of evidence."
             else "${row.votes} ${if (row.votes == 1) "vote" else "votes"} so far"
+        }
+    }
+
+    inner class GrowthVH(v: View) : RecyclerView.ViewHolder(v) {
+        private val bar: LinearProgressIndicator = v.findViewById(R.id.hs_bar)
+        fun bind(row: TodayRow.GrowthPlanStatus) {
+            itemView.findViewById<TextView>(R.id.hs_title).text = "Phase ${row.phaseIndex}/${row.totalPhases} · ${row.phaseLabel}"
+            itemView.findViewById<TextView>(R.id.hs_percent).text = row.habitTitle
+            itemView.findViewById<TextView>(R.id.hs_detail).text = "Growth plan active"
+            val hint = itemView.findViewById<TextView>(R.id.hs_hint)
+            hint.visible(true)
+            hint.text = "Show up consistently to upgrade to the next phase."
+            bar.setProgressCompat((row.phaseIndex * 100) / row.totalPhases, true)
         }
     }
 

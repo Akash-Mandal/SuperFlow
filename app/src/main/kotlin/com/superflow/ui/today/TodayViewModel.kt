@@ -49,6 +49,10 @@ sealed class TodayRow {
         override val stableId = 5L
     }
 
+    data class GrowthPlanStatus(val habitTitle: String, val phaseLabel: String, val phaseIndex: Int, val totalPhases: Int) : TodayRow() {
+        override val stableId = ("gp$habitTitle").hashCode().toLong()
+    }
+
     data class Section(val title: String) : TodayRow() {
         override val stableId = ("section$title").hashCode().toLong()
     }
@@ -123,6 +127,21 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
             val cp = currentCheckpoint()
             val energy = repo.energyFor(iso).firstOrNull { it.checkpoint == cp }?.energy
             rows.add(TodayRow.Checkpoints(energy))
+        }
+
+        // Active growth plans
+        val growthPlans = repo.growthPlans().filter { it.isActive() }
+        for (plan in growthPlans.take(2)) {
+            val habit = repo.habit(plan.habitId)
+            val phase = plan.phases.getOrNull(plan.currentPhaseIndex)
+            if (habit != null && phase != null) {
+                rows.add(TodayRow.GrowthPlanStatus(
+                    habitTitle = habit.title,
+                    phaseLabel = phase.label,
+                    phaseIndex = plan.currentPhaseIndex + 1,
+                    totalPhases = plan.phases.size
+                ))
+            }
         }
 
         val todayHabits = repo.todayHabits(date)
