@@ -98,7 +98,7 @@ is what those libraries' own code links against.
 tools/run_tests.sh
 ```
 
-3972 assertions across six suites, plus three static gates:
+3980 assertions across six suites, plus four static gates:
 
 - **CoreTest** (62) — injected clock, DST gaps and overlaps, leap days, locale
   week starts, every recurrence form, and the opportunity engine: planned skips
@@ -111,7 +111,7 @@ tools/run_tests.sh
   fenced, prose-wrapped, nested and escaped model output.
 - **AiTest** (33) — natural-language habit parsing, prompt-injection detection,
   Blueprint extraction with citations, conflicts and coverage.
-- **DesignTest** (3063) — the whole `com.superflow.design` package: tokens,
+- **DesignTest** (3071) — the whole `com.superflow.design` package: tokens,
   spacing and density, motion scaling, haptic patterns, WCAG contrast, the
   history-state encoding (pinned against `Insights.kt` itself), `ChartGeometry`
   including an exhaustive heatmap index round-trip, period bucketing and
@@ -123,7 +123,7 @@ tools/run_tests.sh
   and type models reproduce it, role by role, palette by palette, in both light
   and dark. This is what stops the View and Compose layers drifting apart.
 
-Three further gates run as part of the same script:
+Four further gates run as part of the same script:
 
 - `tools/check_compose.py` — static analysis of the Compose sources, which have
   no compiler here. Catches missing imports, members shadowing imports they
@@ -134,6 +134,13 @@ Three further gates run as part of the same script:
   Compose file nothing checks is precisely the one that breaks.
 - `tools/check_generated.py` — fails if `design/Ramps.kt` is stale with respect
   to the colour XML it is generated from.
+- `tools/check_widget.py` — cross-checks `widget/` against `res/layout/widget_*`.
+  A `RemoteViews` is not type-checked against the layout it names, so a wrong
+  id compiles cleanly and then throws in the *launcher's* process, where the
+  user sees "Problem loading widget" and the app logs nothing. This checks
+  every id against its layout, every view class against the RemoteViews
+  allow-list, and the provider XML's `initialLayout`. Both rules are verified
+  against deliberately broken canaries.
 - `tools/check_policy.py` — fails if any preference in `Prefs.kt` is not
   handled by `DataPolicy` export/import or carrying a documented exemption.
 

@@ -6,7 +6,7 @@ partial, and what is not built.
 
 **Build:** `com.superflow` 2.0.0 · minSdk 26 · targetSdk 34 · ~7.8 MB ·
 v2+v3 signed · 76 AndroidX/Material libraries · 108 Kotlin source files ·
-141 resource files · 49 capabilities · **3972 logic assertions passing**.
+141 resource files · 49 capabilities · **3980 logic assertions passing**.
 
 > **Build environment caveat (current):** Google Maven is unreachable from
 > this environment, so the AAR set cannot be fetched and **no APK can be
@@ -57,8 +57,8 @@ app/src/main/kotlin/com/superflow/
 be written as a pure function of its inputs lives there: which tone fills a
 role, how a chart's axis is chosen, what a widget says at 8am with two of five
 habits done, which launcher alias to enable. It imports nothing from Android
-and references no `R`, so it runs on a desktop JVM - which is why 3063 of the
-suite's 3972 assertions are about the user interface. Rendering code in `ui/`
+and references no `R`, so it runs on a desktop JVM - which is why 3071 of the
+suite's 3980 assertions are about the user interface. Rendering code in `ui/`
 is then only rendering, and both the View and Compose layers read the same
 answers.
 

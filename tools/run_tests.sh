@@ -51,8 +51,8 @@ for suite in CoreTest LogicTest ParseTest AiTest DesignTest RoleTest; do
   fi
   echo
 done
-# Source-level policy gate. Prefs cannot be instantiated off-device, so the
-# export/import round trip is checked statically instead of at runtime.
+# Source-level gates. These stand in for compilers the environment does not
+# have: Compose and widget/ are both outside the JVM test source set.
 echo "==> compose static check"
 if python3 tools/check_compose.py; then
   echo "    compose PASSED"
@@ -66,6 +66,14 @@ if python3 tools/check_generated.py; then
   echo "    generated PASSED"
 else
   echo "    generated FAILED"; FAILED=1
+fi
+echo
+
+echo "==> widget"
+if python3 tools/check_widget.py; then
+  echo "    widget PASSED"
+else
+  echo "    widget FAILED"; FAILED=1
 fi
 echo
 
