@@ -17,10 +17,26 @@ cd "$ROOT"
 PKG=com.superflow
 APK=app/build/outputs/apk/debug/app-debug.apk
 
+# Whatever fails, say where. Without this the job reports only
+# "The process '/usr/bin/sh' failed with exit code 1".
+STAGE="startup"
+annotate() {
+  [ "${GITHUB_ACTIONS:-}" = "true" ] || return 0
+  echo "::error title=$1::$2"
+}
+on_err() {
+  local code=$?
+  annotate "emulator verify failed" "stage=$STAGE exit=$code"
+  exit "$code"
+}
+trap on_err ERR
+
+STAGE="assembleDebug"
 echo "==> 1/3 assembleDebug"
 ./gradlew --no-daemon assembleDebug
 [ -f "$APK" ] || { echo "FATAL: APK not produced at $APK" >&2; exit 1; }
 
+STAGE="smoke test"
 echo "==> 2/3 launch smoke test"
 adb wait-for-device
 adb devices | grep -q "device$" || { echo "FATAL: no device connected" >&2; exit 1; }
@@ -68,8 +84,42 @@ if adb shell dumpsys activity activities | grep -q "$PKG"; then
   echo "    $PKG activity is on top"
 fi
 
+STAGE="instrumented tests"
 echo "==> 3/3 instrumented tests"
+set +e
 ./gradlew --no-daemon connectedDebugAndroidTest
+GRADLE_RC=$?
+set -e
+
+# AGP writes JUnit XML per connected device. Surface each failure as an
+# annotation: the artifact needs a manual download to read, and the run log
+# only shows the Gradle summary line.
+python3 - <<'PYEOF' || true
+import glob, os, xml.etree.ElementTree as ET
+ci = os.environ.get("GITHUB_ACTIONS") == "true"
+found = 0
+for f in glob.glob("app/build/outputs/androidTest-results/**/*.xml", recursive=True):
+    try:
+        root = ET.parse(f).getroot()
+    except Exception:
+        continue
+    for tc in root.iter("testcase"):
+        for bad in list(tc.findall("failure")) + list(tc.findall("error")):
+            found += 1
+            cls = tc.get("classname", "?"); name = tc.get("name", "?")
+            msg = (bad.get("message") or bad.text or "failed").strip()
+            msg = " ".join(msg.split())[:900]
+            print(f"FAILED  {cls}.{name}: {msg}")
+            if ci:
+                print(f"::error title={cls}::{name} - {msg}")
+if not found:
+    print("no failing testcases found in the XML reports")
+PYEOF
+
+if [ "$GRADLE_RC" -ne 0 ]; then
+  annotate "instrumented tests failed" "connectedDebugAndroidTest exit=$GRADLE_RC"
+  exit "$GRADLE_RC"
+fi
 
 echo
 echo "==> EMULATOR VERIFICATION COMPLETE"
