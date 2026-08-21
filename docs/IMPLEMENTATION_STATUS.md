@@ -5,8 +5,10 @@ this repository. This document records honestly what is implemented, what is
 partial, and what is not built.
 
 **Build:** `com.superflow` 2.0.0 · minSdk 26 · targetSdk 34 · ~7.8 MB ·
-v2+v3 signed · 76 AndroidX/Material libraries · 108 Kotlin source files ·
-141 resource files · 49 capabilities · **3980 logic assertions passing**.
+v2+v3 signed · 76 AndroidX/Material libraries · 400+ Kotlin source files ·
+151+ resource files · **133 capabilities** (catalogue v4, unified across
+PRs #6–#10) · **4,108 logic assertions passing** on a desktop JVM
+(JDK 17 + Kotlin 2.4.10).
 
 > **Build environment caveat (current):** Google Maven is unreachable from
 > this environment, so the AAR set cannot be fetched and **no APK can be
@@ -328,3 +330,42 @@ Present in the dex, confirmed by inspection: `MaterialCardView`,
 It compiles, links, dexes, packages and verifies, and its framework-independent
 logic is covered by the test suites, but runtime behaviour on real hardware is
 unverified. That is the first thing to check on a device.
+
+---
+
+## Code & planning alignment (post-merge)
+
+This revision is the result of merging the five upgrade PRs (#6 Alpha2, #7 Core
+Growth, #8 Functional, #10 Gap Analysis, #9 UI/UX) in dependency order onto
+`main`, resolving the cross-PR collisions described in
+[CODE_AND_PLANNING_ALIGNMENT_PLAN.md](CODE_AND_PLANNING_ALIGNMENT_PLAN.md).
+
+**Single catalogue.** One `Capabilities.kt` at `CATALOG_VERSION = 4` with
+**133 unique commands**. Duplicate `apply_template`/`list_templates` were
+collapsed to the designer-template implementation; the functional plan's
+`templateCaps` was renamed `templateSuggestCaps` to remove the name clash.
+
+**Single schema.** One `Database` at `VERSION = 4` whose migration is the
+idempotent union of: PR #7's growth columns + `evidence` table, PR #8's ten new
+tables, PR #6's graduation columns, and PR #10's foreign-key/query indexes.
+
+**One implementation per feature.** App lock = `security/` (PR #10);
+diagnostics = `domain/Diagnostics` (PR #6); fuzzy search = `util/Fuzzy`
+(PR #10); quiet hours = per-day `quietPerDay` (PR #10); plan-tomorrow /
+checkpoints = `PlanTomorrowActivity` / `CheckpointActivity` (PR #6); weekly
+summary notification = `WeeklySummaryWorker` (PR #6) alongside the review
+draft worker; Studio = `ui/studio` (PR #9); Journey = `JourneyMapper`/`JourneyTree`
+(PR #9, graduated habits read as dormant).
+
+**Build & tests preserved.** The standard AGP build, the 12 Gradle test files
+and `tools/verify.sh` from PR #5 are intact; the removed Gradle-less pipeline
+was not re-introduced. Logic suites are exercised with a real JDK 17 + Kotlin
+2.4.10 compiler (pure core 79 · domain 29 · Core 62 · Logic 21 · Parse 27 ·
+Ai 33 · Design 3071 · Role 786).
+
+**Honest gaps.** The Compose layer (`ui/theme`, `ui/components`, `ui/screens`,
+`ui/studio`) is written but uncompiled (no AndroidX AARs reachable here);
+`design/Rendering` keeps the View implementations live. The APK has not been
+rebuilt or run on a device. PR #8's habit-template library ships 31 templates
+against the plan's 100+ promise. Biometric unlock from PR #6 was not carried
+into the unified PIN-only `security/AppLock`.

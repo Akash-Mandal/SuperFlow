@@ -1798,41 +1798,6 @@ object Capabilities {
             }
             okResult("Found ${templates.size} templates:\n$text")
         },
-
-        Capability("apply_template", "Create a habit from a template",
-            listOf("templateId" to "string", "title" to "string"), Risk.LOW) { c ->
-            val title = c.str("title").lowercase()
-            val template = HabitTemplates.allTemplates().firstOrNull {
-                it.title.lowercase().contains(title) || it.id == c.str("templateId")
-            } ?: return@Capability CommandResult.fail("Template not found")
-            val habit = Habit(
-                title = template.title,
-                tinyStart = template.tinyStart,
-                minimumVersion = template.minimumVersion,
-                standardVersion = template.standardVersion,
-                stretchVersion = template.stretchVersion,
-                cueTime = template.cueTime,
-                anchorText = template.anchorHint,
-                benefit = template.benefit,
-                recurrenceRule = com.superflow.core.schedule.Recurrence.parse(template.recurrenceLabel).encode()
-            )
-            c.repo.saveHabit(habit)
-            val id = c.bus.record(c.actor, "apply_template",
-                "Created \"${habit.title}\" from template",
-                null, undoDelete("habit", habit.id), c.groupId)
-            okResult("\"${habit.title}\" created from template", jsonOf("id" to habit.id), id)
-        },
-
-        Capability("list_templates", "Browse all habit templates by area",
-            listOf("area" to "string"), Risk.LOW) { c ->
-            val area = com.superflow.data.model.LifeArea.from(c.str("area"))
-            val templates = HabitTemplates.forArea(area)
-            if (templates.isEmpty()) return@Capability okResult("No templates in that area.")
-            val text = templates.joinToString("\n") { t ->
-                "\u2022 ${t.title}: ${t.standardVersion}"
-            }
-            okResult("${area.label} templates (${templates.size}):\n$text")
-        }
     )
 
     /* ---------------------------------------------------- journal caps */
