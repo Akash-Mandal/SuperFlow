@@ -43,6 +43,64 @@ VALUE_TAGS = {
     "declare-styleable": "styleable", "item": None,  # item carries type=
 }
 
+# Material Components style names this project references, each verified to
+# exist in com.google.android.material:material:1.13.0.
+#
+# A prefix match alone is not enough: `Widget.Material3.Button.Filled` and
+# `Widget.Material3.Button.Outlined` look plausible, carry the right prefix,
+# and do not exist -- Material 3 spells them `Widget.Material3.Button` (filled
+# is the base style) and `Widget.Material3.Button.OutlinedButton`. Both slipped
+# through this checker and only surfaced as an aapt2 resource-linking failure.
+#
+# Adding a Material style here is deliberate: confirm the exact name against
+# the library's own res/values/styles.xml for the pinned version, then list it.
+KNOWN_MATERIAL_STYLES = {
+    "ShapeAppearance.Material3.Corner.ExtraLarge",
+    "ShapeAppearance.Material3.Corner.ExtraSmall",
+    "ShapeAppearance.Material3.Corner.Large",
+    "ShapeAppearance.Material3.Corner.Medium",
+    "ShapeAppearance.Material3.Corner.Small",
+    "TextAppearance.Material3.BodyLarge",
+    "TextAppearance.Material3.BodyMedium",
+    "TextAppearance.Material3.BodySmall",
+    "TextAppearance.Material3.DisplaySmall",
+    "TextAppearance.Material3.HeadlineLarge",
+    "TextAppearance.Material3.HeadlineMedium",
+    "TextAppearance.Material3.LabelLarge",
+    "TextAppearance.Material3.LabelMedium",
+    "TextAppearance.Material3.LabelSmall",
+    "TextAppearance.Material3.TitleLarge",
+    "TextAppearance.Material3.TitleMedium",
+    "Theme.Material3.DayNight.NoActionBar",
+    "ThemeOverlay.Material3.BottomSheetDialog",
+    "ThemeOverlay.Material3.MaterialAlertDialog",
+    "Widget.Material3.BottomNavigationView",
+    "Widget.Material3.BottomNavigationView.ActiveIndicator",
+    "Widget.Material3.BottomSheet.Modal",
+    "Widget.Material3.Button",
+    "Widget.Material3.Button.IconButton",
+    "Widget.Material3.Button.OutlinedButton",
+    "Widget.Material3.Button.TextButton",
+    "Widget.Material3.Button.TonalButton",
+    "Widget.Material3.CardView.Elevated",
+    "Widget.Material3.Chip.Assist",
+    "Widget.Material3.Chip.Filter",
+    "Widget.Material3.NavigationRailView",
+    "Widget.Material3.TextInputLayout.OutlinedBox",
+    "Widget.Material3.Toolbar",
+}
+
+# Style-name prefixes owned by Material Components. A reference carrying one
+# of these is checked against KNOWN_MATERIAL_STYLES above rather than merely
+# waved through as "external".
+CHECKED_MATERIAL_PREFIXES = (
+    "Theme.Material3", "ThemeOverlay.Material3", "Widget.Material3",
+    "TextAppearance.Material3", "ShapeAppearance.Material3",
+    "Theme.MaterialComponents", "Widget.MaterialComponents",
+    "ThemeOverlay.MaterialComponents", "TextAppearance.MaterialComponents",
+    "ShapeAppearance.MaterialComponents",
+)
+
 # Reference prefixes that belong to the framework or a library rather than
 # to this project. These cannot be checked without the AARs.
 EXTERNAL_PREFIXES = (
@@ -185,6 +243,23 @@ def is_external(token):
     return token.startswith(EXTERNAL_PREFIXES)
 
 
+def material_style_error(name):
+    """Return a message if `name` claims a Material prefix but does not exist.
+
+    Material style names are only checkable by exact name: the prefix is the
+    part that always looks right on a typo, so matching on it alone lets
+    invented names such as Widget.Material3.Button.Filled through to aapt2.
+    """
+    if not name.startswith(CHECKED_MATERIAL_PREFIXES):
+        return None
+    if name in KNOWN_MATERIAL_STYLES:
+        return None
+    return (f"unknown Material style {name!r} -- it is not in "
+            f"KNOWN_MATERIAL_STYLES in tools/check_res.py. Confirm the exact "
+            f"name in the Material Components release this project pins, then "
+            f"add it there (see the note above the set).")
+
+
 def check_refs(files, defined):
     errors, external = [], set()
     for path in files:
@@ -211,6 +286,10 @@ def check_refs(files, defined):
                     continue
                 if rtype == "array" and (name in defined["array"]):
                     continue
+                bad_material = material_style_error(name)
+                if bad_material:
+                    errors.append(f"{path}:{lineno}: {bad_material}")
+                    continue
                 if is_external(name) or f"{rtype}/{name}" in EXTERNAL_NAMES:
                     external.add(f"{rtype}/{name}")
                     continue
@@ -226,12 +305,18 @@ def check_refs(files, defined):
                 parent = el.get("parent")
                 if not parent or parent.startswith(("@", "?")) or parent == "":
                     continue
+                if parent in defined["style"]:
+                    continue
+                bad_material = material_style_error(parent)
+                if bad_material:
+                    errors.append(
+                        f"{path}: style {el.get('name')} parent: {bad_material}")
+                    continue
                 if is_external(parent):
                     external.add(f"style/{parent}")
                     continue
-                if parent not in defined["style"]:
-                    errors.append(
-                        f"{path}: style {el.get('name')} has unknown parent {parent}")
+                errors.append(
+                    f"{path}: style {el.get('name')} has unknown parent {parent}")
     return errors, external
 
 
