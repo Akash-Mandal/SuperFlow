@@ -61,6 +61,7 @@ honest feature-by-feature account.
 
 ## Product plans
 
+- **[Code & Planning Alignment Grand Plan](docs/CODE_AND_PLANNING_ALIGNMENT_PLAN.md)** — bridges the five open upgrade PRs and their plan documents into one consistent codebase
 - **[Build and toolchain guide](docs/BUILD.md)** — how the APK is produced
 - **[Implementation status](docs/IMPLEMENTATION_STATUS.md)** — what actually shipped
 - **[SuperFlow Grand Product and Engineering Plan](docs/GRAND_PLAN.md)**
