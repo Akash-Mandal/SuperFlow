@@ -70,6 +70,32 @@ android {
         // reviewed via ./gradlew lintDebug.
         abortOnError = false
         checkReleaseBuilds = false
+
+        // Analyse this module only. Walking into the dependency AARs roughly
+        // doubles the work and reports issues nobody here can fix.
+        checkDependencies = false
+        ignoreTestSources = true
+        checkGeneratedSources = false
+
+        // On CI, run only the correctness detectors. The full set did not
+        // finish inside 26 minutes and was killed by the job timeout; these
+        // are the checks that catch shipping bugs rather than style, and they
+        // keep the pipeline bounded. A full `./gradlew lintDebug` locally is
+        // still the review gate.
+        //
+        // NewApi earns its place: the delete button in RoutineBuilderActivity
+        // used a Material colour that only exists in values-v31, which would
+        // have crashed on API 26-30 — exactly what this detector flags.
+        if (System.getenv("GITHUB_ACTIONS") == "true") {
+            checkOnly += setOf(
+                "NewApi",
+                "InlinedApi",
+                "ObsoleteSdkInt",
+                "MissingPermission",
+                "MissingSuperCall",
+                "Recycle",
+            )
+        }
     }
 
     testOptions {
