@@ -68,6 +68,10 @@ be run locally against a connected device with no arguments.
 > links but leaves `${applicationId}` unresolved in the startup provider
 > authority is exactly the artifact that produced the original launch crash.
 
+> **Status:** the workflow is currently staged at `ci/ci.yml` and is **not
+> active** — GitHub only runs workflows under `.github/workflows/`. See
+> [`ci/README.md`](../ci/README.md) for the one-command move that activates it.
+
 ## Dependencies
 
 Declared in `gradle/libs.versions.toml`. The runtime set matches the exact
