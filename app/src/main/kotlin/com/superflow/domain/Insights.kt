@@ -56,7 +56,7 @@ object Insights {
     }
 
     fun forHabit(repo: Repository, habit: Habit, today: LocalDate = repo.clock.today()): HabitStats =
-        forHabit(repo.snapshot(), repo, habit, today)
+        InsightsCache.forHabit(repo, habit, today)
 
     fun forHabit(snap: DataSnapshot, repo: Repository, habit: Habit, today: LocalDate): HabitStats {
         val pauses = snap.pauses.filter { it.habitId == null || it.habitId == habit.id }
@@ -72,14 +72,12 @@ object Insights {
         )
         val window = longSeries.filter { !it.date.isBefore(today.minusDays(29)) }
         val recurrence = Recurrence.decode(habit.recurrenceRule)
-
         val (hits, opportunities) = if (recurrence is Recurrence.TimesPerWeek) {
             Opportunities.quotaAdherence(window, recurrence.times)
         } else {
             Opportunities.adherence(window)
         }
         val consistency = if (opportunities == 0) 0 else (hits * 100) / opportunities
-
         val successes = checkIns.filter { it.isSuccess }
         return HabitStats(
             habit = habit,
@@ -95,8 +93,37 @@ object Insights {
         )
     }
 
+    /**
+     * Public for [InsightsCache]; other callers should use [forHabit] so they
+     * benefit from caching.
+     */
+    internal fun computeForHabit(repo: Repository, habit: Habit, today: LocalDate): HabitStats {
+        val longSeries = seriesFor(repo, habit, 365, today)
+        val window = longSeries.filter { !it.date.isBefore(today.minusDays(29)) }
+        val recurrence = Recurrence.decode(habit.recurrenceRule)
+        val (hits, opportunities) = if (recurrence is Recurrence.TimesPerWeek) {
+            Opportunities.quotaAdherence(window, recurrence.times)
+        } else {
+            Opportunities.adherence(window)
+        }
+        val consistency = if (opportunities == 0) 0 else (hits * 100) / opportunities
+        val allCheckIns = repo.checkInsOf(habit.id)
+        return HabitStats(
+            habit = habit,
+            repetitions = allCheckIns.count { it.isSuccess },
+            currentRun = Opportunities.currentRun(longSeries, today),
+            bestRun = Opportunities.bestRun(longSeries),
+            consistency30 = consistency,
+            opportunities30 = opportunities,
+            recoveries = Opportunities.recoveries(longSeries),
+            missesInARow = Opportunities.missesInARow(longSeries, today),
+            needsReturn = Opportunities.needsReturn(longSeries, today),
+            lastDone = allCheckIns.filter { it.isSuccess }.maxByOrNull { it.date }?.date
+        )
+    }
+
     fun allStats(repo: Repository, today: LocalDate = repo.clock.today()): List<HabitStats> =
-        allStats(repo.snapshot(), repo, today)
+        InsightsCache.allStats(repo, today)
 
     fun allStats(snap: DataSnapshot, repo: Repository, today: LocalDate): List<HabitStats> =
         snap.activeHabits.map { forHabit(snap, repo, it, today) }

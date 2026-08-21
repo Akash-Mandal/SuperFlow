@@ -43,7 +43,9 @@ fun blend(color: Int, towards: Int, ratio: Float): Int =
     ColorUtils.blendARGB(color, towards, ratio)
 
 fun View.haptic(prefs: Prefs? = null) {
-    if (prefs != null && !prefs.hapticsEnabled) return
+    val enabled = prefs?.hapticsEnabled
+        ?: AppPrefs.haptics(this)
+    if (!enabled) return
     performHapticFeedback(
         HapticFeedbackConstants.VIRTUAL_KEY,
         HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
@@ -51,11 +53,18 @@ fun View.haptic(prefs: Prefs? = null) {
 }
 
 fun View.confirmHaptic(prefs: Prefs? = null) {
-    if (prefs != null && !prefs.hapticsEnabled) return
+    val enabled = prefs?.hapticsEnabled ?: AppPrefs.haptics(this)
+    if (!enabled) return
     performHapticFeedback(
         if (android.os.Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM
         else HapticFeedbackConstants.VIRTUAL_KEY
     )
+}
+
+/** Lazily reads the user's haptics preference when a caller did not pass it. */
+private object AppPrefs {
+    fun haptics(view: View): Boolean =
+        runCatching { Prefs.get(view.context).hapticsEnabled }.getOrDefault(true)
 }
 
 fun View.snack(message: String, actionLabel: String? = null, action: (() -> Unit)? = null) {

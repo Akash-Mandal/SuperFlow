@@ -214,6 +214,9 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
 
     fun archiveHabit(id: String) = run("archive_habit", jsonOf("habit" to id))
     fun restoreHabit(id: String) = run("restore_habit", jsonOf("habit" to id))
+    fun duplicateHabit(id: String) = run("duplicate_habit", jsonOf("habit" to id))
+    fun moveHabit(id: String, direction: String) =
+        run("reorder_habit", jsonOf("habit" to id, "direction" to direction))
 
     fun undoLast() {
         viewModelScope.launch {

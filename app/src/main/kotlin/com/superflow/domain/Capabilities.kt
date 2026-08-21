@@ -3,6 +3,7 @@ package com.superflow.domain
 import com.superflow.core.schedule.Recurrence
 import com.superflow.core.time.SfTime
 import com.superflow.data.model.*
+import com.superflow.util.Limits
 import com.superflow.util.jsonOf
 import com.superflow.util.string
 import org.json.JSONArray
@@ -17,7 +18,7 @@ import org.json.JSONObject
  */
 object Capabilities {
 
-    const val CATALOG_VERSION = 4  // Phase 1-5: growth engine, templates, journal, routines, memory, what-if, accountability, milestones, sprints, settings, analysis, coaching, blueprint V2, environment, simulation, notification
+    const val CATALOG_VERSION = 4  // growth engine, templates, journal, routines, memory, what-if, accountability, milestones, sprints, settings, analysis, coaching, blueprint V2, environment, simulation, notification, integrity, polish
 
     fun all(): List<Capability> = buildList {
         addAll(identityCaps())
@@ -54,7 +55,7 @@ object Capabilities {
             "create_identity", "Create an identity statement",
             listOf("statement" to "string", "lifeArea" to "string"), Risk.LOW
         ) { c ->
-            val statement = c.str("statement").trim()
+            val statement = Limits.longText(c.str("statement").trim())
             if (statement.isBlank()) return@Capability CommandResult.fail("An identity statement is required")
             val i = Identity(statement = statement, lifeArea = LifeArea.from(c.str("lifeArea")))
             c.repo.saveIdentity(i)
@@ -145,7 +146,7 @@ object Capabilities {
             listOf("title" to "string", "why" to "string", "identityId" to "string",
                 "outcomeMetric" to "string"), Risk.LOW
         ) { c ->
-            val title = c.str("title").trim()
+            val title = Limits.title(c.str("title"))
             if (title.isBlank()) return@Capability CommandResult.fail("A goal title is required")
             val g = Goal(
                 identityId = c.strOrNull("identityId") ?: c.repo.identities().firstOrNull()?.id,
@@ -239,12 +240,12 @@ object Capabilities {
             listOf("title" to "string", "goalId" to "string", "description" to "string",
                 "templateId" to "string"), Risk.LOW
         ) { c ->
-            val title = c.str("title").trim()
+            val title = Limits.title(c.str("title"))
             if (title.isBlank()) return@Capability CommandResult.fail("A system title is required")
             val templateId = c.strOrNull("templateId")
             val s = Sys(
                 goalId = c.strOrNull("goalId") ?: c.repo.goals().firstOrNull()?.id,
-                title = title, description = c.str("description"),
+                title = title, description = Limits.description(c.str("description")),
                 templateId = templateId,
                 reviewFrequency = if (templateId != null) "weekly" else "monthly"
             )
@@ -303,12 +304,16 @@ object Capabilities {
                 "protected" to "bool"
             ), Risk.LOW
         ) { c ->
-            val title = c.str("title").trim()
+            val title = Limits.title(c.str("title"))
             if (title.isBlank()) return@Capability CommandResult.fail("A habit title is required")
             val cueTime = c.str("cueTime").trim()
             if (cueTime.isNotBlank() && !SfTime.isValidTime(cueTime))
                 return@Capability CommandResult.fail("Cue time must look like 07:30")
             val existing = c.repo.habits(true)
+            // Warn (but allow) when a habit with the same title already exists.
+            val duplicate = existing.any {
+                it.title.equals(title, ignoreCase = true) && it.status != Status.ARCHIVED
+            }
             val h = Habit(
                 systemId = c.strOrNull("systemId") ?: c.repo.systems().firstOrNull()?.id,
                 identityId = c.strOrNull("identityId") ?: c.repo.identities().firstOrNull()?.id,
@@ -337,7 +342,11 @@ object Capabilities {
             c.repo.saveHabit(h)
             val id = c.bus.record(c.actor, "create_habit", "Created habit \"$title\"",
                 Serial.of(h), undoDelete("habit", h.id), c.groupId)
-            okResult("Habit created", jsonOf("id" to h.id, "contract" to h.contract()), id)
+            val message = if (duplicate)
+                "Habit created — note: an active habit with this title already exists."
+            else "Habit created"
+            okResult(message, jsonOf("id" to h.id, "contract" to h.contract(),
+                "duplicate" to duplicate), id)
         },
 
         Capability(
@@ -405,6 +414,45 @@ object Capabilities {
             okResult("Habit deleted", null, id)
         },
 
+        Capability("duplicate_habit", "Deep-copy a habit with all its design fields",
+            listOf("habit" to "id or title", "title" to "string"), Risk.LOW) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val all = c.repo.habits(true)
+            val copyTitle = Limits.title(c.str("title")).ifBlank { "${old.title} (copy)" }
+            val copy = old.copy(
+                id = newId(),
+                title = copyTitle,
+                // A copy starts fresh: no history, at the end of the list.
+                orderIndex = all.size,
+                colorSeed = (all.size) % 6,
+                status = Status.ACTIVE,
+                createdAt = System.currentTimeMillis()
+            )
+            c.repo.saveHabit(copy)
+            // Carry over obstacle plans so the duplicated habit keeps its safety net.
+            c.repo.obstacles(old.id).forEach {
+                c.repo.saveObstacle(it.copy(id = newId(), habitId = copy.id))
+            }
+            val id = c.bus.record(c.actor, "duplicate_habit",
+                "Duplicated \"${old.title}\" as \"$copyTitle\"",
+                Serial.of(copy), undoDelete("habit", copy.id), c.groupId)
+            okResult("Duplicated as \"$copyTitle\"", jsonOf("id" to copy.id), id)
+        },
+
+        Capability("evolve_habit",
+            "Grow or shrink a habit's standard version (growth engine)",
+            listOf("habit" to "id or title", "standardVersion" to "string"), Risk.LOW) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val newStandard = Limits.shortText(c.str("standardVersion"))
+            if (newStandard.isBlank()) return@Capability CommandResult.fail("Provide a standard version")
+            val updated = old.copy(standardVersion = newStandard)
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "evolve_habit",
+                "Evolved \"${old.title}\" to \"$newStandard\"",
+                Serial.of(updated), undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("Standard version updated", jsonOf("id" to updated.id), id)
+        },
+
         Capability("reorder_habit", "Move a habit up or down the Today timeline",
             listOf("habit" to "id or title", "direction" to "up|down", "toIndex" to "int"),
             Risk.LOW) { c ->
@@ -418,7 +466,9 @@ object Capabilities {
             val prevOrder = list.map { it.id to it.orderIndex }
             val moved = list.removeAt(idx)
             list.add(to, moved)
-            list.forEachIndexed { i, h -> c.repo.saveHabit(h.copy(orderIndex = i)) }
+            c.repo.runInTransaction {
+                list.forEachIndexed { i, h -> c.repo.saveHabit(h.copy(orderIndex = i)) }
+            }
             val rows = JSONArray()
             prevOrder.forEach { (hid, order) ->
                 c.repo.habit(hid)?.let { rows.put(Serial.of(it.copy(orderIndex = order))) }
@@ -432,8 +482,8 @@ object Capabilities {
             listOf("habit" to "id or title", "ifText" to "string", "thenText" to "string"),
             Risk.LOW) { c ->
             val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
-            val ifText = c.str("ifText").trim()
-            val thenText = c.str("thenText").trim()
+            val ifText = Limits.shortText(c.str("ifText"))
+            val thenText = Limits.shortText(c.str("thenText"))
             if (ifText.isBlank() || thenText.isBlank())
                 return@Capability CommandResult.fail("Both the if and the then part are required")
             val o = ObstaclePlan(habitId = h.id, ifText = ifText, thenText = thenText)
@@ -648,7 +698,7 @@ object Capabilities {
             val ci = CheckIn(
                 habitId = h.id, date = date,
                 result = if (h.mode == HabitMode.REDUCE) CheckInResult.RESISTED else CheckInResult.DONE,
-                level = level, amount = amount, note = c.str("note"),
+                level = level, amount = amount, note = Limits.note(c.str("note")),
                 contextTags = tags,
                 actualAmount = if (amount > 0 || !c.args.isNull("amount")) amount else null,
                 actualDurationMinutes = if (c.args.isNull("duration")) null else c.int("duration", 0),
@@ -670,7 +720,7 @@ object Capabilities {
             val date = c.date()
             val prev = c.repo.checkIn(h.id, date)
             val ci = CheckIn(habitId = h.id, date = date, result = CheckInResult.SKIPPED,
-                note = c.str("note"))
+                note = Limits.note(c.str("note")))
             c.repo.saveCheckIn(ci)
             val undo = if (prev == null) jsonOf("kind" to "clearCheckIn", "habitId" to h.id, "date" to date)
             else undoRestore("checkin", Serial.of(prev))
@@ -688,7 +738,7 @@ object Capabilities {
             val result = if (h.mode == HabitMode.REDUCE) CheckInResult.SLIPPED else CheckInResult.MISSED
             val reason = c.str("reason").trim()
             val detail = c.str("detail").trim()
-            val ci = CheckIn(habitId = h.id, date = date, result = result, note = c.str("note"),
+            val ci = CheckIn(habitId = h.id, date = date, result = result, note = Limits.note(c.str("note")),
                 missReason = reason.ifBlank { null },
                 missReasonDetail = detail.ifBlank { null })
             c.repo.saveCheckIn(ci)
@@ -717,7 +767,7 @@ object Capabilities {
             val level = c.int("energy", 3).coerceIn(1, 5)
             val cp = runCatching { Checkpoint.valueOf(c.str("checkpoint", "MORNING").uppercase()) }
                 .getOrDefault(Checkpoint.MORNING)
-            val e = EnergyLog(date = c.date(), checkpoint = cp, energy = level, note = c.str("note"))
+            val e = EnergyLog(date = c.date(), checkpoint = cp, energy = level, note = Limits.note(c.str("note")))
             c.repo.saveEnergy(e)
             val id = c.bus.record(c.actor, "log_energy", "${cp.label} energy: $level/5",
                 Serial.of(e), null, c.groupId)
@@ -793,7 +843,50 @@ object Capabilities {
             val id = c.bus.record(c.actor, "record_miss_reason",
                 "Miss reason recorded: $reason", Serial.of(updated), null, c.groupId)
             okResult("Miss reason recorded: $reason", null, id)
-        }
+        },
+
+        Capability("complete_all_tiny",
+            "Mark every still-open habit today as Tiny (evening checkpoint wrap-up)",
+            listOf("date" to "yyyy-MM-dd"), Risk.MEDIUM) { c ->
+            val day = c.localDate()
+            val date = SfTime.format(day)
+            val scheduled = c.repo.habitsForDay(day)
+            val open = scheduled.filter { c.repo.checkIn(it.id, date) == null }
+            if (open.isEmpty()) return@Capability CommandResult.fail("Nothing is still open today")
+            val group = c.groupId ?: newId()
+            var n = 0
+            c.repo.runInTransaction {
+                for (h in open) {
+                    c.repo.saveCheckIn(CheckIn(
+                        habitId = h.id, date = date,
+                        result = if (h.mode == HabitMode.REDUCE) CheckInResult.RESISTED else CheckInResult.DONE,
+                        level = Level.TINY, note = "Evening wrap-up"
+                    ))
+                    n++
+                }
+            }
+            val id = c.bus.record(c.actor, "complete_all_tiny",
+                "Closed $n open habit(s) as Tiny", null,
+                jsonOf("kind" to "clearCheckInsForDate", "date" to date), group)
+            okResult("Closed $n as Tiny. A small win is still a win.", null, id)
+        },
+
+        Capability("undo_today", "Revert every check-in recorded today",
+            listOf("date" to "yyyy-MM-dd"), Risk.MEDIUM, destructive = true) { c ->
+            val day = c.localDate()
+            val date = SfTime.format(day)
+            val todays = c.repo.checkInsFor(date)
+            if (todays.isEmpty()) return@Capability CommandResult.fail("No check-ins to revert today")
+            val rows = JSONArray()
+            todays.forEach { rows.put(Serial.of(it)) }
+            c.repo.runInTransaction {
+                for (ci in todays) c.repo.clearCheckIn(ci.habitId, date)
+            }
+            val id = c.bus.record(c.actor, "undo_today",
+                "Reverted ${todays.size} check-in(s) for ${SfTime.shortDay(day)}", null,
+                jsonOf("kind" to "restoreRows", "table" to "checkin", "rows" to rows), c.groupId)
+            okResult("Reverted ${todays.size} check-in(s)", null, id)
+        },
     )
 
     /* ----------------------------------------------------- daily focus layer */
@@ -817,10 +910,12 @@ object Capabilities {
             val prev = c.repo.focusFor(date)
             val rows = JSONArray()
             prev.forEach { rows.put(Serial.of(it)) }
-            c.repo.clearFocus(date)
-            titles.forEachIndexed { i, t ->
-                val habit = c.repo.findHabit(t)
-                c.repo.saveFocus(FocusItem(date = date, habitId = habit?.id, title = t, orderIndex = i))
+            c.repo.runInTransaction {
+                c.repo.clearFocus(date)
+                titles.forEachIndexed { i, t ->
+                    val habit = c.repo.findHabit(t)
+                    c.repo.saveFocus(FocusItem(date = date, habitId = habit?.id, title = t, orderIndex = i))
+                }
             }
             val undo = jsonOf("kind" to "restoreRows", "table" to "focus", "rows" to rows)
             val id = c.bus.record(c.actor, "set_daily_focus",
@@ -831,7 +926,7 @@ object Capabilities {
         Capability("add_focus_item", "Add one action to the Daily Focus",
             listOf("title" to "string", "date" to "yyyy-MM-dd"), Risk.LOW) { c ->
             val date = c.date()
-            val title = c.str("title").trim()
+            val title = Limits.title(c.str("title"))
             if (title.isBlank()) return@Capability CommandResult.fail("A title is required")
             val existing = c.repo.focusFor(date)
             if (existing.size >= 3) return@Capability CommandResult.fail("Daily Focus already holds three actions")
@@ -897,9 +992,11 @@ object Capabilities {
             val prev = c.repo.focusFor(date)
             val rows = JSONArray()
             prev.forEach { rows.put(Serial.of(it)) }
-            c.repo.clearFocus(date)
-            candidates.forEachIndexed { i, h ->
-                c.repo.saveFocus(FocusItem(date = date, habitId = h.id, title = h.title, orderIndex = i))
+            c.repo.runInTransaction {
+                c.repo.clearFocus(date)
+                candidates.forEachIndexed { i, h ->
+                    c.repo.saveFocus(FocusItem(date = date, habitId = h.id, title = h.title, orderIndex = i))
+                }
             }
             val id = c.bus.record(c.actor, "plan_tomorrow",
                 "Planned tomorrow: ${candidates.joinToString("; ") { it.title }}", null,
@@ -958,10 +1055,10 @@ object Capabilities {
     private fun designCaps() = listOf(
         Capability("add_scorecard_entry", "Record a routine as helpful, neutral or unhelpful",
             listOf("routine" to "string", "verdict" to "-1|0|1", "note" to "string"), Risk.LOW) { c ->
-            val routine = c.str("routine").trim()
+            val routine = Limits.shortText(c.str("routine"))
             if (routine.isBlank()) return@Capability CommandResult.fail("Describe the routine")
             val e = ScorecardEntry(routine = routine, verdict = c.int("verdict", 0).coerceIn(-1, 1),
-                note = c.str("note"))
+                note = Limits.note(c.str("note")))
             c.repo.saveScorecard(e)
             val id = c.bus.record(c.actor, "add_scorecard_entry", "Scorecard: \"$routine\"",
                 Serial.of(e), undoDelete("scorecard", e.id), c.groupId)
@@ -1089,7 +1186,7 @@ object Capabilities {
         Capability("create_flow", "Create a chain of anchored habits",
             listOf("title" to "string", "anchor" to "string", "steps" to "array of strings"),
             Risk.LOW) { c ->
-            val title = c.str("title").trim()
+            val title = Limits.title(c.str("title"))
             if (title.isBlank()) return@Capability CommandResult.fail("A flow title is required")
             val f = Flow(title = title, anchor = c.str("anchor"))
             c.repo.saveFlow(f)
@@ -1110,7 +1207,7 @@ object Capabilities {
             val flow = c.repo.flows().firstOrNull { it.id == c.str("flowId") }
                 ?: c.repo.flows().firstOrNull { it.title.equals(c.str("flow"), true) }
                 ?: return@Capability CommandResult.fail("Flow not found")
-            val title = c.str("title").trim()
+            val title = Limits.title(c.str("title"))
             if (title.isBlank()) return@Capability CommandResult.fail("A step title is required")
             val steps = c.repo.flowSteps(flow.id)
             val s = FlowStep(flowId = flow.id, habitId = c.repo.findHabit(title)?.id, title = title,
@@ -1143,12 +1240,14 @@ object Capabilities {
             val group = c.groupId ?: newId()
             var n = 0
             val rows = JSONArray()
-            for (h in habits) {
-                c.repo.checkIn(h.id, date)?.let { rows.put(Serial.of(it)) }
-                c.repo.saveCheckIn(CheckIn(habitId = h.id, date = date,
-                    result = if (h.mode == HabitMode.REDUCE) CheckInResult.RESISTED else CheckInResult.DONE,
-                    level = Level.MINIMUM, note = "Minimum Mode"))
-                n++
+            c.repo.runInTransaction {
+                for (h in habits) {
+                    c.repo.checkIn(h.id, date)?.let { rows.put(Serial.of(it)) }
+                    c.repo.saveCheckIn(CheckIn(habitId = h.id, date = date,
+                        result = if (h.mode == HabitMode.REDUCE) CheckInResult.RESISTED else CheckInResult.DONE,
+                        level = Level.MINIMUM, note = "Minimum Mode"))
+                    n++
+                }
             }
             val id = c.bus.record(c.actor, "enter_minimum_mode",
                 "Minimum Mode: $n habits set to Minimum", null,
@@ -1251,9 +1350,9 @@ object Capabilities {
             }
             val previous = c.repo.reviews().firstOrNull()
             val data = c.str("data").ifBlank { Insights.reviewData(c.repo, kind) }
-            val r = Review(kind = kind, periodLabel = label, whatWorked = c.str("whatWorked"),
-                whatDidnt = c.str("whatDidnt"), systemChange = c.str("systemChange"),
-                identityEvidence = c.str("identityEvidence"),
+            val r = Review(kind = kind, periodLabel = label, whatWorked = Limits.longText(c.str("whatWorked")),
+                whatDidnt = Limits.longText(c.str("whatDidnt")), systemChange = Limits.longText(c.str("systemChange")),
+                identityEvidence = Limits.longText(c.str("identityEvidence")),
                 autoGeneratedData = data, previousReviewId = previous?.id)
             c.repo.saveReview(r)
             val id = c.bus.record(c.actor, "create_review",

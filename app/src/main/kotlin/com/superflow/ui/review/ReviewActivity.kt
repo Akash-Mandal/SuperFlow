@@ -4,6 +4,7 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.textfield.TextInputEditText
@@ -11,9 +12,11 @@ import com.google.android.material.textfield.TextInputLayout
 import com.superflow.R
 import com.superflow.data.Repository
 import com.superflow.data.model.ReviewKind
+import com.superflow.data.Prefs
 import com.superflow.domain.Actor
 import com.superflow.domain.CommandBus
 import com.superflow.domain.Insights
+import com.superflow.domain.ReviewActions
 import com.superflow.ui.common.ScrollActivity
 import com.superflow.ui.common.snack
 import com.superflow.util.Dates
@@ -29,6 +32,7 @@ class ReviewActivity : ScrollActivity() {
 
     private val bus by lazy { CommandBus.get(this) }
     private val repo by lazy { Repository.get(this) }
+    private val prefs by lazy { Prefs.get(this) }
     private var kind = ReviewKind.WEEKLY
     private val answers = HashMap<String, String>()
 
@@ -159,6 +163,27 @@ class ReviewActivity : ScrollActivity() {
                 bus.execute("delete_review", jsonOf("id" to r.id), Actor.USER); rebuild(); true
             }
             content.addView(card)
+
+            // Tracked action items (#9).
+            val actions = ReviewActions.actionsFor(repo, prefs, r)
+            if (actions.isNotEmpty()) {
+                val group = ChipGroup(this)
+                actions.forEach { action ->
+                    group.addView(MaterialCheckBox(this).apply {
+                        text = action.text
+                        isChecked = action.done
+                        paintFlags = if (action.done)
+                            paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG
+                        else paintFlags and android.graphics.Paint.STRIKE_THRU_TEXT_FLAG.inv()
+                        alpha = if (action.done) 0.55f else 1f
+                        setOnCheckedChangeListener { _, checked ->
+                            ReviewActions.toggleDone(prefs, r.id, action.id, checked)
+                            rebuild()
+                        }
+                    })
+                }
+                content.addView(group)
+            }
         }
     }
 

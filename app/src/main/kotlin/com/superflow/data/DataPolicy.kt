@@ -400,18 +400,48 @@ object DataPolicy {
 
     /**
      * Validate an import file before applying it.
-     * Returns a list of warnings/issues, or empty if clean.
+     * Returns a list of warnings/issues, or empty if clean. Throws
+     * [IllegalArgumentException] for structurally invalid input so the UI can
+     * show a specific, actionable error (#67).
      */
     fun validateImport(json: JSONObject): List<String> {
         val warnings = mutableListOf<String>()
+
+        // Must be a JSON object (enforced by the caller's parse).
+        if (json.length() == 0) throw IllegalArgumentException("The file is empty.")
+
         val app = json.optString("app")
+        if (app.isBlank() || (app != "SuperFlow" && !json.has("habits"))) {
+            throw IllegalArgumentException(
+                "This does not look like a SuperFlow export (missing \"app\":\"SuperFlow\")."
+            )
+        }
         if (app != "SuperFlow") warnings.add("Not a SuperFlow export (app=$app)")
 
         val version = json.optInt("exportVersion", 0)
         if (version > Serial.EXPORT_VERSION) warnings.add("Export is from a newer version ($version). Some data may not import correctly.")
-        if (version < Serial.EXPORT_VERSION) warnings.add("Export is from an older version ($version). New fields will use defaults.")
+        if (version in 1 until Serial.EXPORT_VERSION) warnings.add("Export is from an older version ($version). New fields will use defaults.")
+        if (version == 0) warnings.add("No export version found; importing as the current format.")
 
-        // Check for expected categories
+        // Each array must actually be a JSON array of objects.
+        val arrayKeys = listOf(
+            "identities", "goals", "systems", "habits", "checkIns", "focus",
+            "obstacles", "scorecard", "flows", "flowSteps", "reviews", "energy",
+            "pauses", "projects", "sources", "requirements"
+        )
+        for (key in arrayKeys) {
+            if (!json.has(key)) continue
+            val arr = json.opt(key)
+            if (arr !is JSONArray) {
+                throw IllegalArgumentException("\"$key\" should be a list but was ${arr?.javaClass?.simpleName ?: "missing"}.")
+            }
+            // Spot-check the first row is an object.
+            if (arr.length() > 0 && !arr.isNull(0) && arr.opt(0) !is JSONObject) {
+                throw IllegalArgumentException("\"$key\" contains an entry that is not an object.")
+            }
+        }
+
+        // Check for expected categories (advisory only).
         val present = json.keys().asSequence().toSet()
         val expected = exportableCategories.map { it.key }
         val missing = expected.filter { it !in present }

@@ -4,10 +4,14 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.superflow.R
+import com.superflow.data.Prefs
 import com.superflow.data.Repository
 import com.superflow.domain.Actor
 import com.superflow.domain.CommandBus
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import com.superflow.ui.common.ScrollActivity
 import com.superflow.ui.common.snack
 import com.superflow.ui.sheets.TextInputSheet
@@ -23,10 +27,13 @@ class ScorecardActivity : ScrollActivity() {
 
     private val bus by lazy { CommandBus.get(this) }
     private val repo by lazy { Repository.get(this) }
+    private val prefs by lazy { Prefs.get(this) }
 
     override fun titleText() = getString(R.string.habit_scorecard)
 
     override fun buildContent() {
+        maybePromptRescore()
+
         content.addView(textCard("Notice, do not judge",
             "List what you already do on a normal day, then mark each one. " +
                     "Noticing is the whole exercise — nothing here needs fixing today."))
@@ -113,6 +120,34 @@ class ScorecardActivity : ScrollActivity() {
                 val verdict = listOf(1, 0, -1)[which]
                 exec("rescore_scorecard", jsonOf("id" to entryId, "verdict" to verdict))
             }.show()
+    }
+
+    /**
+     * Once a month, nudge the user to re-score their routines (#25). The
+     * marker stores the last ISO month the prompt was shown; "re-scoring"
+     * means reviewing existing entries and removing routines that no longer
+     * fit, then adding new ones.
+     */
+    private fun maybePromptRescore() {
+        val entries = repo.scorecard()
+        if (entries.isEmpty()) return
+        val now = LocalDate.now()
+        val thisMonth = "%d-%02d".format(now.year, now.monthValue)
+        if (prefs.scorecardLastPrompt == thisMonth) return
+        prefs.scorecardLastPrompt = thisMonth
+        val lastEntry = entries.maxByOrNull { it.createdAt }?.createdAt ?: 0L
+        val daysOld = ChronoUnit.DAYS.between(
+            java.time.Instant.ofEpochMilli(lastEntry).atZone(java.time.ZoneId.systemDefault()).toLocalDate(),
+            now
+        )
+        if (daysOld < 14) return
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Re-score your routines?")
+            .setMessage("It has been $daysOld days since you updated your scorecard. " +
+                    "Routines shift — a quick re-score keeps it honest.")
+            .setPositiveButton("Review") { _, _ -> }
+            .setNegativeButton("Later", null)
+            .show()
     }
 
     private fun addRoutine() {

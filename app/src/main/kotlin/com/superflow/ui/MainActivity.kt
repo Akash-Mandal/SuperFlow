@@ -117,6 +117,7 @@ class MainActivity : AppCompatActivity() {
         // Debounced + backgrounded: covers the "user goes home" case without
         // doing database work on the main thread on every pause.
         TodayWidget.refresh(this)
+        DynamicShortcuts.refresh(this)
     }
 
     private fun requestNotificationPermissionIfNeeded() {

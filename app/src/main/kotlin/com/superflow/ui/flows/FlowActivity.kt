@@ -71,34 +71,28 @@ class FlowActivity : ScrollActivity() {
                 }
             }.trim()
             val holder = card.findViewById<TextView>(R.id.text_title).parent as LinearLayout
-            if (steps.isNotEmpty()) {
-                holder.addView(MaterialButton(this, null,
-                    com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                    text = "Run flow"
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).also { it.topMargin = dpi(12) }
-                    setOnClickListener {
-                        exec("run_flow", jsonOf("flowId" to f.id))
-                        com.google.android.material.dialog.MaterialAlertDialogBuilder(this@FlowActivity)
-                            .setTitle("Running: ${f.title}")
-                            .setMessage(repo.flowSteps(f.id).joinToString("\n") { s ->
-                                "${if (s.durationMinutes > 0) "⏱ ${s.durationMinutes} min — " else ""}${s.title}"
-                            })
-                            .setPositiveButton("Mark all done") { _, _ ->
-                                exec("complete_flow", jsonOf("flowId" to f.id))
-                            }
-                            .setNegativeButton(R.string.cancel, null)
-                            .show()
-                    }
-                })
-            }
-            holder.addView(MaterialButton(this, null,
-                com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                text = "Add step"
+            val buttonRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
                 ).also { it.topMargin = dpi(12) }
+            }
+            if (steps.isNotEmpty()) {
+                buttonRow.addView(MaterialButton(this, null,
+                    com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                    text = "Run flow"
+                    layoutParams = LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                    ).also { it.marginEnd = dpi(6) }
+                    setOnClickListener { runFlow(f.id) }
+                })
+            }
+            buttonRow.addView(MaterialButton(this, null,
+                com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                text = "Add step"
+                layoutParams = LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                ).also { it.marginStart = dpi(6) }
                 setOnClickListener {
                     TextInputSheet.show(supportFragmentManager, "Add step",
                         "drink a glass of water") { t ->
@@ -107,6 +101,7 @@ class FlowActivity : ScrollActivity() {
                     }
                 }
             })
+            holder.addView(buttonRow)
             card.setOnLongClickListener {
                 com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                     .setTitle("Delete \"${f.title}\"?")
@@ -118,6 +113,55 @@ class FlowActivity : ScrollActivity() {
             }
             content.addView(card)
         }
+    }
+
+    /**
+     * Guided "run flow" mode (#24): steps are shown one at a time with a
+     * Done button that checks in any linked habit. Advances automatically and
+     * reports completion; nothing is destructively changed.
+     */
+    private fun runFlow(flowId: String) {
+        val flow = repo.flows().firstOrNull { it.id == flowId } ?: return
+        val steps = repo.flowSteps(flowId)
+        if (steps.isEmpty()) {
+            findViewById<View>(R.id.root).snack("This flow has no steps yet")
+            return
+        }
+        var index = 0
+
+        fun show() {
+            if (index >= steps.size) {
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                    .setTitle(flow.title)
+                    .setMessage("All done. ${steps.size} step${if (steps.size == 1) "" else "s"} completed.")
+                    .setPositiveButton(R.string.done, null)
+                    .show()
+                return
+            }
+            val step = steps[index]
+            val linked = step.habitId?.let { repo.habit(it) }
+            val message = buildString {
+                append("Step ${index + 1} of ${steps.size}\n\n")
+                append(step.title)
+                if (linked != null) append("\n\n(Tied to \"${linked.title}\" — Done checks it in.)")
+            }
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(flow.title)
+                .setMessage(message)
+                .setPositiveButton(R.string.done) { _, _ ->
+                    linked?.let {
+                        bus.execute("check_in",
+                            jsonOf("habit" to it.id, "level" to "TINY"), Actor.USER)
+                    }
+                    index++
+                    show()
+                }
+                .setNeutralButton("Skip") { _, _ -> index++; show() }
+                .setNegativeButton(R.string.cancel, null)
+                .setCancelable(false)
+                .show()
+        }
+        show()
     }
 
     private fun newFlow() {

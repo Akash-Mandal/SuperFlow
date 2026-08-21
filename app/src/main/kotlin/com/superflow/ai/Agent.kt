@@ -13,6 +13,7 @@ import com.superflow.util.string
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -29,15 +30,18 @@ class Agent private constructor(context: Context) {
     private val prefs = Prefs.get(app)
     private val stopped = AtomicBoolean(false)
 
-    data class Outcome(
-        val reply: String,
-        val actions: List<String> = emptyList(),
-        val groupId: String? = null,
-        val route: String = "local",
-        val error: String? = null
-    )
+    /**
+     * Session rate-limit (#68): a sliding window of cloud-call timestamps.
+     * At most [MAX_CALLS_PER_MINUTE] Main Brain calls are allowed in any
+     * 60-second window, guarding against accidental agentic loops. The limit
+     * resets naturally as timestamps age out and does not persist.
+     */
+    private val cloudCallTimes = ArrayDeque<Long>()
+    private val rateLock = Any()
 
     companion object {
+        private const val MAX_CALLS_PER_MINUTE = 10
+        private const val WINDOW_MS = 60_000L
         @Volatile private var instance: Agent? = null
         fun get(context: Context): Agent =
             instance ?: synchronized(this) {
@@ -48,6 +52,20 @@ class Agent private constructor(context: Context) {
     fun stop() = stopped.set(true)
     fun resume() = stopped.set(false)
     fun isStopped(): Boolean = stopped.get()
+
+    /**
+     * Records a cloud-call attempt. Returns false if [MAX_CALLS_PER_MINUTE]
+     * has been reached in the trailing 60s window; otherwise records the
+     * timestamp and returns true.
+     */
+    private fun acquireCloudSlot(): Boolean = synchronized(rateLock) {
+        val now = System.currentTimeMillis()
+        while (cloudCallTimes.isNotEmpty() && now - cloudCallTimes.peekFirst() > WINDOW_MS) {
+            cloudCallTimes.pollFirst()
+        }
+        if (cloudCallTimes.size >= MAX_CALLS_PER_MINUTE) false
+        else { cloudCallTimes.addLast(now); true }
+    }
 
     /* --------------------------------------------------------- policy engine */
 
@@ -89,6 +107,13 @@ class Agent private constructor(context: Context) {
 
         // 2. Cloud Main Brain, when configured and permitted.
         if (prefs.cloudReady() && !stopped.get()) {
+            if (!acquireCloudSlot()) {
+                return Outcome(
+                    "Slow down a moment — you've sent more than $MAX_CALLS_PER_MINUTE " +
+                            "messages in the last minute. Try again shortly.",
+                    route = "rate-limited"
+                )
+            }
             val system = MainBrain.systemPrompt(prefs) + "\n\nCurrent app state:\n" +
                     MainBrain.buildContext(bus.repo, prefs)
             val history = bus.repo.messages(prefs.conversationHistoryLimit * 2)

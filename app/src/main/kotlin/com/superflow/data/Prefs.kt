@@ -94,6 +94,17 @@ class Prefs private constructor(context: Context) {
         get() = str("quietTo", "07:00")
         set(v) = setStr("quietTo", v)
 
+    /**
+     * Per-day-of-week quiet hours override, encoded as 7 pipe-separated
+     * "from-to" pairs in ISO order (Mon..Sun). An empty pair means "use the
+     * default quietFrom/quietTo for that day"; a "-" pair means "no quiet
+     * hours that day". Example:
+     * "22:00-07:00|22:00-07:00|...|23:30-09:00|-".
+     */
+    var quietPerDay: String
+        get() = str("quietPerDay", "")
+        set(v) = setStr("quietPerDay", v)
+
     var reminderBudget: Int
         get() = num("reminderBudget", 6)
         set(v) = setNum("reminderBudget", v)
@@ -121,6 +132,57 @@ class Prefs private constructor(context: Context) {
     var crashReporting: Boolean
         get() = bool("crashReporting", false)
         set(v) = setBool("crashReporting", v)
+
+    /* ---- Appearance scheduling ---- */
+
+    /** Dark-mode schedule: "off" (manual), "sunset" (21:00–07:00), or "custom" (from [darkFrom]/[darkTo]). */
+    var darkSchedule: String
+        get() = str("darkSchedule", "off")
+        set(v) = setStr("darkSchedule", v)
+
+    var darkFrom: String
+        get() = str("darkFrom", "21:00")
+        set(v) = setStr("darkFrom", v)
+
+    var darkTo: String
+        get() = str("darkTo", "07:00")
+        set(v) = setStr("darkTo", v)
+
+    /** JSON map of reviewId -> (actionId -> done). Backs [com.superflow.domain.ReviewActions]. */
+    var reviewActions: String
+        get() = str("reviewActions", "{}")
+        set(v) = setStr("reviewActions", v)
+
+    var scorecardLastPrompt: String
+        get() = str("scorecardLastPrompt", "")
+        set(v) = setStr("scorecardLastPrompt", v)
+
+    /* ---- Profiles (#78, lightweight for shared tablets) ---- */
+
+    var activeProfile: String
+        get() = str("activeProfile", "Me").ifBlank { "Me" }
+        set(v) = setStr("activeProfile", v.ifBlank { "Me" })
+
+    /* ---- App lock ---- */
+
+    var appLockEnabled: Boolean
+        get() = bool("appLockEnabled", false)
+        set(v) = setBool("appLockEnabled", v)
+
+    /** True when the user has opted to unlock with biometrics (in addition to PIN). */
+    var appLockBiometric: Boolean
+        get() = bool("appLockBiometric", true)
+        set(v) = setBool("appLockBiometric", v)
+
+    /** SHA-256 hash of the PIN, or empty when no PIN is set. */
+    var appLockPinHash: String
+        get() = str("appLockPinHash", "")
+        set(v) = setStr("appLockPinHash", v)
+
+    /** Lock immediately on background, or after a short grace period (seconds). */
+    var appLockGraceSeconds: Int
+        get() = num("appLockGrace", 30)
+        set(v) = setNum("appLockGrace", v.coerceIn(0, 1800))
 
     /* ----------------------------------------------------------- ai engine */
 

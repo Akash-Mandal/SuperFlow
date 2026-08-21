@@ -184,6 +184,10 @@ class CommandBus private constructor(context: Context) {
                 repo.clearCheckIn(undo.string("habitId"), undo.string("date"))
                 CommandResult(true, "Check-in cleared")
             }
+            "clearCheckInsForDate" -> {
+                repo.clearCheckInsForDate(undo.string("date"))
+                CommandResult(true, "Check-ins cleared")
+            }
             "noop" -> CommandResult(true, "Nothing to revert")
             else -> CommandResult.fail("Unsupported undo type")
         }

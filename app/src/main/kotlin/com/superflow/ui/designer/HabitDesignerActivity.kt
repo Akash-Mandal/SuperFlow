@@ -39,6 +39,7 @@ import com.superflow.notify.Reminders
 import com.superflow.ui.common.snack
 import com.superflow.ui.common.visible
 import com.superflow.util.Dates
+import com.superflow.util.Limits
 import com.superflow.util.jsonOf
 
 /**
@@ -61,6 +62,7 @@ class HabitDesignerActivity : AppCompatActivity() {
 
     private var editing: Habit? = null
     private var step = 0
+    private val firstMeaningIndex: Int get() = steps.indexOf("Meaning")
 
     private val values = HashMap<String, String>()
     private var mode = HabitMode.BUILD
@@ -69,7 +71,13 @@ class HabitDesignerActivity : AppCompatActivity() {
     private var reminder = false
     private var protectedRoutine = false
 
-    private val steps = listOf("Meaning", "Notice", "Want", "Start", "Feel", "Contract")
+    // Step 0 (Template) is only shown when creating a new habit; editing
+    // jumps straight to Meaning. The rendered list is built in [renderSteps].
+    private val allSteps = listOf("Template", "Meaning", "Notice", "Want", "Start", "Feel", "Contract")
+    private val editSteps = listOf("Meaning", "Notice", "Want", "Start", "Feel", "Contract")
+
+    private val steps: List<String>
+        get() = if (editing == null) allSteps else editSteps
 
     override fun onCreate(savedInstanceState: Bundle?) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -143,21 +151,78 @@ class HabitDesignerActivity : AppCompatActivity() {
         btnBack.visible(step > 0)
         btnNext.text = if (step == steps.lastIndex) getString(R.string.save) else getString(R.string.next)
 
-        when (step) {
-            0 -> meaning()
-            1 -> notice()
-            2 -> want()
-            3 -> start()
-            4 -> feel()
+        when (steps[step]) {
+            "Template" -> template()
+            "Meaning" -> meaning()
+            "Notice" -> notice()
+            "Want" -> want()
+            "Start" -> start()
+            "Feel" -> feel()
             else -> contract()
         }
         findViewById<androidx.core.widget.NestedScrollView>(R.id.scroll).scrollTo(0, 0)
     }
 
+    private fun template() {
+        header("Step 1 of 7 · Start from a template",
+            "Skip the blank page",
+            "Pick a starter habit and adjust it, or start from scratch. " +
+                    "Every field stays editable.")
+
+        // "Blank" option.
+        val blankCard = layoutInflater.inflate(R.layout.item_text_card, stepContent, false)
+        blankCard.findViewById<TextView>(R.id.text_title).text = "Blank habit"
+        blankCard.findViewById<TextView>(R.id.text_body).text =
+            "Design every field yourself from the Meaning step."
+        (blankCard as MaterialCardView).setOnClickListener {
+            step = firstMeaningIndex
+            render()
+        }
+        stepContent.addView(blankCard)
+
+        label("TEMPLATES")
+        for (t in HabitTemplates.all) {
+            val card = layoutInflater.inflate(R.layout.item_text_card, stepContent, false)
+            card.findViewById<TextView>(R.id.text_title).text = t.name
+            card.findViewById<TextView>(R.id.text_body).text =
+                "${t.standardVersion} · Tiny: ${t.tinyStart}"
+            (card as MaterialCardView).setOnClickListener { applyTemplate(t) }
+            stepContent.addView(card)
+        }
+    }
+
+    private fun applyTemplate(t: HabitTemplates.Template) {
+        values["title"] = t.title
+        values["tinyStart"] = t.tinyStart
+        values["minimumVersion"] = t.minimumVersion
+        values["standardVersion"] = t.standardVersion
+        values["stretchVersion"] = t.stretchVersion
+        values["cueTime"] = t.cueTime
+        values["cuePlace"] = t.cuePlace
+        values["anchorText"] = t.anchorText
+        values["benefit"] = t.benefit
+        values["temptationBundle"] = t.temptationBundle
+        values["reframe"] = t.reframe
+        values["frictionPlan"] = t.frictionPlan
+        values["environmentPrep"] = t.environmentPrep
+        values["reward"] = t.reward
+        values["recoveryPlan"] = t.recoveryPlan
+        values["unit"] = t.unit
+        values["targetCount"] = t.targetCount.toString()
+        mode = t.mode
+        trackType = t.trackType
+        recurrence = t.recurrence
+        reminder = t.reminder
+        protectedRoutine = t.protectedRoutine
+        step = firstMeaningIndex
+        render()
+    }
+
     private fun meaning() {
-        header("Step 1 of 6 · Meaning", "What is the habit?",
+        val meaningStepNum = firstMeaningIndex + 1
+        header("Step $meaningStepNum of ${steps.size} · Meaning", "What is the habit?",
             "Name it as an action you can start, not an outcome you hope for.")
-        field("title", "Habit", "Walk for 10 minutes")
+        field("title", "Habit", "Walk for 10 minutes", maxLength = Limits.TITLE)
 
         label("BUILD OR REDUCE")
         chips(listOf("Build a habit" to (mode == HabitMode.BUILD),
@@ -186,7 +251,7 @@ class HabitDesignerActivity : AppCompatActivity() {
     }
 
     private fun notice() {
-        header("Step 2 of 6 · Notice",
+        header("Step ${step+1} of ${steps.size} · Notice",
             if (mode == HabitMode.BUILD) "Make it obvious" else "Make it invisible",
             if (mode == HabitMode.BUILD)
                 "A stable cue beats motivation. Choose a time and place, or attach it to " +
@@ -262,7 +327,7 @@ class HabitDesignerActivity : AppCompatActivity() {
     }
 
     private fun want() {
-        header("Step 3 of 6 · Want",
+        header("Step ${step+1} of ${steps.size} · Want",
             if (mode == HabitMode.BUILD) "Make it attractive" else "Make it unattractive",
             if (mode == HabitMode.BUILD)
                 "Anticipation drives action. What will you genuinely look forward to?"
@@ -279,7 +344,7 @@ class HabitDesignerActivity : AppCompatActivity() {
     }
 
     private fun start() {
-        header("Step 4 of 6 · Start",
+        header("Step ${step+1} of ${steps.size} · Start",
             if (mode == HabitMode.BUILD) "Make it easy" else "Make it difficult",
             "The Habit Ladder gives you a version for every kind of day.")
 
@@ -317,7 +382,7 @@ class HabitDesignerActivity : AppCompatActivity() {
     }
 
     private fun feel() {
-        header("Step 5 of 6 · Feel",
+        header("Step ${step+1} of ${steps.size} · Feel",
             if (mode == HabitMode.BUILD) "Make it satisfying" else "Make it unsatisfying",
             "The payoff has to arrive now. Delayed rewards do not close the loop.")
         field("reward", "Immediate reward", "Tick it off and enjoy my coffee")
@@ -328,7 +393,7 @@ class HabitDesignerActivity : AppCompatActivity() {
 
     private fun contract() {
         val h = draft()
-        header("Step 6 of 6 · Contract", getString(R.string.your_contract),
+        header("Step ${step+1} of ${steps.size} · Contract", getString(R.string.your_contract),
             "Read it once. If it sounds unrealistic, shrink it now rather than later.")
 
         val card = layoutInflater.inflate(R.layout.item_identity, stepContent, false)
@@ -385,7 +450,7 @@ class HabitDesignerActivity : AppCompatActivity() {
 
     private fun field(
         key: String, hint: String, placeholder: String,
-        lines: Int = 1, numeric: Boolean = false
+        lines: Int = 1, numeric: Boolean = false, maxLength: Int = Limits.LONG_TEXT
     ) {
         val v = layoutInflater.inflate(R.layout.part_field, stepContent, false)
         val layout = v.findViewById<TextInputLayout>(R.id.field_layout)
@@ -393,6 +458,9 @@ class HabitDesignerActivity : AppCompatActivity() {
         layout.hint = hint
         layout.placeholderText = placeholder
         edit.setText(values[key].orEmpty())
+        edit.filters = arrayOf(android.text.InputFilter.LengthFilter(maxLength))
+        layout.counterEnabled = true
+        layout.counterMaxLength = maxLength
         if (numeric) edit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
         if (lines > 1) {
             edit.isSingleLine = false
@@ -500,11 +568,12 @@ class HabitDesignerActivity : AppCompatActivity() {
     )
 
     private fun validateStep(): Boolean {
-        if (step == 0 && v("title").isBlank()) {
+        val name = steps.getOrNull(step)
+        if (name == "Meaning" && v("title").isBlank()) {
             findViewById<View>(R.id.root).snack("The habit needs a name")
             return false
         }
-        if (step == 1 && v("cueTime").isNotBlank() && !Dates.isValidTime(v("cueTime"))) {
+        if (name == "Notice" && v("cueTime").isNotBlank() && !Dates.isValidTime(v("cueTime"))) {
             findViewById<View>(R.id.root).snack("Cue time should look like 07:30")
             return false
         }
@@ -513,7 +582,7 @@ class HabitDesignerActivity : AppCompatActivity() {
 
     private fun save() {
         if (v("title").isBlank()) {
-            step = 0; render()
+            step = firstMeaningIndex; render()
             findViewById<View>(R.id.root).snack("The habit needs a name")
             return
         }

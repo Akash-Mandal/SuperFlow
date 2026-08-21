@@ -33,6 +33,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.superflow.R
 import com.superflow.ai.Agent
 import com.superflow.ai.Coordinator
+import com.superflow.ai.Speech
 import com.superflow.ai.VoiceInput
 import com.superflow.data.Prefs
 import com.superflow.data.Repository
@@ -79,6 +80,10 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _errors = MutableStateFlow<String?>(null)
     val errors: StateFlow<String?> = _errors.asStateFlow()
+
+    /** Emits the latest assistant reply so the view can optionally speak it. */
+    private val _lastReply = MutableStateFlow<String?>(null)
+    val lastReply: StateFlow<String?> = _lastReply.asStateFlow()
 
     init {
         viewModelScope.launch { repo.revision.collect { refresh() } }
@@ -132,6 +137,7 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
             val outcome = agent.send(text)
             _busy.value = false
             if (outcome.error != null) _errors.value = outcome.error
+            else if (outcome.reply.isNotBlank()) _lastReply.value = outcome.reply
             refresh()
         }
     }
@@ -153,6 +159,7 @@ class CoachFragment : Fragment() {
     private lateinit var adapter: CoachAdapter
     private lateinit var list: RecyclerView
     private var voice: VoiceInput? = null
+    private val speech by lazy { Speech(requireContext()) }
 
     private val micPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -180,6 +187,15 @@ class CoachFragment : Fragment() {
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
             v.updatePadding(bottom = maxOf(bars.bottom, ime.bottom) + v.context.dpPx(76))
+            insets
+        }
+        // Keep the last message visible above the keyboard on small screens (#64).
+        ViewCompat.setOnApplyWindowInsetsListener(list) { v, insets ->
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            v.updatePadding(bottom = if (ime.bottom > 0) v.context.dpPx(8) else 0)
+            if (ime.bottom > 0 && adapter.itemCount > 0) {
+                list.post { list.scrollToPosition(adapter.itemCount - 1) }
+            }
             insets
         }
 
@@ -239,6 +255,13 @@ class CoachFragment : Fragment() {
                         if (it != null) { view.snack(it); model.consumeError() }
                     }
                 }
+                launch {
+                    model.lastReply.collect { reply ->
+                        if (!reply.isNullOrBlank() && model.prefs.ttsEnabled) {
+                            speech.speak(model.prefs, reply)
+                        }
+                    }
+                }
             }
         }
     }
@@ -268,6 +291,12 @@ class CoachFragment : Fragment() {
     override fun onPause() {
         super.onPause()
         voice?.stop()
+        if (::speech.isLazyInitialized) speech.stop()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        if (::speech.isLazyInitialized) speech.shutdown()
     }
 
     override fun onResume() {

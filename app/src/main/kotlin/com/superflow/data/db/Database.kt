@@ -77,11 +77,13 @@ object Schema {
                 targetValue REAL, targetDate INTEGER, currentMetricValue REAL, metricUnit TEXT,
                 status TEXT, milestones TEXT, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_goal_identity ON goal(identityId)")
         db.execSQL(
             """CREATE TABLE sys(
                 id TEXT PRIMARY KEY, goalId TEXT, title TEXT, description TEXT,
                 status TEXT, templateId TEXT, reviewFrequency TEXT, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_sys_goal ON sys(goalId)")
         db.execSQL(
             """CREATE TABLE habit(
                 id TEXT PRIMARY KEY, systemId TEXT, identityId TEXT, title TEXT, mode TEXT,
@@ -99,6 +101,9 @@ object Schema {
                 estimatedMinutes INTEGER, difficultyRating INTEGER,
                 colorSeed INTEGER, orderIndex INTEGER, status TEXT, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_habit_system ON habit(systemId)")
+        db.execSQL("CREATE INDEX idx_habit_identity ON habit(identityId)")
+        db.execSQL("CREATE INDEX idx_habit_status ON habit(status)")
         db.execSQL(
             """CREATE TABLE checkin(
                 id TEXT PRIMARY KEY, habitId TEXT, date TEXT, result TEXT, level TEXT,
@@ -108,6 +113,7 @@ object Schema {
         )
         db.execSQL("CREATE UNIQUE INDEX idx_checkin_day ON checkin(habitId, date)")
         db.execSQL("CREATE INDEX idx_checkin_date ON checkin(date)")
+        db.execSQL("CREATE INDEX idx_checkin_habit ON checkin(habitId)")
         db.execSQL(
             """CREATE TABLE focus(
                 id TEXT PRIMARY KEY, date TEXT, habitId TEXT, title TEXT,
@@ -115,12 +121,14 @@ object Schema {
                 estimatedMinutes INTEGER, carryOverCount INTEGER, orderIndex INTEGER)"""
         )
         db.execSQL("CREATE INDEX idx_focus_date ON focus(date)")
+        db.execSQL("CREATE INDEX idx_focus_habit ON focus(habitId)")
         db.execSQL(
             """CREATE TABLE obstacle(
                 id TEXT PRIMARY KEY, habitId TEXT, ifText TEXT, thenText TEXT,
                 category TEXT, timesUsed INTEGER, lastUsed TEXT, effectiveness INTEGER,
                 createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_obstacle_habit ON obstacle(habitId)")
         db.execSQL(
             """CREATE TABLE scorecard(
                 id TEXT PRIMARY KEY, routine TEXT, verdict INTEGER, note TEXT, createdAt INTEGER)"""
@@ -137,6 +145,8 @@ object Schema {
                 existingBehaviour INTEGER, durationMinutes INTEGER, isBreakpoint INTEGER,
                 orderIndex INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_flowstep_flow ON flowstep(flowId)")
+        db.execSQL("CREATE INDEX idx_flowstep_habit ON flowstep(habitId)")
         db.execSQL(
             """CREATE TABLE review(
                 id TEXT PRIMARY KEY, kind TEXT, periodLabel TEXT, whatWorked TEXT, whatDidnt TEXT,
@@ -148,6 +158,7 @@ object Schema {
                 id TEXT PRIMARY KEY, date TEXT, checkpoint TEXT, energy INTEGER,
                 note TEXT, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_energy_date ON energy(date)")
         db.execSQL(
             """CREATE TABLE audit(
                 id TEXT PRIMARY KEY, actor TEXT, command TEXT, summary TEXT, payload TEXT,
@@ -168,16 +179,19 @@ object Schema {
                 id TEXT PRIMARY KEY, projectId TEXT, name TEXT, kind TEXT, content TEXT,
                 instructions TEXT, lineCount INTEGER, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_bp_source_project ON bp_source(projectId)")
         db.execSQL(
             """CREATE TABLE bp_req(
                 id TEXT PRIMARY KEY, projectId TEXT, text TEXT, sourceId TEXT, citation TEXT,
                 status TEXT, assumption INTEGER, plannedCommand TEXT, note TEXT, orderIndex INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_bp_req_project ON bp_req(projectId)")
         db.execSQL(
             """CREATE TABLE pause(
                 id TEXT PRIMARY KEY, habitId TEXT, startDate TEXT, endDate TEXT,
                 reason TEXT, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_pause_habit ON pause(habitId)")
         db.execSQL(
             """CREATE TABLE profile(
                 id TEXT PRIMARY KEY, displayName TEXT, locale TEXT, zoneId TEXT,
@@ -273,6 +287,7 @@ object Schema {
                 phase_index INTEGER NOT NULL, action TEXT NOT NULL,
                 consistency INTEGER DEFAULT 0, date TEXT NOT NULL, notes TEXT DEFAULT '')"""
         )
+        db.execSQL("CREATE INDEX idx_bp_version_project ON bp_version(projectId)")
     }
 
     /**
@@ -416,6 +431,25 @@ object Schema {
                 date TEXT, createdAt INTEGER)""")
         }
         // ── Functional Plan (PR #8) new tables (idempotent) ─────────────
+        // ── Gap plan (PR #10) Wave 0: foreign-key and query indexes ─────
+        listOf(
+            "CREATE INDEX IF NOT EXISTS idx_goal_identity ON goal(identityId)",
+            "CREATE INDEX IF NOT EXISTS idx_sys_goal ON sys(goalId)",
+            "CREATE INDEX IF NOT EXISTS idx_habit_system ON habit(systemId)",
+            "CREATE INDEX IF NOT EXISTS idx_habit_identity ON habit(identityId)",
+            "CREATE INDEX IF NOT EXISTS idx_habit_status ON habit(status)",
+            "CREATE INDEX IF NOT EXISTS idx_checkin_habit ON checkin(habitId)",
+            "CREATE INDEX IF NOT EXISTS idx_focus_habit ON focus(habitId)",
+            "CREATE INDEX IF NOT EXISTS idx_obstacle_habit ON obstacle(habitId)",
+            "CREATE INDEX IF NOT EXISTS idx_flowstep_flow ON flowstep(flowId)",
+            "CREATE INDEX IF NOT EXISTS idx_flowstep_habit ON flowstep(habitId)",
+            "CREATE INDEX IF NOT EXISTS idx_energy_date ON energy(date)",
+            "CREATE INDEX IF NOT EXISTS idx_bp_source_project ON bp_source(projectId)",
+            "CREATE INDEX IF NOT EXISTS idx_bp_req_project ON bp_req(projectId)",
+            "CREATE INDEX IF NOT EXISTS idx_bp_version_project ON bp_version(projectId)",
+            "CREATE INDEX IF NOT EXISTS idx_pause_habit ON pause(habitId)"
+        ).forEach { sql -> runCatching { db.execSQL(sql) } }
+
         runCatching {
             db.execSQL("""CREATE TABLE IF NOT EXISTS growth_plan(
                 id TEXT PRIMARY KEY, habit_id TEXT NOT NULL, user_id TEXT DEFAULT 'local',

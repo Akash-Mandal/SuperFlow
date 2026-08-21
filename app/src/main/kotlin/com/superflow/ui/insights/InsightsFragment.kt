@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -20,9 +21,10 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.superflow.R
-import com.superflow.data.Prefs
 import com.superflow.data.Repository
 import com.superflow.data.model.CheckInResult
 import com.superflow.domain.Insights
@@ -69,31 +71,28 @@ sealed class InsightRow {
     data class Text(val title: String, val body: String) : InsightRow() {
         override val stableId = ("t$title").hashCode().toLong()
     }
-
-    data class GrowthTrajectory(
-        val title: String,
-        val phasesCount: Int,
-        val currentPhase: Int,
-        val consistencies: List<Int>
-    ) : InsightRow() { override val stableId = 100L }
-
-    data class Correlation(val text: String) : InsightRow() {
-        override val stableId = 101L
-    }
-
-    data class RecoveryStats(val title: String, val text: String) : InsightRow() {
-        override val stableId = 102L
-    }
 }
 
 class InsightsViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = Repository.get(app)
-    val prefs: Prefs = Prefs.get(app)
+    private val _period = MutableStateFlow(30)
+    val period: StateFlow<Int> = _period.asStateFlow()
     private val _rows = MutableStateFlow<List<InsightRow>>(emptyList())
     val rows: StateFlow<List<InsightRow>> = _rows.asStateFlow()
 
-    init { viewModelScope.launch { repo.revision.collect { refresh() } } }
+    init {
+        viewModelScope.launch {
+            repo.revision.collect { refresh() }
+        }
+        viewModelScope.launch {
+            period.collect { refresh() }
+        }
+    }
+
+    fun setPeriod(days: Int) {
+        _period.value = days
+    }
 
     fun refresh() {
         viewModelScope.launch { _rows.value = withContext(Dispatchers.IO) { build() } }
@@ -101,11 +100,10 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun build(): List<InsightRow> {
         val rows = ArrayList<InsightRow>()
+        val days = _period.value
         val today = repo.clock.today()
-        val snap = repo.snapshot()
-        val stats = Insights.allStats(snap, repo, today)
-
-        if (stats.isEmpty()) {
+        val all = Insights.allStats(repo)
+        if (all.isEmpty()) {
             rows.add(InsightRow.Text(
                 "Nothing to measure yet",
                 "Create a habit and check in once. Insights appear as soon as there is real evidence."
@@ -113,59 +111,145 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
             return rows
         }
 
-        // Weekly bar chart
-        val daily = Insights.dailyCounts(repo, 7, today)
+        // Repetitions chart for the selected period (bars for 7d; weekly buckets otherwise).
+        val daily = Insights.dailyCounts(repo, days.coerceAtMost(90))
         rows.add(InsightRow.Chart(
-            "Last 7 days", "Repetitions per day.",
+            "Last $days days", "Repetitions per day.",
             daily.map { (date, count) ->
                 BarChart.Bar(SfTime.dayLetter(date), count, date == today)
             }
         ))
 
-        // 30-day totals (from the snapshot; no extra queries)
-        val window = SfTime.lastDays(30, today).map { SfTime.format(it) }.toSet()
-        val checkIns = snap.checkIns.filter { it.date in window }
-        val reps = checkIns.count { it.isSuccess }
-        val misses = checkIns.count { it.isMiss }
-        val skips = checkIns.count { it.result == CheckInResult.SKIPPED }
-        val recoveries = stats.sumOf { it.recoveries }
+        // Delta vs previous equal-length period (#56).
+        val cur = countWindow(repo, today, days)
+        val prev = countWindow(repo, today.minusDays(days.toLong()), days)
+        val change = if (prev.successes == 0) 0 else
+            ((cur.successes - prev.successes).toDouble() / prev.successes * 100).toInt()
+        val arrow = when {
+            change > 0 -> "↑$change%"
+            change < 0 -> "↓${-change}%"
+            else -> "—"
+        }
         rows.add(InsightRow.Stats(
-            "Last 30 days",
-            "Recovery matters more than a perfect record. $skips intentional skips, $misses misses.",
-            reps.toString(), "Repetitions",
-            stats.maxOfOrNull { it.bestRun }?.toString() ?: "0", "Best run",
-            recoveries.toString(), "Recoveries"
+            "Last $days days",
+            "$arrow vs the previous $days days. Recovery matters more than a perfect record. " +
+                    "${cur.skips} intentional skips, ${cur.misses} misses.",
+            cur.successes.toString(), "Repetitions",
+            all.maxOfOrNull { it.bestRun }?.toString() ?: "0", "Best run",
+            all.sumOf { it.recoveries }.toString(), "Recoveries"
         ))
 
-        // Heatmap of overall activity (from the snapshot; no extra queries)
+        // Expanded stat strip (#60).
+        val stretch = all.sumOf { s ->
+            val cis = repo.checkInsOf(s.habit.id).filter { it.date in SfTime.lastDays(days, today).map(SfTime::format) }
+            cis.count { it.level.name == "STRETCH" }
+        }
+        val avgCons = all.filter { it.hasEnoughData }.map { it.consistency30 }.average().toInt()
+        rows.add(InsightRow.Stats(
+            "At a glance",
+            "Averaged across habits with enough data.",
+            "${all.size}", "Habits",
+            "$avgCons%", "Avg consistency",
+            stretch.toString(), "Stretch reps"
+        ))
+
+        // Day-of-week pattern (#52) over the selected window.
+        if (days >= 14) {
+            val dayCounts = IntArray(7)
+            val dayOpp = IntArray(7)
+            for (s in all) {
+                val series = Insights.seriesFor(repo, s.habit, days, today)
+                for (op in series) {
+                    if (op.counts) {
+                        val dow = op.date.dayOfWeek.value - 1
+                        dayOpp[dow]++
+                        if (op.succeeded) dayCounts[dow]++
+                    }
+                }
+            }
+            val names = listOf("M", "T", "W", "T", "F", "S", "S")
+            val bars = (0..6).map { dow ->
+                val pct = if (dayOpp[dow] == 0) 0
+                else (dayCounts[dow] * 100 / dayOpp[dow])
+                BarChart.Bar(names[dow], pct, dow == today.dayOfWeek.value - 1)
+            }
+            val best = bars.indices.maxByOrNull { bars[it].value }
+            val worst = bars.indices.minByOrNull { bars[it].value }
+            if (best != null && worst != null && dayOpp.sum() >= 7) {
+                rows.add(InsightRow.Text(
+                    "Weekly rhythm",
+                    "Best: ${fullDow(best)} (${bars[best].value}%) · " +
+                            "Hardest: ${fullDow(worst)} (${bars[worst].value}%). " +
+                            "Treat these as hints, not rules."
+                ))
+            }
+        }
+
+        // Heatmap over 18 weeks.
         val cells = ArrayList<Float>()
         val heatDays = SfTime.lastDays(126, today)
-        val byDate = snap.checkIns
+        val byDate = repo.checkInsBetween(
+            SfTime.format(heatDays.first()), SfTime.format(heatDays.last()))
             .filter { it.isSuccess }
-            .groupingBy { it.date }
-            .eachCount()
+            .groupingBy { it.date }.eachCount()
         val peak = (byDate.values.maxOrNull() ?: 1).coerceAtLeast(1)
         for (d in heatDays) cells.add((byDate[SfTime.format(d)] ?: 0).toFloat() / peak)
         rows.add(InsightRow.Heatmap(
             "Consistency map", "The last 18 weeks. Darker means more repetitions that day.", cells
         ))
 
+        // Milestone timeline (#54).
+        val milestones = buildMilestones(repo, all)
+        if (milestones.isNotEmpty()) {
+            rows.add(InsightRow.Section("MILESTONES"))
+            milestones.take(6).forEach { rows.add(InsightRow.Text(it.first, it.second)) }
+        }
+
+        // Growth trajectory (Functional Plan §2)
+        val growthPlans = repo.growthPlans().filter { it.isActive() }
+        if (growthPlans.isNotEmpty()) {
+            rows.add(InsightRow.Section("GROWTH TRAJECTORY"))
+            for (plan in growthPlans) {
+                val habit = repo.habit(plan.habitId)
+                val consistencies = plan.weeklySnapshots.map { it.consistency }
+                if (consistencies.isNotEmpty()) {
+                    rows.add(InsightRow.Text(
+                        "${habit?.title ?: "Habit"} (Phase ${plan.currentPhaseIndex + 1}/${plan.phases.size})",
+                        "Weekly consistency: ${consistencies.joinToString("%, ")}"
+                    ))
+                }
+            }
+        }
+
+        // Pattern analysis (Functional Plan §9)
+        if (all.size >= 2) {
+            rows.add(InsightRow.Section("PATTERNS"))
+            rows.add(InsightRow.Text("Patterns", Insights.analyzePatterns(repo)))
+            rows.add(InsightRow.Text("Correlations", Insights.analyzeCorrelations(repo)))
+        }
+
+        // Recovery speed (Functional Plan §9)
+        if (all.any { it.recoveries > 0 }) {
+            rows.add(InsightRow.Section("RECOVERY SPEED"))
+            rows.add(InsightRow.Text("Recovery trend", Insights.recoverySpeed(repo)))
+        }
+
         // Identity evidence
-        val evidence = Insights.identityEvidence(snap)
+        val evidence = Insights.identityEvidence(repo)
         if (evidence.isNotEmpty()) {
             rows.add(InsightRow.Section("IDENTITY EVIDENCE"))
-            for ((statement, votes, habits) in evidence) {
+            for ((statement, votes, n) in evidence) {
                 rows.add(InsightRow.Text(
                     statement,
-                    "$votes ${if (votes == 1) "vote" else "votes"} from $habits " +
-                            if (habits == 1) "habit" else "habits"
+                    "$votes ${if (votes == 1) "vote" else "votes"} from $n " +
+                            if (n == 1) "habit" else "habits"
                 ))
             }
         }
 
         // Per-habit consistency
         rows.add(InsightRow.Section("BY HABIT"))
-        for (s in stats.sortedByDescending { it.consistency30 }) {
+        for (s in all.sortedByDescending { it.consistency30 }) {
             rows.add(InsightRow.HabitStat(
                 s.habit.id, s.habit.title, s.consistency30,
                 "${s.repetitions} reps · run of ${s.currentRun} · best ${s.bestRun}" +
@@ -177,7 +261,7 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         // Redesign candidates
-        val struggling = stats.filter { it.missesInARow >= 2 }
+        val struggling = all.filter { it.missesInARow >= 2 }
         if (struggling.isNotEmpty()) {
             rows.add(InsightRow.Section("WORTH A REDESIGN"))
             rows.add(InsightRow.Text(
@@ -187,44 +271,12 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
             ))
         }
 
-        // System health (§3)
-        val systems = Insights.systemHealthAll(repo)
-        if (systems.isNotEmpty()) {
-            rows.add(InsightRow.Section("SYSTEMS"))
-            for ((title, health, habits) in systems) {
-                rows.add(InsightRow.Text(
-                    title,
-                    if (habits == 0) "No habits under this system yet."
-                    else "$health% healthy · $habits habits" +
-                            if (health < 40) " · Consider shrinking or rescheduling."
-                            else if (health >= 80) " · Working well."
-                            else ""
-                ))
-            }
-        }
-
-        // Miss reasons (§8)
-        val reasons = Insights.missReasons(repo, 30)
-        if (reasons.isNotEmpty()) {
-            rows.add(InsightRow.Section("MISS REASONS"))
-            val total = reasons.sumOf { it.second }
-            rows.add(InsightRow.Text("What got in the way",
-                reasons.joinToString("\n") { (r, n) ->
-                    "· $r — $n (${(n * 100) / total}%)"
-                } + "\n\nPatterns point to the fix: time → time-blocking, energy → " +
-                        "schedule at your best hours, forgot → a stronger cue."))
-        }
-
         // Energy
         rows.add(InsightRow.Section("ENERGY"))
         rows.add(InsightRow.Text("Energy pattern", Insights.energyPattern(repo)))
-        val corr = Insights.energyCorrelation(repo, 30)
-        if (repo.energyLogs().size >= 6) {
-            rows.add(InsightRow.Text("Energy and completion", corr))
-        }
 
         // Reduce mode
-        val reduce = Insights.reduceModeProgress(snap)
+        val reduce = Insights.reduceModeProgress(repo)
         if (reduce.isNotEmpty()) {
             rows.add(InsightRow.Section("REDUCING"))
             for ((title, resisted, slipped) in reduce) {
@@ -232,44 +284,41 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
 
-        // Growth trajectory
-        val growthPlans = repo.growthPlans().filter { it.isActive() }
-        if (growthPlans.isNotEmpty()) {
-            rows.add(InsightRow.Section("GROWTH TRAJECTORY"))
-            for (plan in growthPlans) {
-                val habit = repo.habit(plan.habitId)
-                val consistencies = plan.weeklySnapshots.map { it.consistency }
-                if (consistencies.isNotEmpty()) {
-                    rows.add(InsightRow.GrowthTrajectory(
-                        title = "${habit?.title ?: "Habit"} (Phase ${plan.currentPhaseIndex + 1}/${plan.phases.size})",
-                        phasesCount = plan.phases.size,
-                        currentPhase = plan.currentPhaseIndex,
-                        consistencies = consistencies
-                    ))
-                }
-            }
-        }
-
-        // Pattern analysis
-        if (stats.size >= 2 && checkIns.size >= 20) {
-            rows.add(InsightRow.Section("PATTERNS"))
-            rows.add(InsightRow.Correlation(Insights.analyzePatterns(repo)))
-            rows.add(InsightRow.Correlation(Insights.analyzeCorrelations(repo)))
-        }
-
-        // Recovery speed
-        if (stats.any { it.recoveries > 0 }) {
-            rows.add(InsightRow.Section("RECOVERY SPEED"))
-            rows.add(InsightRow.RecoveryStats("Recovery trend", Insights.recoverySpeed(repo)))
-        }
-
-        // Energy-aware schedule
-        if (prefs.energyTracking) {
-            rows.add(InsightRow.Section("ENERGY & SCHEDULE"))
-            rows.add(InsightRow.Text("Energy-aware advice", Insights.energyAwareSchedule(repo)))
-        }
-
         return rows
+    }
+
+    private data class Window(val successes: Int, val misses: Int, val skips: Int)
+
+    private fun countWindow(repo: Repository, end: LocalDate, days: Int): Window {
+        val start = end.minusDays(days.toLong() - 1)
+        val cis = repo.checkInsBetween(SfTime.format(start), SfTime.format(end))
+        return Window(
+            cis.count { it.isSuccess },
+            cis.count { it.isMiss },
+            cis.count { it.result == CheckInResult.SKIPPED }
+        )
+    }
+
+    private fun fullDow(index: Int): String =
+        listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")[index]
+
+    /** Build a chronological list of (title, detail) milestone markers. */
+    private fun buildMilestones(
+        repo: Repository, stats: List<com.superflow.data.model.HabitStats>
+    ): List<Pair<String, String>> {
+        val out = ArrayList<Pair<String, String>>()
+        for (s in stats) {
+            val first = s.habit.createdAt
+            val firstLabel = SfTime.shortDay(
+                java.time.Instant.ofEpochMilli(first)
+                    .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+            )
+            out.add("Started ${s.habit.title}" to firstLabel)
+            if (s.bestRun >= 7) out.add("7-day run: ${s.habit.title}" to "${s.bestRun} days best")
+            if (s.repetitions >= 21) out.add("21 reps: ${s.habit.title}" to "${s.repetitions} total")
+            if (s.repetitions >= 100) out.add("100 reps: ${s.habit.title}" to "${s.repetitions} total")
+        }
+        return out.sortedBy { it.second }
     }
 }
 
@@ -291,6 +340,29 @@ class InsightsFragment : Fragment() {
             v.updatePadding(top = bars.top + v.context.resources.getDimensionPixelSize(R.dimen.space_m))
             insets
         }
+
+        // Period switcher (#47): 7 / 30 / 90 days / year.
+        val margin = resources.getDimensionPixelSize(R.dimen.screen_margin)
+        val periodGroup = ChipGroup(requireContext()).apply {
+            isSingleSelection = true
+            isSelectionRequired = true
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = resources.getDimensionPixelSize(R.dimen.space_s) }
+            setPadding(margin, 0, margin, 0)
+        }
+        listOf(7 to "7d", 30 to "30d", 90 to "90d", 365 to "Year").forEach { (days, label) ->
+            periodGroup.addView(Chip(requireContext()).apply {
+                text = label
+                isCheckable = true
+                isChecked = days == model.period.value
+                setEnsureMinTouchTargetSize(false)
+                setOnClickListener { model.setPeriod(days) }
+            })
+        }
+        val header = view.findViewById<ViewGroup>(R.id.header)
+        header.addView(periodGroup)
 
         val list = view.findViewById<RecyclerView>(R.id.list)
         val adapter = InsightsAdapter()
@@ -337,9 +409,6 @@ class InsightsAdapter : ListAdapter<InsightRow, RecyclerView.ViewHolder>(DIFF) {
         is InsightRow.Section -> T_SECTION
         is InsightRow.HabitStat -> T_HABIT
         is InsightRow.Text -> T_TEXT
-        is InsightRow.GrowthTrajectory -> T_CHART
-        is InsightRow.Correlation -> T_TEXT
-        is InsightRow.RecoveryStats -> T_TEXT
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {

@@ -13,9 +13,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.DefaultItemAnimator
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.superflow.R
 import com.superflow.data.model.Checkpoint
@@ -28,6 +30,8 @@ import com.superflow.ui.MainActivity
 import com.superflow.ui.common.snack
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.detail.HabitDetailActivity
+import com.superflow.ui.search.SearchActivity
+import com.superflow.ui.sheets.PlanTomorrowSheet
 import com.superflow.ui.sheets.TextInputSheet
 import com.superflow.util.Dates
 import kotlinx.coroutines.launch
@@ -61,6 +65,34 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
         list.adapter = adapter
         (list.itemAnimator as? DefaultItemAnimator)?.supportsChangeAnimations = false
 
+        // Drag-and-drop reorder of habit rows (#12). Long-press a card to drag;
+        // only Habit rows are movable, and the new order is persisted on drop.
+        val touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0
+        ) {
+            override fun isLongPressDragEnabled() = true
+
+            override fun onMove(
+                rv: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean {
+                val fromHabit = (viewHolder as? TodayAdapter.HabitVH)?.habit ?: return false
+                val toHabit = (target as? TodayAdapter.HabitVH)?.habit ?: return false
+                model.reorderHabitTo(fromHabit.id, toHabit.id)
+                return true
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit
+
+            override fun getMovementFlags(
+                rv: RecyclerView, viewHolder: RecyclerView.ViewHolder
+            ): Int = if (viewHolder is TodayAdapter.HabitVH) {
+                makeMovementFlags(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0)
+            } else 0
+        })
+        touchHelper.attachToRecyclerView(list)
+
         ViewCompat.setOnApplyWindowInsetsListener(view.findViewById(R.id.header)) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.updatePadding(top = bars.top + v.context.resources.getDimensionPixelSize(R.dimen.space_m))
@@ -69,8 +101,33 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
 
         toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                R.id.action_plan_tomorrow -> { model.planTomorrow(); true }
+                R.id.action_search -> {
+                    startActivity(Intent(requireContext(), SearchActivity::class.java))
+                    true
+                }
+                R.id.action_plan_tomorrow -> {
+                    PlanTomorrowSheet.show(parentFragmentManager); true
+                }
                 R.id.action_minimum_mode -> { model.minimumMode(); true }
+                R.id.action_complete_all_tiny -> {
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.complete_all_tiny)
+                        .setMessage("Mark every habit still open today as Tiny? " +
+                                "A small win still counts, and you can undo it.")
+                        .setNegativeButton(R.string.cancel, null)
+                        .setPositiveButton(R.string.done) { _, _ -> model.completeAllTiny() }
+                        .show()
+                    true
+                }
+                R.id.action_undo_today -> {
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.undo_today)
+                        .setMessage("Revert every check-in recorded today? This can be undone from the Activity trail.")
+                        .setNegativeButton(R.string.cancel, null)
+                        .setPositiveButton(R.string.undo) { _, _ -> model.undoToday() }
+                        .show()
+                    true
+                }
                 R.id.action_recovery -> {
                     startActivity(Intent(requireContext(),
                         com.superflow.ui.recovery.RecoveryActivity::class.java))
@@ -148,7 +205,54 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
 
     override fun onFocusSuggest() = model.suggestFocus()
     override fun onEnergy(value: Int) = model.logEnergy(value)
-    override fun onCheckpoint(cp: Checkpoint) = model.runCheckpoint(cp)
+    override fun onCheckpoint(cp: Checkpoint) {
+        model.runCheckpoint(cp)
+        // Show the guided checkpoint content (#22).
+        val scheduled = model.habitsToday()
+        val done = model.doneToday()
+        val focus = model.focusToday()
+        val title = when (cp) {
+            Checkpoint.MORNING -> "Morning checkpoint"
+            Checkpoint.MIDDAY -> "Midday checkpoint"
+            Checkpoint.EVENING -> "Evening checkpoint"
+        }
+        val body = buildString {
+            append(when (cp) {
+                Checkpoint.MORNING ->
+                    "${scheduled.size} habit(s) scheduled today." +
+                            if (focus.isNotEmpty()) " Focus: ${focus.joinToString(", ") { it.title }}." else ""
+                Checkpoint.MIDDAY ->
+                    "$done of ${scheduled.size} done so far. " +
+                            "If the day got away, a Tiny Start still counts."
+                Checkpoint.EVENING ->
+                    "$done of ${scheduled.size} completed. " +
+                            "You can mark open habits as Tiny or prepare one thing for tomorrow."
+            })
+            append("\n\nEnergy logged at this checkpoint shapes your insights.")
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(title)
+            .setMessage(body)
+            .setPositiveButton(R.string.done, null)
+            .show()
+    }
+
+    override fun onSuggestionAction(row: TodayRow.Suggestion) {
+        when (row.tone) {
+            com.superflow.ai.Suggestions.Tone.DESIGN,
+            com.superflow.ai.Suggestions.Tone.INSIGHT,
+            com.superflow.ai.Suggestions.Tone.ENCOURAGE -> onSuggestionOpen(row)
+            else -> model.actOnSuggestion(row)
+        }
+    }
+
+    override fun onSuggestionOpen(row: TodayRow.Suggestion) {
+        val id = row.habitId ?: return
+        startActivity(
+            Intent(requireContext(), HabitDetailActivity::class.java)
+                .putExtra(HabitDetailActivity.EXTRA_HABIT_ID, id)
+        )
+    }
 
     override fun onEmptyAction() {
         startActivity(Intent(requireContext(), HabitDesignerActivity::class.java))
