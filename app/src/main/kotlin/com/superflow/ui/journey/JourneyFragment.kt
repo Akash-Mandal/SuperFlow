@@ -149,7 +149,10 @@ class JourneyFragment : Fragment() {
                     rv: RecyclerView, vh: RecyclerView.ViewHolder
                 ): Int {
                     val pos = vh.bindingAdapterPosition
-                    return if (adapter.isDraggable(pos)) makeMovementFlags(UP or DOWN, 0) else 0
+                    return if (adapter.isDraggable(pos)) makeMovementFlags(
+                        androidx.recyclerview.widget.ItemTouchHelper.UP or
+                            androidx.recyclerview.widget.ItemTouchHelper.DOWN, 0
+                    ) else 0
                 }
 
                 override fun clearView(rv: RecyclerView, vh: RecyclerView.ViewHolder) {

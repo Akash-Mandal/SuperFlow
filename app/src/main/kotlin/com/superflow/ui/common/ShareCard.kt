@@ -125,7 +125,7 @@ object ShareCard {
             counts.forEachIndexed { i, (_, count) ->
                 val left = 72f + i * cell
                 val color = if (count > 0) GREEN else LINE
-                val p = Paint().apply { color = color }
+                val p = Paint().apply { this.color = color }
                 canvas.drawRoundRect(
                     RectF(left, top + 96f, left + cell - 8f, top + 144f), 12f, 12f, p
                 )

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -15,7 +16,7 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
 import com.superflow.ai.Coordinator
-import com.superflow.components.SfChip
+import com.superflow.ui.components.SfChip
 import com.superflow.data.Prefs
 import com.superflow.data.model.LifeArea
 import com.superflow.design.OnboardingFlow

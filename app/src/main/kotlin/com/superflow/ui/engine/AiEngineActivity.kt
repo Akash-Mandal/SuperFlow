@@ -123,6 +123,18 @@ class AiEngineActivity : ScrollActivity() {
         // Provider
         content.addView(section("CLOUD MAIN BRAIN"))
 
+        // The preset chips are built after the fields they populate, but they
+        // belong above them on screen, so remember the slot and insert there.
+        val presetIndex = content.childCount
+
+        val providerField = field("Provider name", prefs.providerName)
+        val baseField = field("Base URL", prefs.baseUrl)
+        val fallbackField = field("Fallback URL (optional)", prefs.fallbackUrl)
+        val modelField = field("Model", prefs.model)
+        val orgField = field("Organization ID (optional)", prefs.organizationId)
+        val keyField = field("API key (leave blank to keep)", "")
+        val headersField = field("Custom headers (one per line: Name: Value)", prefs.customHeaders, lines = 2)
+
         // Provider presets
         val presetChips = ChipGroup(this).apply { isSingleSelection = false }
         listOf(
@@ -144,15 +156,7 @@ class AiEngineActivity : ScrollActivity() {
                 }
             })
         }
-        content.addView(presetChips)
-
-        val providerField = field("Provider name", prefs.providerName)
-        val baseField = field("Base URL", prefs.baseUrl)
-        val fallbackField = field("Fallback URL (optional)", prefs.fallbackUrl)
-        val modelField = field("Model", prefs.model)
-        val orgField = field("Organization ID (optional)", prefs.organizationId)
-        val keyField = field("API key (leave blank to keep)", "")
-        val headersField = field("Custom headers (one per line: Name: Value)", prefs.customHeaders, lines = 2)
+        content.addView(presetChips, presetIndex)
         content.addView(textCard("Key status", prefs.maskedKey()))
 
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -955,10 +959,10 @@ class AiEngineActivity : ScrollActivity() {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             )
-            boxCornerRadiusTopStart = dpi(16).toFloat()
-            boxCornerRadiusTopEnd = dpi(16).toFloat()
-            boxCornerRadiusBottomStart = dpi(16).toFloat()
-            boxCornerRadiusBottomEnd = dpi(16).toFloat()
+            setBoxCornerRadii(
+                dpi(16).toFloat(), dpi(16).toFloat(),
+                dpi(16).toFloat(), dpi(16).toFloat()
+            )
             suffixText = if (max > 100_000) "" else "($min–$max)"
         }
         val edit = TextInputEditText(this).apply {

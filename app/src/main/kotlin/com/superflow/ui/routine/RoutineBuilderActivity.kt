@@ -108,7 +108,8 @@ class RoutineBuilderActivity : ScrollActivity() {
         val title = parts[0].trim()
         val minutes = parts.getOrNull(1)?.trim()?.filter { it.isDigit() }?.toIntOrNull() ?: 5
         val steps = repo.routineSteps(routine.id)
-        val step = RoutineStep(routineId = routine.id, title = title,
+        // A step typed into the builder is free text, not a linked habit.
+        val step = RoutineStep(routineId = routine.id, habitId = null, title = title,
             durationMinutes = minutes, orderIndex = steps.size)
         repo.saveRoutineStep(step)
         snack("Step added: $title (${minutes} min)")

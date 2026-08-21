@@ -17,6 +17,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.navigation.NavigationBarView
 import com.google.android.material.navigationrail.NavigationRailView
+import com.superflow.DynamicShortcuts
 import com.superflow.R
 import com.superflow.data.Prefs
 import com.superflow.design.Navigation

@@ -67,7 +67,7 @@ class DailyRolloverWorker(
             // rescheduleAllNow runs on the serialized background lane and
             // completes before this worker reports done.
             Reminders.rescheduleAllNow(applicationContext)
-            TodayWidget.refresh(applicationContext, force = true)
+            TodayWidget.refresh(applicationContext)
             Result.success()
         } catch (e: Exception) {
             Log.w(TAG, "Daily rollover failed; will retry", e)
@@ -125,7 +125,7 @@ class ReminderRefreshWorker(
 
     override suspend fun doWork(): Result = try {
         Reminders.rescheduleAllNow(applicationContext)
-        TodayWidget.refresh(applicationContext, force = true)
+        TodayWidget.refresh(applicationContext)
         Result.success()
     } catch (e: Exception) {
         Log.w(TAG, "Reminder refresh failed; will retry", e)
@@ -203,55 +203,57 @@ class ReviewWorker(
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
 
-    override suspend fun doWork(): Result = try {
-        val repo = Repository.get(applicationContext)
-        val prefs = WorkPrefs.get(applicationContext)
-        val today = repo.clock.today()
-        // The weekly draft is prepared on Sunday (the end of the ISO week).
-        // Runs on other days simply no-op so WorkManager's daily cadence is
-        // safe if the Sunday execution was deferred by doze.
-        if (today.dayOfWeek != java.time.DayOfWeek.SUNDAY) return Result.success()
-        val label = "Week of ${SfTime.shortDay(SfTime.startOfWeek(today))}"
-        // One draft per ISO week.
-        if (prefs.lastReviewWeek() != label) {
-            val stats = Insights.allStats(repo, today)
-            val reps = stats.sumOf { it.repetitions }
-            val recoveries = stats.sumOf { it.recoveries }
-            val best = stats.filter { it.hasEnoughData }.maxByOrNull { it.consistency30 }
-            val draft = buildString {
-                append("Auto-draft for $label\n\n")
-                append("Repetitions this period: $reps\n")
-                append("Recoveries after a miss: $recoveries\n")
-                best?.let {
-                    append("Most consistent: ${it.habit.title} (${it.consistency30}%")
-                    if (it.hasEnoughData) append(" of ${it.opportunities30} opportunities")
-                    append(")\n")
+    override suspend fun doWork(): Result {
+        return try {
+            val repo = Repository.get(applicationContext)
+            val prefs = WorkPrefs.get(applicationContext)
+            val today = repo.clock.today()
+            // The weekly draft is prepared on Sunday (the end of the ISO week).
+            // Runs on other days simply no-op so WorkManager's daily cadence is
+            // safe if the Sunday execution was deferred by doze.
+            if (today.dayOfWeek != java.time.DayOfWeek.SUNDAY) return Result.success()
+            val label = "Week of ${SfTime.shortDay(SfTime.startOfWeek(today))}"
+            // One draft per ISO week.
+            if (prefs.lastReviewWeek() != label) {
+                val stats = Insights.allStats(repo, today)
+                val reps = stats.sumOf { it.repetitions }
+                val recoveries = stats.sumOf { it.recoveries }
+                val best = stats.filter { it.hasEnoughData }.maxByOrNull { it.consistency30 }
+                val draft = buildString {
+                    append("Auto-draft for $label\n\n")
+                    append("Repetitions this period: $reps\n")
+                    append("Recoveries after a miss: $recoveries\n")
+                    best?.let {
+                        append("Most consistent: ${it.habit.title} (${it.consistency30}%")
+                        if (it.hasEnoughData) append(" of ${it.opportunities30} opportunities")
+                        append(")\n")
+                    }
+                    append("\nWhat worked? What did not? What is one system change?")
                 }
-                append("\nWhat worked? What did not? What is one system change?")
-            }
-            val review = com.superflow.data.model.Review(
-                kind = com.superflow.data.model.ReviewKind.WEEKLY,
-                periodLabel = label,
-                whatWorked = draft
-            )
-            repo.saveReview(review)
-            prefs.setLastReviewWeek(label)
-
-            // Sunday-evening summary notification (#17).
-            val Prefs = com.superflow.data.Prefs.get(applicationContext)
-            if (Prefs.remindersEnabled) {
-                Reminders.notify(
-                    applicationContext, 9100,
-                    Reminders.CHANNEL_REVIEWS,
-                    "Your week is ready to review",
-                    "$reps repetitions, $recoveries recoveries this week. " +
-                            "A few minutes on what worked makes next week easier."
+                val review = com.superflow.data.model.Review(
+                    kind = com.superflow.data.model.ReviewKind.WEEKLY,
+                    periodLabel = label,
+                    whatWorked = draft
                 )
+                repo.saveReview(review)
+                prefs.setLastReviewWeek(label)
+
+                // Sunday-evening summary notification (#17).
+                val Prefs = com.superflow.data.Prefs.get(applicationContext)
+                if (Prefs.remindersEnabled) {
+                    Reminders.notify(
+                        applicationContext, 9100,
+                        Reminders.CHANNEL_REVIEWS,
+                        "Your week is ready to review",
+                        "$reps repetitions, $recoveries recoveries this week. " +
+                                "A few minutes on what worked makes next week easier."
+                    )
+                }
             }
+            Result.success()
+        } catch (e: Exception) {
+            Result.retry()
         }
-        Result.success()
-    } catch (e: Exception) {
-        Result.retry()
     }
 
     companion object {
@@ -361,15 +363,17 @@ class WeeklySummaryWorker(
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
 
-    override suspend fun doWork(): Result = try {
-        val prefs = Prefs.get(applicationContext)
-        if (!prefs.weeklySummaryEnabled) return Result.success()
-        val repo = Repository.get(applicationContext)
-        if (repo.clock.today().dayOfWeek.value != prefs.weeklySummaryDay) return Result.success()
-        postSummary(repo)
-        Result.success()
-    } catch (e: Exception) {
-        Result.retry()
+    override suspend fun doWork(): Result {
+        return try {
+            val prefs = Prefs.get(applicationContext)
+            if (!prefs.weeklySummaryEnabled) return Result.success()
+            val repo = Repository.get(applicationContext)
+            if (repo.clock.today().dayOfWeek.value != prefs.weeklySummaryDay) return Result.success()
+            postSummary(repo)
+            Result.success()
+        } catch (e: Exception) {
+            Result.retry()
+        }
     }
 
     private fun postSummary(repo: Repository) {
@@ -509,7 +513,7 @@ object BackgroundWork {
                 .build()
             runCatching {
                 manager.enqueueUniquePeriodicWork(
-                    BackupWorker.NAME, ExistingPeriodicWorkPolicy.UPDATE, backup
+                    BackupWorker.NAME, ExistingPeriodicWorkPolicy.REPLACE, backup
                 )
             }
         } else {

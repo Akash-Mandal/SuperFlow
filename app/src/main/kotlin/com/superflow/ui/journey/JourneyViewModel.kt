@@ -64,6 +64,7 @@ sealed class JourneyRow {
         val kind: String get() = row.node.kind.key
         val title: String get() = row.node.title
         val archived: Boolean get() = row.node.archived
+        val graduated: Boolean get() = row.node.graduated
         override val stableId = (row.key).hashCode().toLong()
     }
 

@@ -42,7 +42,7 @@ class VoiceInput(private val context: Context) {
          * An intent that opens the system voice-input settings, so a user on a
          * de-Googled device without a recogniser can install/enable one (#2).
          */
-        fun settingsIntent(): Intent = Intent(RecognizerIntent.ACTION_VOICE_INPUT_SETTINGS)
+        fun settingsIntent(): Intent = Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS)
 
         const val PERMISSION = Manifest.permission.RECORD_AUDIO
     }
