@@ -258,7 +258,12 @@ private fun parseLadderEvolution(raw: String): List<LadderEvolution> {
 private fun parseContextTags(raw: String): List<String> {
     if (raw.isBlank()) return emptyList()
     return try {
-        JSONArray(raw).objects().map { it.optString("tag", "") }.filter { it.isNotBlank() }
+        val arr = JSONArray(raw)
+        (0 until arr.length()).mapNotNull { i ->
+            val s = arr.optString(i, "")
+            if (s.isNotBlank()) s
+            else arr.optJSONObject(i)?.optString("tag", "")?.takeIf { it.isNotBlank() }
+        }
     } catch (_: Exception) {
         // Fallback: comma-separated
         raw.split(",").map { it.trim() }.filter { it.isNotBlank() }

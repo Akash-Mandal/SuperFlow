@@ -367,7 +367,11 @@ object Serial {
 
     fun parseContextTags(arr: JSONArray?): List<String> {
         if (arr == null || arr.length() == 0) return emptyList()
-        return arr.objects().map { o -> o.optString("tag", "") }.filter { it.isNotBlank() }
+        return (0 until arr.length()).mapNotNull { i ->
+            val s = arr.optString(i, "")
+            if (s.isNotBlank()) s
+            else arr.optJSONObject(i)?.optString("tag", "")?.takeIf { it.isNotBlank() }
+        }
     }
 
     fun parseReviewActionItems(arr: JSONArray?): List<ReviewActionItem> {

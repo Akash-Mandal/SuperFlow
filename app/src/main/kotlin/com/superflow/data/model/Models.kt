@@ -210,31 +210,7 @@ data class LadderEvolution(
     val newText: String,
     val reason: String,
     val date: String
-) {
-    fun levelText(level: Level): String = when (level) {
-        Level.TINY -> tinyStart.ifBlank { title }
-        Level.MINIMUM -> minimumVersion.ifBlank { tinyStart.ifBlank { title } }
-        Level.STANDARD -> standardVersion.ifBlank { title }
-        Level.STRETCH -> stretchVersion.ifBlank { standardVersion.ifBlank { title } }
-    }
-
-    /** Plain-language contract shown before saving. */
-    fun contract(): String {
-        val sb = StringBuilder()
-        val when0 = when {
-            anchorText.isNotBlank() -> "After ${anchorText.trim().removePrefix("After ").trim()}"
-            cueTime.isNotBlank() && cuePlace.isNotBlank() -> "At $cueTime in $cuePlace"
-            cueTime.isNotBlank() -> "At $cueTime"
-            cuePlace.isNotBlank() -> "In $cuePlace"
-            else -> "Today"
-        }
-        sb.append(when0).append(", I will ").append(levelText(Level.STANDARD).trimEnd('.')).append(".")
-        if (tinyStart.isNotBlank()) sb.append(" On a hard day I can stop after ").append(tinyStart.trimEnd('.')).append(".")
-        if (environmentPrep.isNotBlank()) sb.append(" Beforehand: ").append(environmentPrep.trimEnd('.')).append(".")
-        if (reward.isNotBlank()) sb.append(" Afterward: ").append(reward.trimEnd('.')).append(".")
-        return sb.toString()
-    }
-}
+)
 
 data class CheckIn(
     val id: String = newId(),

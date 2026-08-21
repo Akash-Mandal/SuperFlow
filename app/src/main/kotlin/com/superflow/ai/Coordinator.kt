@@ -38,7 +38,8 @@ object Coordinator {
         }
     }
 
-    fun interpret(text: String, repo: Repository): Plan? = interpret(text, Lookup.from(repo))
+    fun interpret(text: String, repo: Repository): Plan? =
+        interpret(text, Lookup.from(repo)) ?: interpretWithRepo(text, repo)
 
     fun interpret(text: String, lookup: Lookup): Plan? {
         val raw = text.trim()
@@ -205,6 +206,13 @@ object Coordinator {
             return Plan("get_miss_patterns", JSONObject(), 0.9)
         }
 
+        return null
+    }
+
+    /** Core Growth Systems NLP that needs the repository, not just habit lookup. */
+    private fun interpretWithRepo(text: String, repo: Repository): Plan? {
+        val raw = text.trim()
+        val s = raw.lowercase()
         if (s.contains("rate the reward") || s.contains("reward satisfaction")) {
             Regex("(?:for |on )?([a-z ]+?)(?: as |: )?([1-5])(?:/5)?$").find(raw)?.let { m ->
                 val name = m.groupValues[1].trim()
@@ -256,7 +264,7 @@ object Coordinator {
         }
 
         if (matches(s, "update goal metric", "goal progress", "goal metric")) {
-            val goal = repo.goals().firstOrNull() ?: return@interpret null
+            val goal = repo.goals().firstOrNull() ?: return null
             Regex("(\\d+(?:\\.\\d+)?)\\s*([a-z]*)$").find(raw)?.let { m ->
                 return Plan("update_goal_metric",
                     jsonOf("goalId" to goal.id, "value" to m.groupValues[1].toDouble(),

@@ -12,6 +12,7 @@ import com.superflow.data.model.CheckInResult
 import com.superflow.data.model.Habit
 import com.superflow.data.model.HabitMode
 import com.superflow.data.model.HabitStats
+import com.superflow.data.model.Identity
 import com.superflow.data.model.Level
 import com.superflow.data.model.Sys
 import java.time.LocalDate
@@ -338,6 +339,7 @@ object Insights {
                 )
                 Opportunities.needsReturn(series, date)
             }
+    }
 
     /* ------------------------------------------- Core Growth Systems analytics */
 
@@ -508,7 +510,8 @@ object Insights {
         if (!repo.scheduleOf(habit).activeOn(date)) return null
         val pattern = weekdayPattern(repo, habit)
         val dow = date.dayOfWeek.toString().take(3)
-        val (misses, total) = pattern.firstOrNull { it.first == dow } ?: return null
+        val (_, counts) = pattern.firstOrNull { it.first == dow } ?: return null
+        val (misses, total) = counts
         if (total < 3) return null
         val rate = (misses * 100) / total
         if (rate <= 40) return null

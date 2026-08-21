@@ -24,7 +24,7 @@ class SuperFlowDatabase private constructor(context: Context) {
     companion object {
         const val NAME = "superflow.db"
         const val VERSION = 4
-        private const val TAG = "SuperFlowDb"
+        const val TAG = "SuperFlowDb"
 
         @Volatile private var instance: SuperFlowDatabase? = null
 
@@ -204,9 +204,10 @@ object Schema {
      * migration failure must be visible in logcat, not silent.
      */
     fun upgrade(db: SupportSQLiteDatabase, old: Int, new: Int) {
-        Log.i(TAG, "Migrating $NAME from version $old to $new")
+        Log.i(SuperFlowDatabase.TAG, "Migrating ${SuperFlowDatabase.NAME} from version $old to $new")
         if (old < 2) migrateToV2(db)
         if (old < 3) migrateToV3(db)
+        if (old < 4) migrateToV4(db)
     }
 
     /** v2: colour seeds, blueprint parent versions and the version table. */
@@ -262,7 +263,7 @@ object Schema {
             db.execSQL(sql)
         } catch (e: Exception) {
             if (e.message.orEmpty().contains("duplicate column name", ignoreCase = true)) return
-            Log.e(TAG, "Migration ALTER on $table failed", e)
+            Log.e(SuperFlowDatabase.TAG, "Migration ALTER on $table failed", e)
         }
     }
 
@@ -270,68 +271,69 @@ object Schema {
         try {
             block()
         } catch (e: Exception) {
-            Log.e(TAG, "Migration step failed: $step", e)
+            Log.e(SuperFlowDatabase.TAG, "Migration step failed: $step", e)
         }
-        if (old < 4) {
-            // v4: Core Growth Systems upgrade — new columns across all tables
-            // Identity
-            runCatching { db.execSQL("ALTER TABLE identity ADD COLUMN isPrimary INTEGER DEFAULT 1") }
-            runCatching { db.execSQL("ALTER TABLE identity ADD COLUMN evolutionHistory TEXT DEFAULT ''") }
-            // Goal
-            runCatching { db.execSQL("ALTER TABLE goal ADD COLUMN currentMetricValue REAL") }
-            runCatching { db.execSQL("ALTER TABLE goal ADD COLUMN metricUnit TEXT DEFAULT ''") }
-            runCatching { db.execSQL("ALTER TABLE goal ADD COLUMN milestones TEXT DEFAULT ''") }
-            // Sys
-            runCatching { db.execSQL("ALTER TABLE sys ADD COLUMN templateId TEXT") }
-            runCatching { db.execSQL("ALTER TABLE sys ADD COLUMN reviewFrequency TEXT DEFAULT 'monthly'") }
-            // Habit — Four Laws, Ladder, Capacity
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN rewardSatisfaction INTEGER") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN rewardLastRated TEXT") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN reframeHelpful INTEGER") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN bundleEffectiveness INTEGER") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN frictionPlanActive INTEGER DEFAULT 0") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN environmentPrepReminderTime TEXT") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN ladderHistory TEXT DEFAULT ''") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN lastDifficultyRating INTEGER") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN stretchCount INTEGER DEFAULT 0") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN consecutiveStandards INTEGER DEFAULT 0") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN estimatedMinutes INTEGER DEFAULT 5") }
-            runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN difficultyRating INTEGER DEFAULT 3") }
-            // CheckIn
-            runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN contextTags TEXT DEFAULT ''") }
-            runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN actualAmount REAL") }
-            runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN actualDurationMinutes INTEGER") }
-            runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN qualityRating INTEGER") }
-            runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN difficultyRating INTEGER") }
-            runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN missReason TEXT") }
-            runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN missReasonDetail TEXT") }
-            // Focus
-            runCatching { db.execSQL("ALTER TABLE focus ADD COLUMN isPriority INTEGER DEFAULT 0") }
-            runCatching { db.execSQL("ALTER TABLE focus ADD COLUMN goalId TEXT") }
-            runCatching { db.execSQL("ALTER TABLE focus ADD COLUMN estimatedMinutes INTEGER") }
-            runCatching { db.execSQL("ALTER TABLE focus ADD COLUMN carryOverCount INTEGER DEFAULT 0") }
-            // Obstacle
-            runCatching { db.execSQL("ALTER TABLE obstacle ADD COLUMN category TEXT") }
-            runCatching { db.execSQL("ALTER TABLE obstacle ADD COLUMN timesUsed INTEGER DEFAULT 0") }
-            runCatching { db.execSQL("ALTER TABLE obstacle ADD COLUMN lastUsed TEXT") }
-            runCatching { db.execSQL("ALTER TABLE obstacle ADD COLUMN effectiveness INTEGER") }
-            // Flow
-            runCatching { db.execSQL("ALTER TABLE flow ADD COLUMN estimatedMinutes INTEGER DEFAULT 0") }
-            runCatching { db.execSQL("ALTER TABLE flow ADD COLUMN completionCount INTEGER DEFAULT 0") }
-            runCatching { db.execSQL("ALTER TABLE flow ADD COLUMN partialCount INTEGER DEFAULT 0") }
-            // FlowStep
-            runCatching { db.execSQL("ALTER TABLE flowstep ADD COLUMN durationMinutes INTEGER DEFAULT 0") }
-            runCatching { db.execSQL("ALTER TABLE flowstep ADD COLUMN isBreakpoint INTEGER DEFAULT 0") }
-            // Review
-            runCatching { db.execSQL("ALTER TABLE review ADD COLUMN autoGeneratedData TEXT DEFAULT ''") }
-            runCatching { db.execSQL("ALTER TABLE review ADD COLUMN actionItems TEXT DEFAULT ''") }
-            runCatching { db.execSQL("ALTER TABLE review ADD COLUMN previousReviewId TEXT") }
-            // Identity evidence journal
-            runCatching {
-                db.execSQL("""CREATE TABLE IF NOT EXISTS evidence(
-                    id TEXT PRIMARY KEY, identityId TEXT, text TEXT, sourceHabitId TEXT,
-                    date TEXT, createdAt INTEGER)""")
-            }
+    }
+
+    /** v4: Core Growth Systems upgrade — new columns across all tables. */
+    private fun migrateToV4(db: SupportSQLiteDatabase) {
+        // Identity
+        runCatching { db.execSQL("ALTER TABLE identity ADD COLUMN isPrimary INTEGER DEFAULT 1") }
+        runCatching { db.execSQL("ALTER TABLE identity ADD COLUMN evolutionHistory TEXT DEFAULT ''") }
+        // Goal
+        runCatching { db.execSQL("ALTER TABLE goal ADD COLUMN currentMetricValue REAL") }
+        runCatching { db.execSQL("ALTER TABLE goal ADD COLUMN metricUnit TEXT DEFAULT ''") }
+        runCatching { db.execSQL("ALTER TABLE goal ADD COLUMN milestones TEXT DEFAULT ''") }
+        // Sys
+        runCatching { db.execSQL("ALTER TABLE sys ADD COLUMN templateId TEXT") }
+        runCatching { db.execSQL("ALTER TABLE sys ADD COLUMN reviewFrequency TEXT DEFAULT 'monthly'") }
+        // Habit — Four Laws, Ladder, Capacity
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN rewardSatisfaction INTEGER") }
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN rewardLastRated TEXT") }
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN reframeHelpful INTEGER") }
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN bundleEffectiveness INTEGER") }
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN frictionPlanActive INTEGER DEFAULT 0") }
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN environmentPrepReminderTime TEXT") }
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN ladderHistory TEXT DEFAULT ''") }
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN lastDifficultyRating INTEGER") }
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN stretchCount INTEGER DEFAULT 0") }
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN consecutiveStandards INTEGER DEFAULT 0") }
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN estimatedMinutes INTEGER DEFAULT 5") }
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN difficultyRating INTEGER DEFAULT 3") }
+        // CheckIn
+        runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN contextTags TEXT DEFAULT ''") }
+        runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN actualAmount REAL") }
+        runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN actualDurationMinutes INTEGER") }
+        runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN qualityRating INTEGER") }
+        runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN difficultyRating INTEGER") }
+        runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN missReason TEXT") }
+        runCatching { db.execSQL("ALTER TABLE checkin ADD COLUMN missReasonDetail TEXT") }
+        // Focus
+        runCatching { db.execSQL("ALTER TABLE focus ADD COLUMN isPriority INTEGER DEFAULT 0") }
+        runCatching { db.execSQL("ALTER TABLE focus ADD COLUMN goalId TEXT") }
+        runCatching { db.execSQL("ALTER TABLE focus ADD COLUMN estimatedMinutes INTEGER") }
+        runCatching { db.execSQL("ALTER TABLE focus ADD COLUMN carryOverCount INTEGER DEFAULT 0") }
+        // Obstacle
+        runCatching { db.execSQL("ALTER TABLE obstacle ADD COLUMN category TEXT") }
+        runCatching { db.execSQL("ALTER TABLE obstacle ADD COLUMN timesUsed INTEGER DEFAULT 0") }
+        runCatching { db.execSQL("ALTER TABLE obstacle ADD COLUMN lastUsed TEXT") }
+        runCatching { db.execSQL("ALTER TABLE obstacle ADD COLUMN effectiveness INTEGER") }
+        // Flow
+        runCatching { db.execSQL("ALTER TABLE flow ADD COLUMN estimatedMinutes INTEGER DEFAULT 0") }
+        runCatching { db.execSQL("ALTER TABLE flow ADD COLUMN completionCount INTEGER DEFAULT 0") }
+        runCatching { db.execSQL("ALTER TABLE flow ADD COLUMN partialCount INTEGER DEFAULT 0") }
+        // FlowStep
+        runCatching { db.execSQL("ALTER TABLE flowstep ADD COLUMN durationMinutes INTEGER DEFAULT 0") }
+        runCatching { db.execSQL("ALTER TABLE flowstep ADD COLUMN isBreakpoint INTEGER DEFAULT 0") }
+        // Review
+        runCatching { db.execSQL("ALTER TABLE review ADD COLUMN autoGeneratedData TEXT DEFAULT ''") }
+        runCatching { db.execSQL("ALTER TABLE review ADD COLUMN actionItems TEXT DEFAULT ''") }
+        runCatching { db.execSQL("ALTER TABLE review ADD COLUMN previousReviewId TEXT") }
+        // Identity evidence journal
+        runCatching {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS evidence(
+                id TEXT PRIMARY KEY, identityId TEXT, text TEXT, sourceHabitId TEXT,
+                date TEXT, createdAt INTEGER)""")
         }
     }
 }
