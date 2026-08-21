@@ -83,6 +83,40 @@ android {
     }
 }
 
+// Surface unit-test failures as GitHub Actions annotations.
+//
+// A failing `testDebugUnitTest` otherwise reports only "Process completed with
+// exit code 1" on the job; the assertion messages live in the run log and in
+// the uploaded report artifact. Echoing each failure as a ::error:: workflow
+// command puts the class, test name and cause directly on the job summary and
+// on the pull request diff, which is where a reviewer looks first.
+if (System.getenv("GITHUB_ACTIONS") == "true") {
+    tasks.withType<Test>().configureEach {
+        testLogging {
+            events("failed")
+            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+            showStackTraces = true
+        }
+        addTestListener(object : TestListener {
+            override fun beforeSuite(suite: TestDescriptor) = Unit
+            override fun afterSuite(suite: TestDescriptor, result: TestResult) = Unit
+            override fun beforeTest(testDescriptor: TestDescriptor) = Unit
+            override fun afterTest(testDescriptor: TestDescriptor, result: TestResult) {
+                if (result.resultType != TestResult.ResultType.FAILURE) return
+                val cause = result.exception
+                    ?.let { "${it.javaClass.simpleName}: ${it.message}" }
+                    ?: "test failed"
+                // Workflow commands are one line: encode newlines as %0A.
+                val encoded = cause.replace("\r", "").replace("\n", "%0A").take(900)
+                logger.lifecycle(
+                    "::error title=${testDescriptor.className}::" +
+                        "${testDescriptor.name} — $encoded"
+                )
+            }
+        })
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
