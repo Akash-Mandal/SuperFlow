@@ -153,6 +153,81 @@ def check_library_r_refs(kotlin_files):
     return errors
 
 
+# Import roots that must be backed by a declared Gradle dependency, mapped to
+# the version-catalog alias that provides them.
+#
+# androidx.swiperefreshlayout was imported by four files and used in two
+# layouts while the dependency was never declared, which fails
+# compileDebugKotlin with an unresolved reference. Nothing caught it: the
+# resource checker only looks at res/, and the layouts name the widget as a
+# string that aapt2 does not resolve to a class.
+IMPORT_ROOT_TO_LIB = {
+    "androidx.activity": "androidx.activity",
+    "androidx.appcompat": "androidx.appcompat",
+    "androidx.compose": "androidx.compose",
+    "androidx.core": "androidx.core",
+    "androidx.fragment": "androidx.fragment",
+    "androidx.lifecycle": "androidx.lifecycle",
+    "androidx.recyclerview": "androidx.recyclerview",
+    "androidx.sqlite": "androidx.sqlite",
+    "androidx.swiperefreshlayout": "androidx.swiperefreshlayout",
+    "androidx.viewpager2": "androidx.viewpager2",
+    "androidx.work": "androidx.work",
+    "com.google.android.material": "material",
+    "kotlinx.coroutines": "kotlinx.coroutines",
+}
+
+# Provided by android.jar or the Kotlin stdlib, so never declared.
+IMPORT_ROOTS_FROM_PLATFORM = ("android.", "java.", "javax.", "kotlin.",
+                              "dalvik.", "org.w3c", "org.xml", "org.json")
+
+
+def check_dependencies(kotlin_files, build_file="app/build.gradle.kts"):
+    """Every library imported by main sources must be a declared dependency."""
+    try:
+        build = open(build_file, encoding="utf-8").read()
+    except OSError:
+        return []
+    declared = set(re.findall(r'implementation\(libs\.([\w.]+)\)', build))
+
+    errors, seen = [], {}
+    for path in kotlin_files:
+        try:
+            text = open(path, encoding="utf-8").read()
+        except OSError:
+            continue
+        for lineno, line in enumerate(text.splitlines(), 1):
+            m = re.match(r'\s*import\s+([\w.]+)', line)
+            if not m:
+                continue
+            fq = m.group(1)
+            if fq.startswith("com.superflow") or fq.startswith(
+                    IMPORT_ROOTS_FROM_PLATFORM):
+                continue
+            root = next((r for r in IMPORT_ROOT_TO_LIB if fq.startswith(r + ".")),
+                        None)
+            if root is None:
+                seen.setdefault(f"unmapped:{fq}", f"{path}:{lineno}")
+                continue
+            alias = IMPORT_ROOT_TO_LIB[root]
+            if not any(d == alias or d.startswith(alias + ".") for d in declared):
+                seen.setdefault(root, f"{path}:{lineno}")
+
+    for key, where in sorted(seen.items()):
+        if key.startswith("unmapped:"):
+            fq = key.split(":", 1)[1]
+            errors.append(
+                f"{where}: import {fq} is not covered by IMPORT_ROOT_TO_LIB in "
+                f"tools/check_res.py. If it comes from a new dependency, "
+                f"declare the dependency and map its root here.")
+        else:
+            errors.append(
+                f"{where}: imports {key}.* but no matching implementation(...) "
+                f"is declared in {build_file}. Add the dependency (and a "
+                f"version-catalog entry) or drop the import.")
+    return errors
+
+
 # Reference prefixes that belong to the framework or a library rather than
 # to this project. These cannot be checked without the AARs.
 EXTERNAL_PREFIXES = (
@@ -427,14 +502,16 @@ def main():
 
     kotlin = sorted(glob.glob("app/src/main/kotlin/**/*.kt", recursive=True))
     lib_refs = check_library_r_refs(kotlin)
+    deps = check_dependencies(kotlin)
     if kotlin:
-        print(f"    checked library R references in {len(kotlin)} kotlin files")
+        print(f"    checked library R references and dependency coverage in "
+              f"{len(kotlin)} kotlin files")
 
     if external:
         print(f"    {len(external)} framework/library refs (not checkable "
               f"without AARs)")
 
-    problems = parse_errors + errors + dupes + parity + lib_refs
+    problems = parse_errors + errors + dupes + parity + lib_refs + deps
     if problems:
         print(f"\n==> {len(problems)} PROBLEM(S)\n")
         for p in problems:
