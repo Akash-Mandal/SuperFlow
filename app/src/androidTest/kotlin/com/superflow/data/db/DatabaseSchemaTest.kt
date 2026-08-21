@@ -144,6 +144,6 @@ class DatabaseSchemaTest {
         assertEquals(9L, v.getAsLong("l"))
         assertEquals(1.5, v.getAsDouble("d"), 0.001)
         assertEquals(1, v.getAsInteger("b"))
-        assertTrue(v.valueAt(5) == null)
+        assertTrue(v.get("missing") == null)
     }
 }

@@ -172,7 +172,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent) {
+    // Public rather than the inherited protected visibility: the deep-link
+    // path is covered by MainActivityLaunchTest, which drives a running
+    // activity through onNewIntent.
+    public override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntent(intent)

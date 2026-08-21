@@ -31,15 +31,29 @@ adb install -r "$APK"
 # (see docs/BUILD.md), so check a cold start and an existing-data restart.
 launch_and_check() {
   local label="$1" pattern="$2"
-  adb logcat -c
+  # `logcat -c` fails on some emulator images with "failed to clear the 'main'
+  # log" (seen on API 26). It is not fatal -- fall back to clearing every
+  # buffer, and if that fails too just note the timestamp and carry on, since
+  # the crash scan below only needs output from this launch onwards.
+  local since=""
+  if ! adb logcat -c >/dev/null 2>&1 && ! adb logcat -b all -c >/dev/null 2>&1; then
+    echo "    note: could not clear logcat; filtering by time instead"
+    since="-T $(adb shell date '+%m-%d %H:%M:%S.000' | tr -d '\r')"
+  fi
   adb shell am force-stop "$PKG" || true
   adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null
   sleep 6
   local crashes
-  crashes="$(adb logcat -d -v threadtime | grep -E "$pattern" || true)"
+  # shellcheck disable=SC2086
+  crashes="$(adb logcat -d -v threadtime $since | grep -E "$pattern" || true)"
   if [ -n "$crashes" ]; then
     echo "FATAL: crash/ANR during $label launch:" >&2
     echo "$crashes" >&2
+    # Surface it as a job annotation so the reason is visible without
+    # downloading the run log.
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+      echo "::error title=$label launch crashed::$(echo "$crashes" | head -5 | tr '\n' '~' | sed 's/~/%0A/g')"
+    fi
     adb logcat -d -v threadtime | grep -B5 -A40 "FATAL EXCEPTION" | head -80 >&2 || true
     exit 1
   fi

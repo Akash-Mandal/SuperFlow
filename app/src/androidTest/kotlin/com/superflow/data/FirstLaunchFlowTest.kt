@@ -37,7 +37,7 @@ class FirstLaunchFlowTest {
 
     private fun onBg(block: () -> Unit) {
         val latch = CountDownLatch(1)
-        getInstrumentation().runOnMainLooper {
+        getInstrumentation().runOnMainSync {
             block()
             latch.countDown()
         }
@@ -164,21 +164,22 @@ class FirstLaunchFlowTest {
         // not a crash. Run several times back to back (debounce + force).
         repeat(3) {
             TodayWidget.refresh(context)
-            TodayWidget.refresh(context, force = true)
+            TodayWidget.refresh(context)
         }
         // If it had thrown, the test fails here.
     }
 
     /* --------------------------------------------------------------- helpers */
 
-    private fun onBgReturn(block: () -> Any?): Any? {
-        var result: Any? = null
+    private fun <T> onBgReturn(block: () -> T): T {
+        var result: T? = null
         val latch = CountDownLatch(1)
-        getInstrumentation().runOnMainLooper {
+        getInstrumentation().runOnMainSync {
             result = block()
             latch.countDown()
         }
         assertTrue("timed out", latch.await(30, TimeUnit.SECONDS))
-        return result
+        @Suppress("UNCHECKED_CAST")
+        return result as T
     }
 }

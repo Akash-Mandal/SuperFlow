@@ -73,8 +73,7 @@ class MainActivityLaunchTest {
         scenario.onActivity { activity ->
             assertFalse("MainActivity must stay alive when onboarded", activity.isFinishing)
             // The shell inflated: both key containers exist.
-            assertTrue(activity.findViewById(androidx.viewpager2.widget.ViewPager2::class.java) != null ||
-                    activity.findViewById<android.view.View>(R.id.pager) != null)
+            assertTrue(activity.findViewById<android.view.View>(R.id.pager) != null)
         }
         scenario.close()
     }
