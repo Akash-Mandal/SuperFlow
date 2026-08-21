@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SuperFlow theme attributes.
+
+  Semantic tokens (§6.4) and density metrics (§4.2) are declared as theme
+  attributes rather than raw colours/dimens so that a palette overlay or a
+  density overlay can retheme the whole app by swapping one theme, and so
+  that layouts reference intent ("this is a caution surface") rather than a
+  literal value.
+-->
+<resources>
+
+    <!-- ============================================== semantic colours -->
+    <!-- Beyond Material 3's built-in roles. Calm is a feature: misses are a
+         warm caution, never a punitive red. -->
+    <attr name="sfSuccess" format="color" />
+    <attr name="sfOnSuccess" format="color" />
+    <attr name="sfSuccessContainer" format="color" />
+    <attr name="sfWarning" format="color" />
+    <attr name="sfOnWarning" format="color" />
+    <attr name="sfWarningContainer" format="color" />
+    <attr name="sfCaution" format="color" />
+    <attr name="sfCautionContainer" format="color" />
+    <attr name="sfInfo" format="color" />
+    <attr name="sfInfoContainer" format="color" />
+    <attr name="sfRecovery" format="color" />
+    <attr name="sfRecoveryContainer" format="color" />
+    <attr name="sfCelebration" format="color" />
+    <attr name="sfCelebrationContainer" format="color" />
+
+    <!-- Five-step energy gradient, cool blue -> warm amber. -->
+    <attr name="sfEnergy1" format="color" />
+    <attr name="sfEnergy2" format="color" />
+    <attr name="sfEnergy3" format="color" />
+    <attr name="sfEnergy4" format="color" />
+    <attr name="sfEnergy5" format="color" />
+
+    <!-- Habit ladder. -->
+    <attr name="sfLevelTiny" format="color" />
+    <attr name="sfLevelMinimum" format="color" />
+    <attr name="sfLevelStandard" format="color" />
+    <attr name="sfLevelStretch" format="color" />
+
+    <!-- Opportunity states. -->
+    <attr name="sfStateSkipped" format="color" />
+    <attr name="sfStateMissed" format="color" />
+    <attr name="sfStateEmpty" format="color" />
+
+    <!-- Journey entity accents (§6.5). -->
+    <attr name="sfAccentIdentity" format="color" />
+    <attr name="sfAccentGoal" format="color" />
+    <attr name="sfAccentSystem" format="color" />
+    <attr name="sfAccentHabit" format="color" />
+
+    <!-- Skeleton shimmer base/highlight (§18.1). -->
+    <attr name="sfSkeletonBase" format="color" />
+    <attr name="sfSkeletonHighlight" format="color" />
+
+    <!-- ==================================================== density (§4.2) -->
+    <attr name="sfCardPadding" format="dimension" />
+    <attr name="sfListItemHeight" format="dimension" />
+    <attr name="sfCardGap" format="dimension" />
+    <attr name="sfSectionSpacing" format="dimension" />
+    <attr name="sfLineSpacing" format="float" />
+
+    <!-- ==================================================== contrast -->
+    <!-- Card and divider stroke weight, so the high-contrast overlay can
+         thicken every border in one place rather than per-layout. -->
+    <attr name="sfCardStrokeWidth" format="dimension" />
+    <attr name="sfDividerColor" format="color" />
+
+    <!-- ================================================== serif accent -->
+    <!-- Identity statements and journal entries are set in a serif face as a
+         typographic signal that this is reflection, not data (§5.4). -->
+    <attr name="sfSerifFontFamily" format="string" />
+</resources>

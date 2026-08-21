@@ -39,11 +39,26 @@ object MainBrain {
             }
             repo.goals().takeIf { it.isNotEmpty() }?.let { list ->
                 sb.append("\nGoals:\n")
-                list.forEach { sb.append("- ${it.title} [id=${it.id}]\n") }
+                list.forEach { g ->
+                    sb.append("- ${g.title} [id=${g.id}]")
+                    if (g.milestones.isNotEmpty()) {
+                        val done = g.milestones.count { it.achieved }
+                        sb.append(" milestones=$done/${g.milestones.size}")
+                    }
+                    if (g.currentMetricValue != null) {
+                        sb.append(" metric=${g.currentMetricValue}${g.metricUnit}")
+                        if (g.targetValue != null) sb.append("/${g.targetValue}")
+                    }
+                    sb.append('\n')
+                }
             }
             repo.systems().takeIf { it.isNotEmpty() }?.let { list ->
                 sb.append("\nSystems:\n")
-                list.forEach { sb.append("- ${it.title} [id=${it.id}]\n") }
+                list.forEach { s ->
+                    val health = Insights.systemHealth(repo, s)
+                    val habits = repo.habits().count { it.systemId == s.id }
+                    sb.append("- ${s.title} [id=${s.id}] health=${health}% habits=$habits\n")
+                }
             }
             repo.habits().takeIf { it.isNotEmpty() }?.let { list ->
                 sb.append("\nHabits:\n")
@@ -93,8 +108,17 @@ object MainBrain {
                 }
             }
         }
-        if (prefs.contextIncludeMemory && prefs.memoryNotes.isNotBlank()) {
-            sb.append("\nUser notes to remember:\n").append(prefs.memoryNotes).append('\n')
+        if (prefs.contextIncludeMemory) {
+            val memories = repo.memories()
+                .sortedByDescending { it.importance * it.accessCount }
+                .take(10)
+            if (memories.isNotEmpty()) {
+                sb.append("\nThings you've told me to remember:\n")
+                memories.forEach { sb.append("- [${it.category}] ${it.content}\n") }
+            }
+            if (prefs.memoryNotes.isNotBlank()) {
+                sb.append("\nUser notes to remember:\n").append(prefs.memoryNotes).append('\n')
+            }
         }
         // Explicit instructions (always included when set)
         if (prefs.aiInstructions.isNotBlank()) {

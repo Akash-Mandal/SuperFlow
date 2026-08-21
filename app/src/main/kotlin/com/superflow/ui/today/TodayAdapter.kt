@@ -27,6 +27,7 @@ import com.superflow.data.model.HabitMode
 import com.superflow.data.model.Level
 import com.superflow.ui.common.*
 import com.superflow.util.Dates
+import com.superflow.util.onDebouncedClick
 
 /**
  * Today list adapter.
@@ -51,6 +52,8 @@ class TodayAdapter(
         fun onEnergy(value: Int)
         fun onCheckpoint(cp: Checkpoint)
         fun onEmptyAction()
+        fun onSuggestionAction(row: TodayRow.Suggestion)
+        fun onSuggestionOpen(row: TodayRow.Suggestion)
     }
 
     companion object {
@@ -59,9 +62,12 @@ class TodayAdapter(
         private const val T_RETURN = 2
         private const val T_FOCUS = 3
         private const val T_CHECKPOINT = 4
-        private const val T_SECTION = 5
-        private const val T_HABIT = 6
-        private const val T_EMPTY = 7
+        private const val T_SUGGESTION = 5
+        private const val T_GROWTH = 6
+        private const val T_SECTION = 7
+        private const val T_HABIT = 8
+        private const val T_EMPTY = 9
+        private const val T_LOAD = 10
 
         private val DIFF = object : DiffUtil.ItemCallback<TodayRow>() {
             override fun areItemsTheSame(a: TodayRow, b: TodayRow) = a.stableId == b.stableId
@@ -77,10 +83,13 @@ class TodayAdapter(
 
     override fun getItemViewType(position: Int): Int = when (getItem(position)) {
         is TodayRow.Progress -> T_PROGRESS
+        is TodayRow.Load -> T_LOAD
         is TodayRow.IdentityCard -> T_IDENTITY
         is TodayRow.Returning -> T_RETURN
         is TodayRow.Focus -> T_FOCUS
         is TodayRow.Checkpoints -> T_CHECKPOINT
+        is TodayRow.GrowthPlanStatus -> T_GROWTH
+        is TodayRow.Suggestion -> T_SUGGESTION
         is TodayRow.Section -> T_SECTION
         is TodayRow.HabitRow -> T_HABIT
         is TodayRow.Empty -> T_EMPTY
@@ -90,10 +99,13 @@ class TodayAdapter(
         val inflater = LayoutInflater.from(parent.context)
         return when (viewType) {
             T_PROGRESS -> ProgressVH(inflater.inflate(R.layout.item_progress, parent, false))
+            T_LOAD -> LoadVH(inflater.inflate(R.layout.item_text_card, parent, false))
             T_IDENTITY -> IdentityVH(inflater.inflate(R.layout.item_identity, parent, false))
             T_RETURN -> ReturnVH(inflater.inflate(R.layout.item_return, parent, false))
             T_FOCUS -> FocusVH(inflater.inflate(R.layout.item_focus, parent, false))
             T_CHECKPOINT -> CheckpointVH(inflater.inflate(R.layout.item_checkpoint, parent, false))
+            T_GROWTH -> GrowthVH(inflater.inflate(R.layout.item_habit_stat, parent, false))
+            T_SUGGESTION -> SuggestionVH(inflater.inflate(R.layout.item_suggestion, parent, false))
             T_SECTION -> SectionVH(inflater.inflate(R.layout.item_section, parent, false))
             T_HABIT -> HabitVH(inflater.inflate(R.layout.item_habit, parent, false))
             else -> EmptyVH(inflater.inflate(R.layout.item_empty, parent, false))
@@ -103,10 +115,13 @@ class TodayAdapter(
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         when (val row = getItem(position)) {
             is TodayRow.Progress -> (holder as ProgressVH).bind(row)
+            is TodayRow.Load -> (holder as LoadVH).bind(row)
             is TodayRow.IdentityCard -> (holder as IdentityVH).bind(row)
             is TodayRow.Returning -> (holder as ReturnVH).bind(row)
             is TodayRow.Focus -> (holder as FocusVH).bind(row)
             is TodayRow.Checkpoints -> (holder as CheckpointVH).bind(row)
+            is TodayRow.GrowthPlanStatus -> (holder as GrowthVH).bind(row)
+            is TodayRow.Suggestion -> (holder as SuggestionVH).bind(row)
             is TodayRow.Section -> (holder as SectionVH).bind(row)
             is TodayRow.HabitRow -> (holder as HabitVH).bind(row)
             is TodayRow.Empty -> (holder as EmptyVH).bind(row)
@@ -131,6 +146,27 @@ class TodayAdapter(
         }
     }
 
+    inner class LoadVH(v: View) : RecyclerView.ViewHolder(v) {
+        private val title: TextView = v.findViewById(R.id.text_title)
+        private val body: TextView = v.findViewById(R.id.text_body)
+
+        fun bind(row: TodayRow.Load) {
+            val color = when (row.color) {
+                "amber" -> itemView.context.getColor(com.superflow.R.color.sf_amber_50)
+                "coral" -> itemView.context.getColor(com.superflow.R.color.sf_error_40)
+                else -> itemView.context.getColor(com.superflow.R.color.sf_green_50)
+            }
+            title.setTextColor(color)
+            title.text = "Today's load: ${row.habits} habits · ~${row.minutes} min"
+            body.text = when (row.color) {
+                "green" -> "Light day. Room to add a stretch if you want one."
+                "amber" -> "Moderate day. If it feels heavy, Minimum Mode shrinks everything."
+                else -> "Heavy day. Research says 3-5 new behaviours is the practical max. " +
+                        "Consider pausing one or using Minimum Mode."
+            }
+        }
+    }
+
     inner class IdentityVH(v: View) : RecyclerView.ViewHolder(v) {
         private val text: TextView = v.findViewById(R.id.identity_text)
         private val votes: TextView = v.findViewById(R.id.identity_votes)
@@ -139,6 +175,19 @@ class TodayAdapter(
             text.text = row.statement
             votes.text = if (row.votes == 0) "Your first repetition becomes the first piece of evidence."
             else "${row.votes} ${if (row.votes == 1) "vote" else "votes"} so far"
+        }
+    }
+
+    inner class GrowthVH(v: View) : RecyclerView.ViewHolder(v) {
+        private val bar: LinearProgressIndicator = v.findViewById(R.id.hs_bar)
+        fun bind(row: TodayRow.GrowthPlanStatus) {
+            itemView.findViewById<TextView>(R.id.hs_title).text = "Phase ${row.phaseIndex}/${row.totalPhases} · ${row.phaseLabel}"
+            itemView.findViewById<TextView>(R.id.hs_percent).text = row.habitTitle
+            itemView.findViewById<TextView>(R.id.hs_detail).text = "Growth plan active"
+            val hint = itemView.findViewById<TextView>(R.id.hs_hint)
+            hint.visible(true)
+            hint.text = "Show up consistently to upgrade to the next phase."
+            bar.setProgressCompat((row.phaseIndex * 100) / row.totalPhases, true)
         }
     }
 
@@ -152,7 +201,7 @@ class TodayAdapter(
                 val item = inflater.inflate(R.layout.item_return_row, container, false)
                 item.findViewById<TextView>(R.id.return_title).text =
                     habit.tinyStart.ifBlank { habit.title }
-                item.findViewById<MaterialButton>(R.id.return_do).setOnClickListener {
+                item.findViewById<MaterialButton>(R.id.return_do).onDebouncedClick {
                     it.haptic()
                     callbacks.onCheck(habit, Level.TINY)
                 }
@@ -176,6 +225,9 @@ class TodayAdapter(
                 val check = v.findViewById<MaterialCheckBox>(R.id.focus_check)
                 val title = v.findViewById<TextView>(R.id.focus_title)
                 title.text = item.title
+                check.buttonTintList = android.content.res.ColorStateList.valueOf(
+                    v.context.themeColor(com.google.android.material.R.attr.colorPrimary)
+                )
                 check.setOnCheckedChangeListener(null)
                 check.isChecked = item.done
                 title.paintFlags = if (item.done)
@@ -186,7 +238,7 @@ class TodayAdapter(
                     view.haptic()
                     callbacks.onFocusToggle(item, checked)
                 }
-                v.findViewById<MaterialButton>(R.id.focus_remove).setOnClickListener {
+                v.findViewById<MaterialButton>(R.id.focus_remove).onDebouncedClick {
                     callbacks.onFocusRemove(item)
                 }
                 container.addView(v)
@@ -227,6 +279,38 @@ class TodayAdapter(
         }
     }
 
+    inner class SuggestionVH(v: View) : RecyclerView.ViewHolder(v) {
+        private val card: MaterialCardView = v.findViewById(R.id.suggestion_card)
+        private val title: TextView = v.findViewById(R.id.suggestion_title)
+        private val body: TextView = v.findViewById(R.id.suggestion_body)
+        private val action: MaterialButton = v.findViewById(R.id.suggestion_action)
+
+        fun bind(row: TodayRow.Suggestion) {
+            title.text = row.title
+            body.text = row.body
+            when (row.tone) {
+                com.superflow.ai.Suggestions.Tone.DESIGN -> {
+                    action.text = "Edit design"
+                    action.setIconResource(R.drawable.ic_edit)
+                }
+                com.superflow.ai.Suggestions.Tone.INSIGHT,
+                com.superflow.ai.Suggestions.Tone.ENCOURAGE -> {
+                    action.text = "View"
+                    action.setIconResource(R.drawable.ic_bolt)
+                }
+                else -> {
+                    action.text = "Do the tiny version"
+                    action.setIconResource(R.drawable.ic_check)
+                }
+            }
+            action.onDebouncedClick {
+                it.haptic()
+                callbacks.onSuggestionAction(row)
+            }
+            card.onDebouncedClick { callbacks.onSuggestionOpen(row) }
+        }
+    }
+
     inner class SectionVH(v: View) : RecyclerView.ViewHolder(v) {
         private val title: TextView = v as TextView
         fun bind(row: TodayRow.Section) { title.text = row.title }
@@ -243,9 +327,14 @@ class TodayAdapter(
         private val chips: ChipGroup = v.findViewById(R.id.level_chips)
         private val status: MaterialButton = v.findViewById(R.id.status_chip)
 
+        /** The habit currently bound to this holder, used by drag-and-drop. */
+        var habit: Habit? = null
+            private set
+
         fun bind(row: TodayRow.HabitRow) {
             val context = itemView.context
             val habit = row.item.habit
+            this.habit = habit
             val done = row.item.done
             val skipped = row.item.skipped
             val missed = row.item.missed
@@ -311,7 +400,7 @@ class TodayAdapter(
             statusText?.let { status.text = it }
             status.setOnClickListener { callbacks.onClear(habit) }
 
-            target.setOnClickListener {
+            target.onDebouncedClick {
                 it.confirmHaptic()
                 if (done || skipped || missed) callbacks.onClear(habit)
                 else callbacks.onCheck(habit, Level.STANDARD)
@@ -339,7 +428,7 @@ class TodayAdapter(
                 isClickable = true
                 setEnsureMinTouchTargetSize(false)
                 chipMinHeight = context.dpf(32f)
-                setOnClickListener {
+                onDebouncedClick {
                     it.haptic()
                     onClick()
                 }

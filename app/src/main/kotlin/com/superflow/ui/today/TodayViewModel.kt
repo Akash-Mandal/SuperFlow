@@ -10,6 +10,7 @@ import com.superflow.domain.Actor
 import com.superflow.domain.CommandBus
 import com.superflow.domain.CommandResult
 import com.superflow.domain.Insights
+import com.superflow.ai.Suggestions
 import com.superflow.core.time.DayBucket
 import com.superflow.core.time.Greeting
 import com.superflow.core.time.SfTime
@@ -33,6 +34,10 @@ sealed class TodayRow {
         override val stableId = 1L
     }
 
+    data class Load(val habits: Int, val minutes: Int, val score: Double, val color: String) : TodayRow() {
+        override val stableId = 11L
+    }
+
     data class IdentityCard(val statement: String, val votes: Int) : TodayRow() {
         override val stableId = 2L
     }
@@ -47,6 +52,19 @@ sealed class TodayRow {
 
     data class Checkpoints(val energy: Int?) : TodayRow() {
         override val stableId = 5L
+    }
+
+    data class GrowthPlanStatus(val habitTitle: String, val phaseLabel: String, val phaseIndex: Int, val totalPhases: Int) : TodayRow() {
+        override val stableId = ("gp$habitTitle").hashCode().toLong()
+    }
+
+    data class Suggestion(
+        val title: String,
+        val body: String,
+        val tone: Suggestions.Tone,
+        val habitId: String?
+    ) : TodayRow() {
+        override val stableId = 6L
     }
 
     data class Section(val title: String) : TodayRow() {
@@ -100,6 +118,15 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // Read-only accessors used by the fragment's guided checkpoint dialog.
+    fun todayDate(): LocalDate = repo.clock.today()
+    fun habitsToday(): List<Habit> = repo.habitsForDay(repo.clock.today())
+    fun doneToday(): Int {
+        val date = repo.clock.today()
+        return repo.checkInsFor(SfTime.format(date)).count { it.isSuccess }
+    }
+    fun focusToday(): List<FocusItem> = repo.focusFor(SfTime.format(repo.clock.today()))
+
     private fun build(): TodayUiState {
         val date = repo.clock.today()
         val iso = SfTime.format(date)
@@ -113,8 +140,21 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         val (done, total) = Insights.dayProgress(snap, repo, date)
         rows.add(TodayRow.Progress(done, total, progressMessage(done, total)))
 
-        snap.identities.firstOrNull()?.let { identity ->
-            val votes = Insights.identityEvidence(snap)
+        // Daily load indicator (§15)
+        val (habitsCount, minutes, score) = Insights.dailyLoad(repo, date)
+        if (habitsCount > 0) {
+            val color = when {
+                score < 15 -> "green"
+                score < 30 -> "amber"
+                else -> "coral"
+            }
+            rows.add(TodayRow.Load(habitsCount, minutes, score, color))
+        }
+
+        // Primary identity first, then others (§1)
+        val identities = repo.identities().sortedByDescending { it.isPrimary }
+        identities.firstOrNull()?.let { identity ->
+            val votes = Insights.identityEvidence(repo)
                 .firstOrNull { it.first == identity.statement }?.second ?: 0
             rows.add(TodayRow.IdentityCard(identity.statement, votes))
         }
@@ -128,6 +168,26 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
             val cp = currentCheckpoint()
             val energy = repo.energyFor(iso).firstOrNull { it.checkpoint == cp }?.energy
             rows.add(TodayRow.Checkpoints(energy))
+        }
+
+        // Active growth plans
+        val growthPlans = repo.growthPlans().filter { it.isActive() }
+        for (plan in growthPlans.take(2)) {
+            val habit = repo.habit(plan.habitId)
+            val phase = plan.phases.getOrNull(plan.currentPhaseIndex)
+            if (habit != null && phase != null) {
+                rows.add(TodayRow.GrowthPlanStatus(
+                    habitTitle = habit.title,
+                    phaseLabel = phase.label,
+                    phaseIndex = plan.currentPhaseIndex + 1,
+                    totalPhases = plan.phases.size
+                ))
+            }
+        }
+
+        // One contextual, non-pushy suggestion (#2/#8/#63).
+        Suggestions.forToday(repo, date, limit = 1).firstOrNull()?.let { s ->
+            rows.add(TodayRow.Suggestion(s.title, s.body, s.tone, s.habitId))
         }
 
         val todayHabits = repo.todayHabits(snap, date)
@@ -184,18 +244,38 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun checkIn(habit: Habit, level: Level) =
-        run("check_in", jsonOf("habit" to habit.id, "level" to level.name))
+    /*
+     * Two shapes of the same actions.
+     *
+     * The View adapter already holds the entity it was bound to, so it
+     * passes it. The Compose screen routes everything through a sealed
+     * action type that carries ids, because holding a `Habit` inside an
+     * action makes the action unstable as a Compose parameter and forces a
+     * recomposition of the whole list whenever any field of any habit
+     * changes. The commands only ever needed the id, so the id-taking
+     * overloads are the primitive and the entity-taking ones delegate.
+     */
 
-    fun skip(habit: Habit) = run("skip_habit", jsonOf("habit" to habit.id))
+    fun checkIn(habitId: String, level: Level) =
+        run("check_in", jsonOf("habit" to habitId, "level" to level.name))
+
+    fun checkIn(habit: Habit, level: Level) = checkIn(habit.id, level)
+
+    fun skip(habitId: String) = run("skip_habit", jsonOf("habit" to habitId))
+
+    fun clearCheckIn(habitId: String) =
+        run("clear_check_in", jsonOf("habit" to habitId), announce = false)
+
+    fun toggleFocus(focusId: String, done: Boolean) =
+        run("complete_focus_item", jsonOf("id" to focusId, "done" to done), announce = false)
+
+    fun skip(habit: Habit) = skip(habit.id)
 
     fun markMissed(habit: Habit) = run("mark_missed", jsonOf("habit" to habit.id))
 
-    fun clearCheckIn(habit: Habit) =
-        run("clear_check_in", jsonOf("habit" to habit.id), announce = false)
+    fun clearCheckIn(habit: Habit) = clearCheckIn(habit.id)
 
-    fun toggleFocus(item: FocusItem, done: Boolean) =
-        run("complete_focus_item", jsonOf("id" to item.id, "done" to done), announce = false)
+    fun toggleFocus(item: FocusItem, done: Boolean) = toggleFocus(item.id, done)
 
     fun removeFocus(item: FocusItem) =
         run("remove_focus_item", jsonOf("id" to item.id), announce = false)
@@ -227,9 +307,47 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
 
     fun runCheckpoint(cp: Checkpoint) = run("run_checkpoint", jsonOf("checkpoint" to cp.name))
 
+    /** Act on a suggestion: check the habit in as Tiny, or open its design. */
+    fun actOnSuggestion(row: TodayRow.Suggestion) {
+        val id = row.habitId ?: return
+        when (row.tone) {
+            Suggestions.Tone.DESIGN -> {
+                // Handled in the fragment (opens the designer).
+            }
+            else -> checkIn(repo.habit(id) ?: return, Level.TINY)
+        }
+    }
+
+    fun openSuggestionHabit(row: TodayRow.Suggestion) = row.habitId
+
     fun planTomorrow() = run("plan_tomorrow", JSONObject())
 
     fun minimumMode() = run("enter_minimum_mode", JSONObject())
+
+    /** Evening checkpoint wrap-up: close every still-open habit as Tiny. */
+    fun completeAllTiny() = run("complete_all_tiny", JSONObject())
+
+    /** Revert every check-in recorded today. */
+    fun undoToday() = run("undo_today", JSONObject())
+
+    /**
+     * Reorder by dragging: move [fromId] to the global position of [toId].
+     * Only meaningful among active habits; the adapter only allows dragging
+     * habit rows, so both ids are habits.
+     */
+    fun reorderHabitTo(fromId: String, toId: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val list = repo.habits().sortedBy { it.orderIndex }
+                val from = list.indexOfFirst { it.id == fromId }
+                val to = list.indexOfFirst { it.id == toId }
+                if (from >= 0 && to >= 0 && from != to) {
+                    bus.execute("reorder_habit",
+                        jsonOf("habit" to fromId, "toIndex" to to), Actor.USER)
+                }
+            }
+        }
+    }
 
     fun undoLast() {
         val id = lastAuditId ?: return

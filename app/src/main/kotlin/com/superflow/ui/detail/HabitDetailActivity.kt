@@ -150,18 +150,66 @@ class HabitDetailActivity : ScrollActivity() {
         else "Consistency counts only the days this habit is scheduled."
         content.addView(prog)
 
+        // Graduation
+        val grad = com.superflow.domain.Graduation.status(repo, h)
+        content.addView(section("GRADUATION"))
+        if (h.graduated) {
+            content.addView(textCard("In maintenance",
+                "This habit has become automatic. It is off Today and only asks for a weekly check-in."))
+            content.addView(MaterialButton(this, null,
+                com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                text = "Return to daily tracking"
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                setOnClickListener { exec("ungraduate_habit", jsonOf("habit" to h.id)) }
+            })
+        } else if (grad.eligible) {
+            content.addView(textCard("Ready to graduate",
+                "${grad.consistency}% consistency over ${grad.opportunities} opportunities " +
+                        "across ${grad.trackedDays} days. That is not effort anymore — " +
+                        "that is who you are."))
+            content.addView(MaterialButton(this).apply {
+                text = "Graduate it — move to maintenance"
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                setOnClickListener { exec("graduate_habit", jsonOf("habit" to h.id)) }
+            })
+            content.addView(MaterialButton(this, null,
+                com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                text = "Keep tracking, but upgrade it"
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { it.topMargin = dpi(8) }
+                setOnClickListener { exec("upgrade_habit", jsonOf("habit" to h.id)) }
+            })
+        } else {
+            content.addView(textCard(if (grad.hasEnoughData) "Still becoming automatic" else "Not enough data yet",
+                if (grad.hasEnoughData)
+                    "${grad.consistency}% over ${grad.trackedDays} tracked days. " +
+                            "Graduation opens at ${com.superflow.domain.Graduation.MIN_DAYS} days with " +
+                            "${com.superflow.domain.Graduation.MIN_CONSISTENCY}% consistency."
+                else "A few more check-ins and this habit will have enough data to judge."))
+        }
+
         // History
         content.addView(section("LAST 14 DAYS"))
         val histCard = layoutInflater.inflate(R.layout.item_text_card, content, false)
         histCard.findViewById<TextView>(R.id.text_title).text =
             Capabilities.daysLabel(h) + (if (h.cueTime.isNotBlank()) " · ${h.cueTime}" else "")
-        histCard.findViewById<TextView>(R.id.text_body).visible(false)
+        val states = Insights.historyStates(repo, h, 14)
+        val succeeded14 = states.count { it == 1 }
+        histCard.findViewById<TextView>(R.id.text_body).apply {
+            visible(true)
+            text = "$succeeded14 of ${states.count { it >= 0 }} scheduled days completed"
+        }
         val strip = HistoryStrip(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dpi(24)
             ).also { it.topMargin = dpi(12) }
         }
-        strip.setStates(d.history)
+        strip.setStates(states)
         (histCard.findViewById<TextView>(R.id.text_title).parent as LinearLayout).addView(strip)
         content.addView(histCard)
 
@@ -169,6 +217,34 @@ class HabitDetailActivity : ScrollActivity() {
         content.addView(section("THE LADDER"))
         content.addView(textCard("Every kind of day",
             Level.values().joinToString("\n") { "${it.label}: ${h.levelText(it)}" }))
+        content.addView(textCard("Ladder advice", Insights.ladderAdvice(repo, h)))
+
+        // Four Laws health (§4)
+        content.addView(section("FOUR LAWS HEALTH"))
+        val laws = buildString {
+            append("Reward: ").append(
+                if (h.rewardSatisfaction == null) "not rated yet"
+                else "${h.rewardSatisfaction}/5 (rated ${h.rewardLastRated ?: "recently"})")
+            append('\n')
+            append("Reframe: ").append(
+                when (h.reframeHelpful) {
+                    null -> "not tested yet"
+                    true -> "helped on a hard day"
+                    false -> "did not help — consider a new one"
+                })
+            append('\n')
+            append("Temptation bundle: ").append(
+                if (h.bundleEffectiveness == null) "not rated yet"
+                else "${h.bundleEffectiveness}/5")
+            append('\n')
+            append("Friction plan: ").append(
+                if (h.frictionPlanActive) "active" else "written but not activated")
+            if (h.temptationBundle.isNotBlank() || h.reward.isNotBlank()) {
+                append('\n')
+                append("Capacity: ~${h.estimatedMinutes} min/day, difficulty ${h.difficultyRating}/5")
+            }
+        }
+        content.addView(textCard("Which laws are working?", laws))
 
         // Design
         content.addView(section("THE DESIGN"))
@@ -239,6 +315,16 @@ class HabitDetailActivity : ScrollActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).also { it.topMargin = dpi(8) }
             setOnClickListener { exec("archive_habit", jsonOf("habit" to h.id), thenFinish = true) }
+        })
+        content.addView(MaterialButton(this, null,
+            com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            text = "Duplicate"
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.topMargin = dpi(8) }
+            setOnClickListener {
+                exec("duplicate_habit", jsonOf("habit" to h.id))
+            }
         })
         content.addView(MaterialButton(this, null,
             androidx.appcompat.R.attr.borderlessButtonStyle).apply {

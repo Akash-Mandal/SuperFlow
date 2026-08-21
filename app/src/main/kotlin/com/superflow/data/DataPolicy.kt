@@ -2,7 +2,9 @@ package com.superflow.data
 
 import com.superflow.data.model.*
 import com.superflow.domain.Serial
+import com.superflow.util.jsonArrayOf
 import com.superflow.util.jsonOf
+import com.superflow.util.strings
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -240,16 +242,64 @@ object DataPolicy {
 
     /**
      * Export all SharedPreferences as a JSON object.
-     * Excludes the secrets file (API keys).
+     *
+     * All-inclusion: every user-settable preference is covered. The only
+     * omissions are deliberate, and each is omitted for a reason rather than
+     * by oversight:
+     *
+     *   * `apiKey` and the rest of the secrets file - credentials do not
+     *     belong in a plaintext export.
+     *   * `fullControlActivated` - exported for reference but never imported;
+     *     granting an app destructive autonomy is a decision that must be
+     *     made again on each device.
+     *   * `onboarded` - describes this install, not the user.
+     *   * `callsThisMonth` / `tokensThisMonth` / `costThisMonthCents` -
+     *     per-device usage meters; carrying them across would corrupt budget
+     *     accounting on the destination.
+     *   * `aiAdvancedMode` - a boolean alias over `aiSetupMode`, which is
+     *     exported. Writing both would let them contradict each other.
      */
     fun exportPreferences(prefs: Prefs): JSONObject = jsonOf(
         "themeMode" to prefs.themeMode,
         "dynamicColor" to prefs.dynamicColor,
+        // Appearance: palette, dark flavour, density and the type/contrast
+        // switches. All-inclusion means a restore should look identical to
+        // what the user left, not merely work.
+        "palette" to prefs.palette,
+        "darkVariant" to prefs.darkVariant,
+        "density" to prefs.density,
+        "highContrast" to prefs.highContrast,
+        "serifAccents" to prefs.serifAccents,
+        "monoFigures" to prefs.monoFigures,
+        // Experience
+        "motionLevel" to prefs.motionLevel,
+        "hapticIntensity" to prefs.hapticIntensity,
         "hapticsEnabled" to prefs.hapticsEnabled,
+        "soundEnabled" to prefs.soundEnabled,
+        "soundVolume" to prefs.soundVolume,
+        // Sets go out as arrays rather than the joined string they are
+        // stored as: the export format is a contract with other tools, and
+        // it should not leak how SharedPreferences happens to hold a set.
+        "soundCues" to jsonArrayOf(prefs.soundCues),
+        "gestures" to jsonArrayOf(prefs.gestures),
+        "colorVision" to prefs.colorVision,
+        "tabLabels" to prefs.tabLabels,
+        "appIcon" to prefs.appIcon,
+        "startDestination" to prefs.startDestination,
+        "confirmCompletion" to prefs.confirmCompletion,
+        "showHistoryStrip" to prefs.showHistoryStrip,
+        "swipeActions" to prefs.swipeActionsEnabled,
         "celebrationsEnabled" to prefs.celebrationsEnabled,
         "remindersEnabled" to prefs.remindersEnabled,
         "quietFrom" to prefs.quietFrom,
         "quietTo" to prefs.quietTo,
+        "quietWeekdayFrom" to prefs.quietWeekdayFrom,
+        "quietWeekdayTo" to prefs.quietWeekdayTo,
+        "quietWeekendFrom" to prefs.quietWeekendFrom,
+        "quietWeekendTo" to prefs.quietWeekendTo,
+        "weeklySummaryEnabled" to prefs.weeklySummaryEnabled,
+        "weeklySummaryDay" to prefs.weeklySummaryDay,
+        "weeklySummaryTime" to prefs.weeklySummaryTime,
         "reminderBudget" to prefs.reminderBudget,
         "checkpointsEnabled" to prefs.checkpointsEnabled,
         "morningCheckpoint" to prefs.morningCheckpoint,
@@ -313,8 +363,23 @@ object DataPolicy {
         "autoBackupFrequency" to prefs.autoBackupFrequency,
         "maxBackups" to prefs.maxBackups,
         "aiInstructions" to prefs.aiInstructions,
-        "aiLocalMemory" to prefs.aiLocalMemory
-        // NOTE: apiKey is deliberately excluded (stored in secrets file)
+        "aiLocalMemory" to prefs.aiLocalMemory,
+        "appLockEnabled" to prefs.appLockEnabled,
+        "appLockMethod" to prefs.appLockMethod,
+        "appLockTimeout" to prefs.appLockTimeout,
+        "appLockBiometric" to prefs.appLockBiometric,
+        "appLockGraceSeconds" to prefs.appLockGraceSeconds,
+        "quietPerDay" to prefs.quietPerDay,
+        "darkSchedule" to prefs.darkSchedule,
+        "darkFrom" to prefs.darkFrom,
+        "darkTo" to prefs.darkTo,
+        "reviewActions" to prefs.reviewActions,
+        "scorecardLastPrompt" to prefs.scorecardLastPrompt,
+        "activeProfile" to prefs.activeProfile,
+        "growthPlansEnabled" to prefs.growthPlansEnabled,
+        "preferredSttProvider" to prefs.preferredSttProvider
+        // NOTE: apiKey, the app-lock PIN hash and the Whisper key are
+        // deliberately excluded (stored in the secrets file).
     )
 
     /**
@@ -324,14 +389,56 @@ object DataPolicy {
         fun str(k: String) = if (json.has(k)) json.optString(k) else null
         fun bool(k: String) = if (json.has(k)) json.optBoolean(k) else null
         fun int(k: String) = if (json.has(k)) json.optInt(k) else null
+        fun num(k: String) = if (json.has(k)) json.optDouble(k).toFloat() else null
+        fun set(k: String): Set<String>? =
+            if (json.has(k)) json.optJSONArray(k)?.strings()?.toSet() ?: emptySet() else null
 
         int("themeMode")?.let { prefs.themeMode = it }
-        bool("dynamicColor")?.let { prefs.dynamicColor = it }
+
+        // Appearance goes through setAppearance so the revision counter is
+        // bumped once for the whole group; assigning the properties one by
+        // one would leave open Activities showing the old overlays. Each
+        // property still coerces its own value, so a hand-edited or
+        // downgraded export cannot produce an out-of-range palette.
+        prefs.setAppearance(
+            palette = int("palette") ?: prefs.palette,
+            darkVariant = int("darkVariant") ?: prefs.darkVariant,
+            density = int("density") ?: prefs.density,
+            highContrast = bool("highContrast") ?: prefs.highContrast,
+            serifAccents = bool("serifAccents") ?: prefs.serifAccents,
+            monoFigures = bool("monoFigures") ?: prefs.monoFigures,
+            dynamicColor = bool("dynamicColor") ?: prefs.dynamicColor
+        )
+
+        int("motionLevel")?.let { prefs.motionLevel = it }
+        // hapticIntensity supersedes hapticsEnabled; apply the boolean first
+        // so a newer export's explicit intensity wins over the legacy flag.
         bool("hapticsEnabled")?.let { prefs.hapticsEnabled = it }
+        int("hapticIntensity")?.let { prefs.hapticIntensity = it }
+        bool("soundEnabled")?.let { prefs.soundEnabled = it }
+        num("soundVolume")?.let { prefs.soundVolume = it }
+        // An empty array is meaningful — every cue switched off by hand —
+        // so presence of the key, not emptiness of the list, is the test.
+        set("soundCues")?.let { prefs.soundCues = it }
+        set("gestures")?.let { prefs.gestures = it }
+        int("colorVision")?.let { prefs.colorVision = it }
+        int("tabLabels")?.let { prefs.tabLabels = it }
+        int("appIcon")?.let { prefs.appIcon = it }
+        int("startDestination")?.let { prefs.startDestination = it }
+        bool("confirmCompletion")?.let { prefs.confirmCompletion = it }
+        bool("showHistoryStrip")?.let { prefs.showHistoryStrip = it }
+        bool("swipeActions")?.let { prefs.swipeActionsEnabled = it }
         bool("celebrationsEnabled")?.let { prefs.celebrationsEnabled = it }
         bool("remindersEnabled")?.let { prefs.remindersEnabled = it }
         str("quietFrom")?.let { prefs.quietFrom = it }
         str("quietTo")?.let { prefs.quietTo = it }
+        str("quietWeekdayFrom")?.let { prefs.quietWeekdayFrom = it }
+        str("quietWeekdayTo")?.let { prefs.quietWeekdayTo = it }
+        str("quietWeekendFrom")?.let { prefs.quietWeekendFrom = it }
+        str("quietWeekendTo")?.let { prefs.quietWeekendTo = it }
+        bool("weeklySummaryEnabled")?.let { prefs.weeklySummaryEnabled = it }
+        int("weeklySummaryDay")?.let { prefs.weeklySummaryDay = it }
+        str("weeklySummaryTime")?.let { prefs.weeklySummaryTime = it }
         int("reminderBudget")?.let { prefs.reminderBudget = it }
         bool("checkpointsEnabled")?.let { prefs.checkpointsEnabled = it }
         str("morningCheckpoint")?.let { prefs.morningCheckpoint = it }
@@ -396,22 +503,67 @@ object DataPolicy {
         int("maxBackups")?.let { prefs.maxBackups = it }
         str("aiInstructions")?.let { prefs.aiInstructions = it }
         str("aiLocalMemory")?.let { prefs.aiLocalMemory = it }
+        bool("appLockEnabled")?.let { prefs.appLockEnabled = it }
+        str("appLockMethod")?.let { prefs.appLockMethod = it }
+        int("appLockTimeout")?.let { prefs.appLockTimeout = it }
+        bool("appLockBiometric")?.let { prefs.appLockBiometric = it }
+        int("appLockGraceSeconds")?.let { prefs.appLockGraceSeconds = it }
+        str("quietPerDay")?.let { prefs.quietPerDay = it }
+        str("darkSchedule")?.let { prefs.darkSchedule = it }
+        str("darkFrom")?.let { prefs.darkFrom = it }
+        str("darkTo")?.let { prefs.darkTo = it }
+        str("reviewActions")?.let { prefs.reviewActions = it }
+        str("scorecardLastPrompt")?.let { prefs.scorecardLastPrompt = it }
+        str("activeProfile")?.let { prefs.activeProfile = it }
+        bool("growthPlansEnabled")?.let { prefs.growthPlansEnabled = it }
+        str("preferredSttProvider")?.let { prefs.preferredSttProvider = it }
+        // NOTE: the PIN hash and Whisper key are secrets and are never imported.
     }
 
     /**
      * Validate an import file before applying it.
-     * Returns a list of warnings/issues, or empty if clean.
+     * Returns a list of warnings/issues, or empty if clean. Throws
+     * [IllegalArgumentException] for structurally invalid input so the UI can
+     * show a specific, actionable error (#67).
      */
     fun validateImport(json: JSONObject): List<String> {
         val warnings = mutableListOf<String>()
+
+        // Must be a JSON object (enforced by the caller's parse).
+        if (json.length() == 0) throw IllegalArgumentException("The file is empty.")
+
         val app = json.optString("app")
+        if (app.isBlank() || (app != "SuperFlow" && !json.has("habits"))) {
+            throw IllegalArgumentException(
+                "This does not look like a SuperFlow export (missing \"app\":\"SuperFlow\")."
+            )
+        }
         if (app != "SuperFlow") warnings.add("Not a SuperFlow export (app=$app)")
 
         val version = json.optInt("exportVersion", 0)
         if (version > Serial.EXPORT_VERSION) warnings.add("Export is from a newer version ($version). Some data may not import correctly.")
-        if (version < Serial.EXPORT_VERSION) warnings.add("Export is from an older version ($version). New fields will use defaults.")
+        if (version in 1 until Serial.EXPORT_VERSION) warnings.add("Export is from an older version ($version). New fields will use defaults.")
+        if (version == 0) warnings.add("No export version found; importing as the current format.")
 
-        // Check for expected categories
+        // Each array must actually be a JSON array of objects.
+        val arrayKeys = listOf(
+            "identities", "goals", "systems", "habits", "checkIns", "focus",
+            "obstacles", "scorecard", "flows", "flowSteps", "reviews", "energy",
+            "pauses", "projects", "sources", "requirements"
+        )
+        for (key in arrayKeys) {
+            if (!json.has(key)) continue
+            val arr = json.opt(key)
+            if (arr !is JSONArray) {
+                throw IllegalArgumentException("\"$key\" should be a list but was ${arr?.javaClass?.simpleName ?: "missing"}.")
+            }
+            // Spot-check the first row is an object.
+            if (arr.length() > 0 && !arr.isNull(0) && arr.opt(0) !is JSONObject) {
+                throw IllegalArgumentException("\"$key\" contains an entry that is not an object.")
+            }
+        }
+
+        // Check for expected categories (advisory only).
         val present = json.keys().asSequence().toSet()
         val expected = exportableCategories.map { it.key }
         val missing = expected.filter { it !in present }

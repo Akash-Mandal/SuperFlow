@@ -1,6 +1,7 @@
 package com.superflow.domain
 
 import com.superflow.data.Repository
+import com.superflow.domain.InsightsCache
 import com.superflow.data.model.*
 import com.superflow.util.jsonOf
 import com.superflow.util.objects
@@ -15,24 +16,37 @@ import org.json.JSONObject
  */
 object Serial {
 
-    const val EXPORT_VERSION = 2
+    const val EXPORT_VERSION = 3
 
     /* -------------------------------------------------------------- to JSON */
 
     fun of(i: Identity): JSONObject = jsonOf(
         "table" to "identity", "id" to i.id, "statement" to i.statement,
-        "lifeArea" to i.lifeArea.name, "status" to i.status.name, "createdAt" to i.createdAt
+        "lifeArea" to i.lifeArea.name, "status" to i.status.name, "isPrimary" to i.isPrimary,
+        "evolutionHistory" to i.evolutionHistory.map { ev ->
+            jsonOf("previousStatement" to ev.previousStatement, "newStatement" to ev.newStatement,
+                "reason" to ev.reason, "votesAtEvolution" to ev.votesAtEvolution, "date" to ev.date)
+        },
+        "createdAt" to i.createdAt
     )
 
     fun of(g: Goal): JSONObject = jsonOf(
         "table" to "goal", "id" to g.id, "identityId" to g.identityId, "title" to g.title,
         "why" to g.why, "outcomeMetric" to g.outcomeMetric, "targetValue" to g.targetValue,
-        "targetDate" to g.targetDate, "status" to g.status.name, "createdAt" to g.createdAt
+        "targetDate" to g.targetDate, "currentMetricValue" to g.currentMetricValue,
+        "metricUnit" to g.metricUnit, "status" to g.status.name,
+        "milestones" to g.milestones.map { m ->
+            jsonOf("id" to m.id, "title" to m.title, "achieved" to m.achieved,
+                "achievedDate" to m.achievedDate, "linkedHabitIds" to m.linkedHabitIds)
+        },
+        "createdAt" to g.createdAt
     )
 
     fun of(s: Sys): JSONObject = jsonOf(
         "table" to "sys", "id" to s.id, "goalId" to s.goalId, "title" to s.title,
-        "description" to s.description, "status" to s.status.name, "createdAt" to s.createdAt
+        "description" to s.description, "status" to s.status.name,
+        "templateId" to s.templateId, "reviewFrequency" to s.reviewFrequency,
+        "createdAt" to s.createdAt
     )
 
     fun of(h: Habit): JSONObject = jsonOf(
@@ -48,24 +62,44 @@ object Serial {
         "recurrenceRule" to h.recurrenceRule, "scheduleVersion" to h.scheduleVersion,
         "startDate" to h.startDate, "endDate" to h.endDate,
         "reminderEnabled" to h.reminderEnabled, "protectedRoutine" to h.protectedRoutine,
+        "rewardSatisfaction" to h.rewardSatisfaction, "rewardLastRated" to h.rewardLastRated,
+        "reframeHelpful" to h.reframeHelpful, "bundleEffectiveness" to h.bundleEffectiveness,
+        "frictionPlanActive" to h.frictionPlanActive,
+        "environmentPrepReminderTime" to h.environmentPrepReminderTime,
+        "ladderHistory" to h.ladderHistory.map { l ->
+            jsonOf("level" to l.level.name, "previousText" to l.previousText,
+                "newText" to l.newText, "reason" to l.reason, "date" to l.date)
+        },
+        "lastDifficultyRating" to h.lastDifficultyRating,
+        "stretchCount" to h.stretchCount, "consecutiveStandards" to h.consecutiveStandards,
+        "estimatedMinutes" to h.estimatedMinutes, "difficultyRating" to h.difficultyRating,
         "colorSeed" to h.colorSeed, "orderIndex" to h.orderIndex,
-        "status" to h.status.name, "createdAt" to h.createdAt
+        "status" to h.status.name, "graduated" to h.graduated, "graduatedAt" to h.graduatedAt,
+        "createdAt" to h.createdAt
     )
 
     fun of(c: CheckIn): JSONObject = jsonOf(
         "table" to "checkin", "id" to c.id, "habitId" to c.habitId, "date" to c.date,
         "result" to c.result.name, "level" to c.level.name, "amount" to c.amount,
-        "note" to c.note, "createdAt" to c.createdAt
+        "note" to c.note, "contextTags" to c.contextTags,
+        "actualAmount" to c.actualAmount, "actualDurationMinutes" to c.actualDurationMinutes,
+        "qualityRating" to c.qualityRating, "difficultyRating" to c.difficultyRating,
+        "missReason" to c.missReason, "missReasonDetail" to c.missReasonDetail,
+        "createdAt" to c.createdAt
     )
 
     fun of(f: FocusItem): JSONObject = jsonOf(
         "table" to "focus", "id" to f.id, "date" to f.date, "habitId" to f.habitId,
-        "title" to f.title, "done" to f.done, "orderIndex" to f.orderIndex
+        "title" to f.title, "done" to f.done, "isPriority" to f.isPriority,
+        "goalId" to f.goalId, "estimatedMinutes" to f.estimatedMinutes,
+        "carryOverCount" to f.carryOverCount, "orderIndex" to f.orderIndex
     )
 
     fun of(o: ObstaclePlan): JSONObject = jsonOf(
         "table" to "obstacle", "id" to o.id, "habitId" to o.habitId, "ifText" to o.ifText,
-        "thenText" to o.thenText, "createdAt" to o.createdAt
+        "thenText" to o.thenText, "category" to o.category, "timesUsed" to o.timesUsed,
+        "lastUsed" to o.lastUsed, "effectiveness" to o.effectiveness,
+        "createdAt" to o.createdAt
     )
 
     fun of(e: ScorecardEntry): JSONObject = jsonOf(
@@ -75,18 +109,33 @@ object Serial {
 
     fun of(f: Flow): JSONObject = jsonOf(
         "table" to "flow", "id" to f.id, "title" to f.title, "anchor" to f.anchor,
-        "createdAt" to f.createdAt
+        "estimatedMinutes" to f.estimatedMinutes, "completionCount" to f.completionCount,
+        "partialCount" to f.partialCount, "createdAt" to f.createdAt
     )
 
     fun of(s: FlowStep): JSONObject = jsonOf(
         "table" to "flowstep", "id" to s.id, "flowId" to s.flowId, "habitId" to s.habitId,
-        "title" to s.title, "existingBehaviour" to s.existingBehaviour, "orderIndex" to s.orderIndex
+        "title" to s.title, "existingBehaviour" to s.existingBehaviour,
+        "durationMinutes" to s.durationMinutes, "isBreakpoint" to s.isBreakpoint,
+        "orderIndex" to s.orderIndex
     )
 
     fun of(r: Review): JSONObject = jsonOf(
         "table" to "review", "id" to r.id, "kind" to r.kind.name, "periodLabel" to r.periodLabel,
         "whatWorked" to r.whatWorked, "whatDidnt" to r.whatDidnt, "systemChange" to r.systemChange,
-        "identityEvidence" to r.identityEvidence, "createdAt" to r.createdAt
+        "identityEvidence" to r.identityEvidence, "autoGeneratedData" to r.autoGeneratedData,
+        "actionItems" to r.actionItems.map { ai ->
+            jsonOf("id" to ai.id, "text" to ai.text, "completed" to ai.completed,
+                "completedDate" to ai.completedDate, "linkedCommand" to ai.linkedCommand,
+                "outcome" to ai.outcome)
+        },
+        "previousReviewId" to r.previousReviewId,
+        "createdAt" to r.createdAt
+    )
+
+    fun of(e: IdentityEvidence): JSONObject = jsonOf(
+        "table" to "evidence", "id" to e.id, "identityId" to e.identityId, "text" to e.text,
+        "sourceHabitId" to e.sourceHabitId, "date" to e.date, "createdAt" to e.createdAt
     )
 
     fun of(e: EnergyLog): JSONObject = jsonOf(
@@ -126,7 +175,8 @@ object Serial {
 
     fun identity(o: JSONObject) = Identity(
         o.string("id", newId()), o.string("statement"), LifeArea.from(o.string("lifeArea")),
-        Status.valueOf(o.string("status", "ACTIVE")), long(o, "createdAt")
+        Status.valueOf(o.string("status", "ACTIVE")), o.optBoolean("isPrimary", true),
+        parseEvolutionHistory(o.optJSONArray("evolutionHistory")), long(o, "createdAt")
     )
 
     fun goal(o: JSONObject) = Goal(
@@ -134,12 +184,16 @@ object Serial {
         o.string("outcomeMetric"),
         if (o.isNull("targetValue")) null else o.optDouble("targetValue"),
         if (o.isNull("targetDate")) null else o.optLong("targetDate"),
-        GoalStatus.valueOf(o.string("status", "ACTIVE")), long(o, "createdAt")
+        if (o.isNull("currentMetricValue")) null else o.optDouble("currentMetricValue"),
+        o.string("metricUnit"),
+        GoalStatus.valueOf(o.string("status", "ACTIVE")),
+        parseGoalMilestones(o.optJSONArray("milestones")), long(o, "createdAt")
     )
 
     fun system(o: JSONObject) = Sys(
         o.string("id", newId()), o.stringOrNull("goalId"), o.string("title"),
-        o.string("description"), Status.valueOf(o.string("status", "ACTIVE")), long(o, "createdAt")
+        o.string("description"), Status.valueOf(o.string("status", "ACTIVE")),
+        o.stringOrNull("templateId"), o.string("reviewFrequency", "monthly"), long(o, "createdAt")
     )
 
     fun habit(o: JSONObject) = Habit(
@@ -165,25 +219,53 @@ object Serial {
         startDate = o.string("startDate"), endDate = o.stringOrNull("endDate"),
         reminderEnabled = o.optBoolean("reminderEnabled", false),
         protectedRoutine = o.optBoolean("protectedRoutine", false),
+        rewardSatisfaction = if (o.isNull("rewardSatisfaction")) null else o.optInt("rewardSatisfaction"),
+        rewardLastRated = o.optString("rewardLastRated", null),
+        reframeHelpful = if (o.isNull("reframeHelpful")) null else o.optBoolean("reframeHelpful"),
+        bundleEffectiveness = if (o.isNull("bundleEffectiveness")) null else o.optInt("bundleEffectiveness"),
+        frictionPlanActive = o.optBoolean("frictionPlanActive", false),
+        environmentPrepReminderTime = o.optString("environmentPrepReminderTime", null),
+        ladderHistory = parseLadderEvolution(o.optJSONArray("ladderHistory")),
+        lastDifficultyRating = if (o.isNull("lastDifficultyRating")) null else o.optInt("lastDifficultyRating"),
+        stretchCount = o.optInt("stretchCount", 0),
+        consecutiveStandards = o.optInt("consecutiveStandards", 0),
+        estimatedMinutes = o.optInt("estimatedMinutes", 5).coerceAtLeast(1),
+        difficultyRating = o.optInt("difficultyRating", 3).coerceIn(1, 5),
         colorSeed = o.optInt("colorSeed", 0),
         orderIndex = o.optInt("orderIndex", 0),
-        status = Status.valueOf(o.string("status", "ACTIVE")), createdAt = long(o, "createdAt")
+        status = Status.valueOf(o.string("status", "ACTIVE")),
+        graduated = o.optBoolean("graduated", false),
+        graduatedAt = if (o.isNull("graduatedAt")) null else o.optLong("graduatedAt"),
+        createdAt = long(o, "createdAt")
     )
 
     fun checkIn(o: JSONObject) = CheckIn(
         o.string("id", newId()), o.string("habitId"), o.string("date"),
         CheckInResult.valueOf(o.string("result", "DONE")), Level.from(o.string("level")),
-        o.optDouble("amount", 0.0), o.string("note"), long(o, "createdAt")
+        o.optDouble("amount", 0.0), o.string("note"),
+        parseContextTags(o.optJSONArray("contextTags")),
+        if (o.isNull("actualAmount")) null else o.optDouble("actualAmount"),
+        if (o.isNull("actualDurationMinutes")) null else o.optInt("actualDurationMinutes"),
+        if (o.isNull("qualityRating")) null else o.optInt("qualityRating"),
+        if (o.isNull("difficultyRating")) null else o.optInt("difficultyRating"),
+        o.optString("missReason", null), o.optString("missReasonDetail", null),
+        long(o, "createdAt")
     )
 
     fun focus(o: JSONObject) = FocusItem(
         o.string("id", newId()), o.string("date"), o.stringOrNull("habitId"),
-        o.string("title"), o.optBoolean("done", false), o.optInt("orderIndex", 0)
+        o.string("title"), o.optBoolean("done", false), o.optBoolean("isPriority", false),
+        o.stringOrNull("goalId"),
+        if (o.isNull("estimatedMinutes")) null else o.optInt("estimatedMinutes"),
+        o.optInt("carryOverCount", 0), o.optInt("orderIndex", 0)
     )
 
     fun obstacle(o: JSONObject) = ObstaclePlan(
         o.string("id", newId()), o.string("habitId"), o.string("ifText"),
-        o.string("thenText"), long(o, "createdAt")
+        o.string("thenText"), o.optString("category", null),
+        o.optInt("timesUsed", 0), o.optString("lastUsed", null),
+        if (o.isNull("effectiveness")) null else o.optInt("effectiveness"),
+        long(o, "createdAt")
     )
 
     fun scorecard(o: JSONObject) = ScorecardEntry(
@@ -192,24 +274,34 @@ object Serial {
     )
 
     fun flow(o: JSONObject) = Flow(
-        o.string("id", newId()), o.string("title"), o.string("anchor"), long(o, "createdAt")
+        o.string("id", newId()), o.string("title"), o.string("anchor"),
+        o.optInt("estimatedMinutes", 0), o.optInt("completionCount", 0),
+        o.optInt("partialCount", 0), long(o, "createdAt")
     )
 
     fun flowStep(o: JSONObject) = FlowStep(
         o.string("id", newId()), o.string("flowId"), o.stringOrNull("habitId"), o.string("title"),
-        o.optBoolean("existingBehaviour", false), o.optInt("orderIndex", 0)
+        o.optBoolean("existingBehaviour", false), o.optInt("durationMinutes", 0),
+        o.optBoolean("isBreakpoint", false), o.optInt("orderIndex", 0)
     )
 
     fun review(o: JSONObject) = Review(
         o.string("id", newId()), ReviewKind.valueOf(o.string("kind", "WEEKLY")),
         o.string("periodLabel"), o.string("whatWorked"), o.string("whatDidnt"),
-        o.string("systemChange"), o.string("identityEvidence"), long(o, "createdAt")
+        o.string("systemChange"), o.string("identityEvidence"), o.string("autoGeneratedData"),
+        parseReviewActionItems(o.optJSONArray("actionItems")),
+        o.optString("previousReviewId", null), long(o, "createdAt")
     )
 
     fun energy(o: JSONObject) = EnergyLog(
         o.string("id", newId()), o.string("date"),
         Checkpoint.valueOf(o.string("checkpoint", "MORNING")),
         o.optInt("energy", 3), o.string("note"), long(o, "createdAt")
+    )
+
+    fun evidence(o: JSONObject) = IdentityEvidence(
+        o.string("id", newId()), o.string("identityId"), o.string("text"),
+        o.stringOrNull("sourceHabitId"), o.string("date"), long(o, "createdAt")
     )
 
     fun pause(o: JSONObject) = PauseWindow(
@@ -235,6 +327,72 @@ object Serial {
         o.optInt("orderIndex", 0)
     )
 
+    /* -------------------------------------------------------- JSON parsers */
+
+    fun parseEvolutionHistory(arr: JSONArray?): List<IdentityEvolution> {
+        if (arr == null || arr.length() == 0) return emptyList()
+        return arr.objects().map { o ->
+            IdentityEvolution(
+                previousStatement = o.string("previousStatement"),
+                newStatement = o.string("newStatement"),
+                reason = o.string("reason"),
+                votesAtEvolution = o.optInt("votesAtEvolution", 0),
+                date = o.string("date")
+            )
+        }
+    }
+
+    fun parseGoalMilestones(arr: JSONArray?): List<GoalMilestone> {
+        if (arr == null || arr.length() == 0) return emptyList()
+        return arr.objects().map { o ->
+            val linked = o.optJSONArray("linkedHabitIds")
+            GoalMilestone(
+                id = o.string("id"),
+                title = o.string("title"),
+                achieved = o.optBoolean("achieved", false),
+                achievedDate = o.optString("achievedDate", null),
+                linkedHabitIds = if (linked == null) emptyList()
+                else (0 until linked.length()).map { linked.optString(it, "") }.filter { it.isNotBlank() }
+            )
+        }
+    }
+
+    fun parseLadderEvolution(arr: JSONArray?): List<LadderEvolution> {
+        if (arr == null || arr.length() == 0) return emptyList()
+        return arr.objects().map { o ->
+            LadderEvolution(
+                level = Level.from(o.optString("level")),
+                previousText = o.string("previousText"),
+                newText = o.string("newText"),
+                reason = o.string("reason"),
+                date = o.string("date")
+            )
+        }
+    }
+
+    fun parseContextTags(arr: JSONArray?): List<String> {
+        if (arr == null || arr.length() == 0) return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val s = arr.optString(i, "")
+            if (s.isNotBlank()) s
+            else arr.optJSONObject(i)?.optString("tag", "")?.takeIf { it.isNotBlank() }
+        }
+    }
+
+    fun parseReviewActionItems(arr: JSONArray?): List<ReviewActionItem> {
+        if (arr == null || arr.length() == 0) return emptyList()
+        return arr.objects().map { o ->
+            ReviewActionItem(
+                id = o.string("id"),
+                text = o.string("text"),
+                completed = o.optBoolean("completed", false),
+                completedDate = o.optString("completedDate", null),
+                linkedCommand = o.optString("linkedCommand", null),
+                outcome = o.optString("outcome", null)
+            )
+        }
+    }
+
     /* ----------------------------------------------------------- whole store */
 
     fun exportAll(repo: Repository): JSONObject {
@@ -256,30 +414,132 @@ object Serial {
         root.put("reviews", arr(repo.reviews().map { of(it) }))
         root.put("energy", arr(repo.energyLogs().map { of(it) }))
         root.put("pauses", arr(repo.pauses().map { of(it) }))
+        root.put("evidence", arr(repo.evidence().map { of(it) }))
         val projects = repo.projects()
         root.put("projects", arr(projects.map { of(it) }))
         root.put("sources", arr(projects.flatMap { repo.sources(it.id) }.map { of(it) }))
         root.put("requirements", arr(projects.flatMap { repo.requirements(it.id) }.map { of(it) }))
+        root.put("routines", arr(repo.routines().map { of(it) }))
+        root.put("routineSteps", arr(repo.routines().flatMap { repo.routineSteps(it.id) }.map { of(it) }))
+        root.put("journalEntries", arr(repo.journalEntries().map { of(it) }))
+        root.put("sprints", arr(repo.sprints().map { of(it) }))
+        root.put("milestones", arr(repo.milestones().map { of(it) }))
+        root.put("memories", arr(repo.memories().map { of(it) }))
         return root
     }
 
     fun importAll(repo: Repository, root: JSONObject) {
         repo.deleteAllData()
-        root.optJSONArray("identities")?.objects()?.forEach { repo.saveIdentity(identity(it)) }
-        root.optJSONArray("goals")?.objects()?.forEach { repo.saveGoal(goal(it)) }
-        root.optJSONArray("systems")?.objects()?.forEach { repo.saveSystem(system(it)) }
-        root.optJSONArray("habits")?.objects()?.forEach { repo.saveHabit(habit(it)) }
-        root.optJSONArray("checkIns")?.objects()?.forEach { repo.saveCheckIn(checkIn(it)) }
-        root.optJSONArray("focus")?.objects()?.forEach { repo.saveFocus(focus(it)) }
-        root.optJSONArray("obstacles")?.objects()?.forEach { repo.saveObstacle(obstacle(it)) }
-        root.optJSONArray("scorecard")?.objects()?.forEach { repo.saveScorecard(scorecard(it)) }
-        root.optJSONArray("flows")?.objects()?.forEach { repo.saveFlow(flow(it)) }
-        root.optJSONArray("flowSteps")?.objects()?.forEach { repo.saveFlowStep(flowStep(it)) }
-        root.optJSONArray("reviews")?.objects()?.forEach { repo.saveReview(review(it)) }
-        root.optJSONArray("energy")?.objects()?.forEach { repo.saveEnergy(energy(it)) }
-        root.optJSONArray("pauses")?.objects()?.forEach { repo.savePause(pause(it)) }
-        root.optJSONArray("projects")?.objects()?.forEach { repo.saveProject(project(it)) }
-        root.optJSONArray("sources")?.objects()?.forEach { repo.saveSource(source(it)) }
-        root.optJSONArray("requirements")?.objects()?.forEach { repo.saveRequirement(requirement(it)) }
+        // Insert every row in one transaction so a malformed or truncated file
+        // never leaves a half-imported workspace behind.
+        repo.runInTransaction {
+            root.optJSONArray("identities")?.objects()?.forEach { repo.saveIdentity(identity(it)) }
+            root.optJSONArray("goals")?.objects()?.forEach { repo.saveGoal(goal(it)) }
+            root.optJSONArray("systems")?.objects()?.forEach { repo.saveSystem(system(it)) }
+            root.optJSONArray("habits")?.objects()?.forEach { repo.saveHabit(habit(it)) }
+            root.optJSONArray("checkIns")?.objects()?.forEach { repo.saveCheckIn(checkIn(it)) }
+            root.optJSONArray("focus")?.objects()?.forEach { repo.saveFocus(focus(it)) }
+            root.optJSONArray("obstacles")?.objects()?.forEach { repo.saveObstacle(obstacle(it)) }
+            root.optJSONArray("scorecard")?.objects()?.forEach { repo.saveScorecard(scorecard(it)) }
+            root.optJSONArray("flows")?.objects()?.forEach { repo.saveFlow(flow(it)) }
+            root.optJSONArray("flowSteps")?.objects()?.forEach { repo.saveFlowStep(flowStep(it)) }
+            root.optJSONArray("routines")?.objects()?.forEach { repo.saveRoutine(routine(it)) }
+            root.optJSONArray("routineSteps")?.objects()?.forEach { repo.saveRoutineStep(routineStep(it)) }
+            root.optJSONArray("journalEntries")?.objects()?.forEach { repo.saveJournalEntry(journalEntry(it)) }
+            root.optJSONArray("sprints")?.objects()?.forEach { repo.saveSprint(sprint(it)) }
+            root.optJSONArray("milestones")?.objects()?.forEach { repo.saveMilestone(milestone(it)) }
+            root.optJSONArray("memories")?.objects()?.forEach { repo.saveMemory(memory(it)) }
+            root.optJSONArray("reviews")?.objects()?.forEach { repo.saveReview(review(it)) }
+            root.optJSONArray("energy")?.objects()?.forEach { repo.saveEnergy(energy(it)) }
+            root.optJSONArray("pauses")?.objects()?.forEach { repo.savePause(pause(it)) }
+            root.optJSONArray("evidence")?.objects()?.forEach { repo.saveEvidence(evidence(it)) }
+            root.optJSONArray("projects")?.objects()?.forEach { repo.saveProject(project(it)) }
+            root.optJSONArray("sources")?.objects()?.forEach { repo.saveSource(source(it)) }
+            root.optJSONArray("requirements")?.objects()?.forEach { repo.saveRequirement(requirement(it)) }
+        }
+        InsightsCache.invalidate()
     }
+
+    /* ───────────────────────────────────────────────────── Phase 1 models ── */
+
+    fun of(r: Routine): JSONObject = jsonOf(
+        "table" to "routine", "id" to r.id, "title" to r.title, "trigger" to r.trigger,
+        "estimatedMinutes" to r.estimatedMinutes, "status" to r.status.name, "createdAt" to r.createdAt
+    )
+
+    fun of(s: RoutineStep): JSONObject = jsonOf(
+        "table" to "routine_step", "id" to s.id, "routineId" to s.routineId, "habitId" to s.habitId,
+        "title" to s.title, "durationMinutes" to s.durationMinutes, "orderIndex" to s.orderIndex,
+        "transitionNote" to s.transitionNote
+    )
+
+    fun of(e: JournalEntry): JSONObject = jsonOf(
+        "table" to "journal_entry", "id" to e.id, "date" to e.date, "prompt" to e.prompt,
+        "content" to e.content, "mood" to e.mood, "tags" to e.tags.joinToString(","),
+        "createdAt" to e.createdAt
+    )
+
+    fun of(s: Sprint): JSONObject = jsonOf(
+        "table" to "sprint", "id" to s.id, "title" to s.title, "startDate" to s.startDate,
+        "endDate" to s.endDate, "status" to s.status.name, "reviewNotes" to s.reviewNotes,
+        "createdAt" to s.createdAt
+    )
+
+    fun of(m: Milestone): JSONObject = jsonOf(
+        "table" to "milestone", "id" to m.id, "habitId" to m.habitId, "type" to m.type.name,
+        "value" to m.value, "label" to m.label, "acknowledged" to m.acknowledged,
+        "achievedAt" to m.achievedAt
+    )
+
+    fun of(m: AiMemory): JSONObject = jsonOf(
+        "table" to "ai_memory", "id" to m.id, "category" to m.category.name, "content" to m.content,
+        "importance" to m.importance, "lastAccessed" to m.lastAccessed,
+        "accessCount" to m.accessCount, "createdAt" to m.createdAt
+    )
+
+    /* ── Deserializers ── */
+
+    fun routine(o: JSONObject) = Routine(
+        id = o.string("id", newId()), title = o.string("title"), trigger = o.string("trigger"),
+        estimatedMinutes = o.optInt("estimatedMinutes", 30),
+        status = Status.valueOf(o.string("status", "ACTIVE")), createdAt = long(o, "createdAt")
+    )
+
+    fun routineStep(o: JSONObject) = RoutineStep(
+        id = o.string("id", newId()), routineId = o.string("routineId"),
+        habitId = o.stringOrNull("habitId"), title = o.string("title"),
+        durationMinutes = o.optInt("durationMinutes", 5),
+        orderIndex = o.optInt("orderIndex", 0), transitionNote = o.string("transitionNote")
+    )
+
+    fun journalEntry(o: JSONObject) = JournalEntry(
+        id = o.string("id", newId()), date = o.string("date"), prompt = o.string("prompt"),
+        content = o.string("content"), mood = if (o.isNull("mood")) null else o.optInt("mood"),
+        tags = o.string("tags").split(",").map { it.trim() }.filter { it.isNotBlank() },
+        createdAt = long(o, "createdAt")
+    )
+
+    fun sprint(o: JSONObject) = Sprint(
+        id = o.string("id", newId()), title = o.string("title"),
+        startDate = o.string("startDate"), endDate = o.string("endDate"),
+        status = SprintStatus.valueOf(o.string("status", "PLANNED")),
+        reviewNotes = o.string("reviewNotes"), createdAt = long(o, "createdAt")
+    )
+
+    fun milestone(o: JSONObject) = Milestone(
+        id = o.string("id", newId()), habitId = o.stringOrNull("habitId"),
+        type = MilestoneType.valueOf(o.string("type", "FIRST_CHECKIN")),
+        value = o.optInt("value", 1), label = o.string("label"),
+        acknowledged = o.optBoolean("acknowledged", false), achievedAt = long(o, "achievedAt")
+    )
+
+    fun memory(o: JSONObject) = AiMemory(
+        id = o.string("id", newId()),
+        category = MemoryCategory.valueOf(o.string("category", "USER_PREFERENCE")),
+        content = o.string("content"), importance = o.optInt("importance", 5),
+        lastAccessed = long(o, "lastAccessed"), accessCount = o.optInt("accessCount", 0),
+        createdAt = long(o, "createdAt")
+    )
+
+
 }

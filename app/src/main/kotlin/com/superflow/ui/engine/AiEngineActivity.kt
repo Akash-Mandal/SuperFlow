@@ -770,6 +770,32 @@ class AiEngineActivity : ScrollActivity() {
             }
         })
         content.addView(MaterialButton(this, null,
+            com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            text = "Check data integrity"
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setOnClickListener {
+                val issues = com.superflow.domain.Diagnostics.issues(bus.repo)
+                val message = if (issues.isEmpty())
+                    "All references are intact. No orphaned records found."
+                else buildString {
+                    append("Found ${issues.size} issue")
+                    if (issues.size != 1) append("s")
+                    append(":\n\n")
+                    issues.forEach { append("· ${it.message}\n") }
+                    append("\nThese rows reference records that no longer exist. " +
+                            "Deleting a parent cascades its children, so orphans usually " +
+                            "come from an import or an older app version.")
+                }
+                MaterialAlertDialogBuilder(this@AiEngineActivity)
+                    .setTitle("Data integrity")
+                    .setMessage(message)
+                    .setPositiveButton(R.string.close, null)
+                    .show()
+            }
+        })
+        content.addView(MaterialButton(this, null,
             androidx.appcompat.R.attr.borderlessButtonStyle).apply {
             text = "Stop AI"
             layoutParams = LinearLayout.LayoutParams(

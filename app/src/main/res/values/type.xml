@@ -1,50 +1,168 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Type scale (design system v2 §5.2).
+
+  Three families, each with one job:
+    Inter           all UI text. Neutral grotesque, tall x-height.
+    Source Serif 4  identity statements and journal entries only. The serif
+                    is the signal that this is reflection, not data.
+    JetBrains Mono  numerals in stats and chart axes. Tabular figures keep
+                    counts from jittering as they animate.
+
+  Sizes are the plan's scale verbatim (size/line-height in sp):
+    Display 40/48 · Headline L 32/40 · Headline M 24/32 · Title L 20/28
+    Title M 16/24 · Body L 16/24 · Body M 14/20 · Label L 14/20
+    Label M 12/16 · Overline 11/16 · Data 13/16
+
+  lineSpacingMultiplier is used rather than lineHeight because it survives
+  the user's font-scale setting proportionally; the ratios below reproduce
+  the target line heights at 1.0x scale.
+
+  Optical letter-spacing: tightened as size grows, opened at small sizes.
+-->
 <resources>
-    <style name="Text.SuperFlow.DisplaySmall" parent="TextAppearance.Material3.DisplaySmall">
-        <item name="fontFamily">sans-serif</item>
-        <item name="android:fontFamily">sans-serif</item>
-        <item name="android:textSize">34sp</item>
-        <item name="android:letterSpacing">-0.015</item>
+
+    <!-- ======================================================= display -->
+    <!-- Reserved for a single number or word: the streak count on Today. -->
+    <style name="Text.SuperFlow.Display" parent="TextAppearance.Material3.DisplaySmall">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:textSize">40sp</item>
+        <item name="android:lineSpacingMultiplier">1.2</item>
+        <item name="android:letterSpacing">-0.02</item>
+        <item name="android:textFontWeight">700</item>
         <item name="android:textStyle">bold</item>
     </style>
-    <style name="Text.SuperFlow.HeadlineMedium" parent="TextAppearance.Material3.HeadlineMedium">
-        <item name="android:textSize">27sp</item>
-        <item name="android:letterSpacing">-0.01</item>
-        <item name="android:textStyle">bold</item>
-    </style>
-    <style name="Text.SuperFlow.HeadlineSmall" parent="TextAppearance.Material3.HeadlineSmall">
-        <item name="android:textSize">23sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:letterSpacing">-0.005</item>
-    </style>
-    <style name="Text.SuperFlow.TitleLarge" parent="TextAppearance.Material3.TitleLarge">
-        <item name="android:textSize">19sp</item>
-        <item name="fontFamily">sans-serif-medium</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
-    </style>
-    <style name="Text.SuperFlow.TitleMedium" parent="TextAppearance.Material3.TitleMedium">
-        <item name="android:textSize">16sp</item>
-        <item name="fontFamily">sans-serif-medium</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
-    </style>
-    <style name="Text.SuperFlow.BodyLarge" parent="TextAppearance.Material3.BodyLarge">
-        <item name="android:textSize">16sp</item>
+
+    <!-- Retained name: existing layouts bind to DisplaySmall. Now an alias
+         of the scale's Headline Large step. -->
+    <style name="Text.SuperFlow.DisplaySmall" parent="Text.SuperFlow.HeadlineLarge" />
+
+    <!-- ====================================================== headline -->
+    <style name="Text.SuperFlow.HeadlineLarge" parent="TextAppearance.Material3.HeadlineLarge">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:textSize">32sp</item>
         <item name="android:lineSpacingMultiplier">1.25</item>
+        <item name="android:letterSpacing">-0.015</item>
+        <item name="android:textFontWeight">700</item>
+        <item name="android:textStyle">bold</item>
     </style>
+
+    <style name="Text.SuperFlow.HeadlineMedium" parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:lineSpacingMultiplier">1.33</item>
+        <item name="android:letterSpacing">-0.01</item>
+        <item name="android:textFontWeight">700</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- Alias kept for layouts already referencing HeadlineSmall. -->
+    <style name="Text.SuperFlow.HeadlineSmall" parent="Text.SuperFlow.TitleLarge" />
+
+    <!-- ========================================================= title -->
+    <style name="Text.SuperFlow.TitleLarge" parent="TextAppearance.Material3.TitleLarge">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:lineSpacingMultiplier">1.4</item>
+        <item name="android:letterSpacing">-0.005</item>
+        <item name="android:textFontWeight">600</item>
+    </style>
+
+    <style name="Text.SuperFlow.TitleMedium" parent="TextAppearance.Material3.TitleMedium">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:lineSpacingMultiplier">1.5</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="android:textFontWeight">600</item>
+    </style>
+
+    <!-- ========================================================== body -->
+    <style name="Text.SuperFlow.BodyLarge" parent="TextAppearance.Material3.BodyLarge">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:lineSpacingMultiplier">1.5</item>
+        <item name="android:textFontWeight">400</item>
+    </style>
+
     <style name="Text.SuperFlow.BodyMedium" parent="TextAppearance.Material3.BodyMedium">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:textSize">14sp</item>
-        <item name="android:lineSpacingMultiplier">1.3</item>
+        <item name="android:lineSpacingMultiplier">1.43</item>
+        <item name="android:textFontWeight">400</item>
     </style>
+
+    <!-- ========================================================= label -->
     <style name="Text.SuperFlow.LabelLarge" parent="TextAppearance.Material3.LabelLarge">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:textSize">14sp</item>
-        <item name="fontFamily">sans-serif-medium</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:lineSpacingMultiplier">1.43</item>
+        <item name="android:letterSpacing">0.005</item>
+        <item name="android:textFontWeight">500</item>
     </style>
+
+    <style name="Text.SuperFlow.LabelMedium" parent="TextAppearance.Material3.LabelMedium">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:lineSpacingMultiplier">1.33</item>
+        <item name="android:letterSpacing">0.01</item>
+        <item name="android:textFontWeight">500</item>
+    </style>
+
     <style name="Text.SuperFlow.Overline" parent="TextAppearance.Material3.LabelSmall">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:textSize">11sp</item>
+        <item name="android:lineSpacingMultiplier">1.45</item>
         <item name="android:letterSpacing">0.09</item>
         <item name="android:textAllCaps">true</item>
-        <item name="fontFamily">sans-serif-medium</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textFontWeight">600</item>
+    </style>
+
+    <!-- ========================================================== data -->
+    <!-- Monospaced numerals. Any figure that animates or updates in place
+         uses this so the glyph advance never shifts. -->
+    <style name="Text.SuperFlow.Data" parent="TextAppearance.Material3.BodySmall">
+        <item name="fontFamily">@font/jetbrains_mono</item>
+        <item name="android:fontFamily">@font/jetbrains_mono</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:lineSpacingMultiplier">1.23</item>
+        <item name="android:letterSpacing">-0.01</item>
+        <item name="android:textFontWeight">500</item>
+    </style>
+
+    <!-- Large stat readout: the streak number, ring centre, scorecard totals. -->
+    <style name="Text.SuperFlow.DataLarge" parent="Text.SuperFlow.Data">
+        <item name="android:textSize">28sp</item>
+        <item name="android:lineSpacingMultiplier">1.15</item>
+        <item name="android:letterSpacing">-0.02</item>
+    </style>
+
+    <!-- ========================================================= serif -->
+    <!-- Identity statements: "I am someone who...". Italic, generous leading. -->
+    <style name="Text.SuperFlow.Identity" parent="TextAppearance.Material3.BodyLarge">
+        <item name="fontFamily">@font/source_serif</item>
+        <item name="android:fontFamily">@font/source_serif</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:lineSpacingMultiplier">1.5</item>
+        <item name="android:textStyle">italic</item>
+        <item name="android:textFontWeight">400</item>
+    </style>
+
+    <!-- Journal / reflection body. Upright serif, long-form reading measure. -->
+    <style name="Text.SuperFlow.Journal" parent="TextAppearance.Material3.BodyLarge">
+        <item name="fontFamily">@font/source_serif</item>
+        <item name="android:fontFamily">@font/source_serif</item>
+        <item name="android:textSize">17sp</item>
+        <item name="android:lineSpacingMultiplier">1.6</item>
+        <item name="android:textFontWeight">400</item>
     </style>
 </resources>

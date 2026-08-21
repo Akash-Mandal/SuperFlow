@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_bg_mono" />
+    <foreground android:drawable="@drawable/ic_launcher_fg_mono" />
+    <!--
+        Every variant shares one monochrome layer. A themed icon is tinted
+        by the system from the wallpaper, so a per-variant monochrome would
+        make the three variants indistinguishable anyway.
+    -->
+    <monochrome android:drawable="@drawable/ic_launcher_fg" />
+</adaptive-icon>

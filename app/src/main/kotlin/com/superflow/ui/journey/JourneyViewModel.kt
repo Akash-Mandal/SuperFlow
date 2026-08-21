@@ -4,11 +4,20 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.superflow.data.Repository
-import com.superflow.data.model.*
+import com.superflow.data.model.Goal
+import com.superflow.data.model.Habit
+import com.superflow.data.model.HabitMode
+import com.superflow.data.model.Identity
+import com.superflow.data.model.LifeArea
+import com.superflow.data.model.Status
+import com.superflow.data.model.Sys
+import com.superflow.design.JourneyTree
+import com.superflow.design.Periods
 import com.superflow.domain.Actor
 import com.superflow.domain.Capabilities
 import com.superflow.domain.CommandBus
 import com.superflow.domain.Insights
+import com.superflow.domain.JourneyMapper
 import com.superflow.util.jsonOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,19 +33,43 @@ sealed class JourneyRow {
 
     object Tools : JourneyRow() { override val stableId = 1L }
 
+    /**
+     * The counts strip: how much of the chain actually exists.
+     *
+     * Not decoration. `deepestChain == 4` is the single number that says
+     * whether the app's premise has taken hold for this user, and it was
+     * not on the screen before.
+     */
+    data class Summary(val summary: JourneyTree.Summary) : JourneyRow() {
+        override val stableId = 2L
+    }
+
     data class Header(val title: String, val addLabel: String?, val kind: String) : JourneyRow() {
         override val stableId = ("h$kind").hashCode().toLong()
     }
 
+    /**
+     * One entity in the tree.
+     *
+     * Carries the whole [JourneyTree.Row] rather than pre-flattened fields
+     * so the adapter can draw depth, connectors and counts without the
+     * ViewModel having to decide what a connector looks like.
+     */
     data class Entity(
-        val id: String,
-        val kind: String,
-        val title: String,
+        val row: JourneyTree.Row,
         val subtitle: String,
         val icon: Int,
-        val archived: Boolean = false
     ) : JourneyRow() {
-        override val stableId = (kind + id).hashCode().toLong()
+        val id: String get() = row.node.id
+        val kind: String get() = row.node.kind.key
+        val title: String get() = row.node.title
+        val archived: Boolean get() = row.node.archived
+        override val stableId = (row.key).hashCode().toLong()
+    }
+
+    /** A place the chain is broken, phrased as an invitation. */
+    data class Gap(val gap: JourneyTree.Gap) : JourneyRow() {
+        override val stableId = ("g" + gap.kind.key + (gap.nodeId ?: "")).hashCode().toLong()
     }
 
     data class Empty(val title: String, val body: String, val kind: String) : JourneyRow() {
@@ -44,6 +77,21 @@ sealed class JourneyRow {
     }
 }
 
+/**
+ * Journey's state (plan 11.2).
+ *
+ * The screen draws one hierarchy rather than four stacked lists, and every
+ * decision about *what* that hierarchy contains is made outside this class:
+ * [JourneyMapper] turns the four tables into nodes, [JourneyTree] places
+ * them, counts them and decides what is dormant, orphaned or missing. What
+ * is left here is the repository access, the coroutine plumbing and the
+ * expansion set — the three things that need a Context, a scope or a
+ * lifetime, and so cannot be pure.
+ *
+ * That split is why the tree is testable. `JourneyTree` and `JourneyMapper`
+ * carry the assertions; this file carries none, because there is nothing
+ * left in it to get wrong.
+ */
 class JourneyViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = Repository.get(app)
@@ -54,6 +102,19 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _events = MutableStateFlow<String?>(null)
     val events: StateFlow<String?> = _events.asStateFlow()
+
+    /**
+     * Which nodes are open.
+     *
+     * Held in the ViewModel, not in Prefs: expansion is a reading position,
+     * and restoring yesterday's open branches on a fresh launch is more
+     * often wrong than right. It does survive rotation and tab switches,
+     * which is the case that actually annoys people.
+     *
+     * `null` means "not yet decided" — the first build picks a default from
+     * the tree's own size rather than opening nothing.
+     */
+    private var expanded: Set<String>? = null
 
     init {
         viewModelScope.launch { repo.revision.collect { refresh() } }
@@ -67,101 +128,145 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Open or close one node, then rebuild. Cheap: the tree is small. */
+    fun toggle(kind: JourneyTree.Kind, id: String) {
+        val current = expanded ?: emptySet()
+        expanded = JourneyTree.toggle(current, kind, id)
+        refresh()
+    }
+
+    /**
+     * Open every ancestor of a node, so a deep link does not land on a
+     * collapsed branch with nothing visible.
+     */
+    fun reveal(kind: JourneyTree.Kind, id: String) {
+        val nodes = nodes()
+        expanded = (expanded ?: JourneyTree.defaultExpansion(nodes)) +
+            JourneyTree.revealPath(nodes, kind, id) +
+            JourneyTree.expansionKey(kind, id)
+        refresh()
+    }
+
+    /* ----------------------------------------------------------- building */
+
+    private fun nodes(): List<JourneyTree.Node> = JourneyMapper.nodes(
+        identities = repo.identities(),
+        goals = repo.goals(),
+        systems = repo.systems(),
+        // The archived ones are wanted here: the tree draws them dimmed
+        // rather than hiding them, so a system whose habits were all
+        // archived does not look empty for no reason.
+        habits = repo.habits(true),
+        identityDetail = { identityDetail(it) },
+        habitDetail = { habitDetail(it) },
+    )
+
     private fun build(): List<JourneyRow> {
-        val rows = ArrayList<JourneyRow>()
-        rows.add(JourneyRow.Tools)
+        val nodes = nodes()
+        val open = expanded ?: JourneyTree.defaultExpansion(nodes).also { expanded = it }
+        val tree = JourneyTree.build(nodes, open)
 
-        // One snapshot covers identities, habits, check-ins and pauses; goals
-        // and systems are small tables read once.
-        val snap = repo.snapshot()
-        val goals = repo.goals()
-        val systems = repo.systems()
-        val habits = snap.activeHabits
+        val out = ArrayList<JourneyRow>(tree.rows.size + 8)
+        out.add(JourneyRow.Tools)
 
-        // Identities
-        rows.add(JourneyRow.Header("Identities", "Add", "identity"))
-        val identities = snap.identities
-        val evidence = Insights.identityEvidence(snap).associateBy { it.first }
-        if (identities.isEmpty()) {
-            rows.add(JourneyRow.Empty("Who are you becoming?",
-                "An identity statement gives every habit a reason to exist.", "identity"))
-        }
-        for (i in identities) {
-            val ev = evidence[i.statement]
-            rows.add(JourneyRow.Entity(
-                i.id, "identity", i.statement,
-                "${i.lifeArea.label} · ${ev?.second ?: 0} votes · ${ev?.third ?: 0} habits",
-                com.superflow.R.drawable.ic_identity
-            ))
+        if (tree.isEmpty) {
+            out.add(
+                JourneyRow.Empty(
+                    "Who are you becoming?",
+                    "An identity statement gives every habit a reason to exist. " +
+                        "Start there and the rest hangs off it.",
+                    JourneyTree.Kind.IDENTITY.key,
+                )
+            )
+            return out
         }
 
-        // Goals
-        rows.add(JourneyRow.Header("Goals", "Add", "goal"))
-        if (goals.isEmpty()) {
-            rows.add(JourneyRow.Empty("What outcome would matter?",
-                "A goal sets direction. Your system does the work.", "goal"))
-        }
-        for (g in goals) {
-            val systemCount = systems.count { it.goalId == g.id }
-            rows.add(JourneyRow.Entity(
-                g.id, "goal", g.title,
-                buildString {
-                    append(g.status.name.lowercase())
-                    append(" · $systemCount systems")
-                    if (g.why.isNotBlank()) append(" · ${g.why.take(48)}")
-                },
-                com.superflow.R.drawable.ic_goal
-            ))
+        out.add(JourneyRow.Summary(tree.summary))
+
+        if (tree.linked.isNotEmpty()) {
+            out.add(
+                JourneyRow.Header(
+                    "Your chain", JourneyTree.Kind.IDENTITY.label, JourneyTree.Kind.IDENTITY.key
+                )
+            )
+            tree.linked.forEach { out.add(entityRow(it)) }
         }
 
-        // Systems
-        rows.add(JourneyRow.Header("Systems", "Add", "system"))
-        if (systems.isEmpty()) {
-            rows.add(JourneyRow.Empty("How will it actually happen?",
-                "A system is the repeatable process behind the goal.", "system"))
-        }
-        val habitsBySystem = habits.groupBy { it.systemId }
-        val goalTitleById = goals.associate { it.id to it.title }
-        for (s in systems) {
-            val habitCount = habitsBySystem[s.id]?.size ?: 0
-            rows.add(JourneyRow.Entity(
-                s.id, "system", s.title,
-                "$habitCount habits · goal: ${goalTitleById[s.goalId] ?: "none"}",
-                com.superflow.R.drawable.ic_system
-            ))
+        if (tree.unlinked.isNotEmpty()) {
+            // Named for what it is from the user's side. "Unlinked" is our
+            // word for it; "not connected yet" is what it means to them,
+            // and it reads as a to-do rather than an error.
+            out.add(JourneyRow.Header("Not connected yet", null, "unlinked"))
+            tree.unlinked.forEach { out.add(entityRow(it)) }
         }
 
-        // Habits
-        rows.add(JourneyRow.Header("Habits", "Design", "habit"))
-        if (habits.isEmpty()) {
-            rows.add(JourneyRow.Empty("Pick one small action",
-                "Every habit needs a version you can start in two minutes.", "habit"))
-        }
-        val statsByHabit = Insights.allStats(snap, repo).associateBy { it.habit.id }
-        for (h in habits) {
-            val stats = statsByHabit[h.id]
-            rows.add(JourneyRow.Entity(
-                h.id, "habit", h.title,
-                Capabilities.daysLabel(h) +
-                        (if (h.cueTime.isNotBlank()) " · ${h.cueTime}" else "") +
-                        " · ${stats?.repetitions ?: 0} reps · ${stats?.consistency30 ?: 0}%",
-                if (h.mode == HabitMode.REDUCE) com.superflow.R.drawable.ic_shield
-                else com.superflow.R.drawable.ic_bolt
-            ))
-        }
+        JourneyTree.gaps(nodes).forEach { out.add(JourneyRow.Gap(it)) }
 
-        val archived = snap.habits.filter { it.status == Status.ARCHIVED }
-        if (archived.isNotEmpty()) {
-            rows.add(JourneyRow.Header("Archived", null, "archived"))
-            for (h in archived) {
-                rows.add(JourneyRow.Entity(
-                    h.id, "habit", h.title, "archived",
-                    com.superflow.R.drawable.ic_archive, archived = true
-                ))
+        return out
+    }
+
+    private fun entityRow(row: JourneyTree.Row): JourneyRow.Entity =
+        JourneyRow.Entity(
+            row = row,
+            subtitle = row.node.detail,
+            icon = iconFor(row),
+        )
+
+    private fun iconFor(row: JourneyTree.Row): Int = when (row.node.kind) {
+        JourneyTree.Kind.IDENTITY -> com.superflow.R.drawable.ic_identity
+        JourneyTree.Kind.GOAL -> com.superflow.R.drawable.ic_goal
+        JourneyTree.Kind.SYSTEM -> com.superflow.R.drawable.ic_system
+        JourneyTree.Kind.HABIT -> when {
+            row.node.archived -> com.superflow.R.drawable.ic_archive
+            habitMode(row.node.id) == HabitMode.REDUCE -> com.superflow.R.drawable.ic_shield
+            else -> com.superflow.R.drawable.ic_bolt
+        }
+    }
+
+    private fun habitMode(id: String): HabitMode? = repo.habit(id)?.mode
+
+    private fun identityDetail(identity: Identity): String {
+        val evidence = evidenceCache().get(identity.statement)
+        return buildString {
+            append(identity.lifeArea.label)
+            val votes = evidence?.first ?: 0
+            if (votes > 0) {
+                append(" \u00b7 ")
+                append(votes)
+                append(if (votes == 1) " vote" else " votes")
             }
         }
+    }
 
-        return rows
+    /**
+     * Identity evidence is one scan of every check-in, so it is computed
+     * once per build rather than once per identity.
+     */
+    private var evidenceAt = -1L
+    private var evidence: Map<String, Pair<Int, Int>> = emptyMap()
+
+    private fun evidenceCache(): Map<String, Pair<Int, Int>> {
+        val revision = repo.revision.value
+        if (revision != evidenceAt) {
+            evidence = Insights.identityEvidence(repo)
+                .associate { it.first to (it.second to it.third) }
+            evidenceAt = revision
+        }
+        return evidence
+    }
+
+    private fun habitDetail(habit: Habit): String {
+        if (habit.status == Status.ARCHIVED) return "archived"
+        val stats = Insights.forHabit(repo, habit)
+        return JourneyMapper.habitDetail(
+            habit = habit,
+            daysLabel = Capabilities.daysLabel(habit),
+            repetitions = stats.repetitions,
+            consistency = stats.consistency30,
+            // Below the sample floor a consistency percentage is noise
+            // dressed as a measurement; the same threshold Insights uses.
+            hasEnoughData = stats.repetitions >= Periods.MinSamples.COMPLETION_RATE,
+        )
     }
 
     /* --------------------------------------------------------------- actions */

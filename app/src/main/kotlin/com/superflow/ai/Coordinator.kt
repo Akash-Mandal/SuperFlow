@@ -1,5 +1,6 @@
 package com.superflow.ai
 
+import com.superflow.core.time.SfTime
 import com.superflow.data.Repository
 import com.superflow.data.model.Habit
 import com.superflow.data.model.Level
@@ -37,7 +38,8 @@ object Coordinator {
         }
     }
 
-    fun interpret(text: String, repo: Repository): Plan? = interpret(text, Lookup.from(repo))
+    fun interpret(text: String, repo: Repository): Plan? =
+        interpret(text, Lookup.from(repo)) ?: interpretWithRepo(text, repo)
 
     fun interpret(text: String, lookup: Lookup): Plan? {
         val raw = text.trim()
@@ -97,8 +99,22 @@ object Coordinator {
 
         if (startsAny(s, "missed ", "i missed ", "didn't do ", "did not do ")) {
             val name = stripLeading(raw, listOf("i missed", "missed", "didn't do", "did not do"))
+            // Reason-aware miss: "missed walk because I was busy" -> reason captured.
+            val withReason = s.contains("because") || s.contains(" due to ")
+            val reason = if (withReason) {
+                when {
+                    s.contains("time") || s.contains("busy") || s.contains("schedule") -> "time"
+                    s.contains("tired") || s.contains("exhausted") || s.contains("low energy") -> "energy"
+                    s.contains("forgot") -> "forgot"
+                    s.contains("motivat") || s.contains("didn't want") || s.contains("lazy") -> "motivation"
+                    s.contains("circumstance") || s.contains("unexpected") -> "circumstance"
+                    else -> "other"
+                }
+            } else null
             lookup.resolve(name)?.let {
-                return Plan("mark_missed", jsonOf("habit" to it.id, "date" to dateWord), 0.85)
+                val args = jsonOf("habit" to it.id, "date" to dateWord)
+                if (reason != null) args.put("reason", reason)
+                return Plan("mark_missed", args, 0.85)
             }
         }
 
@@ -172,6 +188,110 @@ object Coordinator {
             return Plan("add_scorecard_entry", jsonOf("routine" to rest, "verdict" to verdict), 0.75)
         }
 
+        /* ------------------------------------------- Core Growth Systems NLP */
+
+        if (matches(s, "today's load", "daily load", "my load", "how much can i handle")) {
+            return Plan("get_daily_load", JSONObject(), 0.9)
+        }
+
+        if (matches(s, "system health", "health of my systems", "how are my systems")) {
+            return Plan("get_system_health", JSONObject(), 0.9)
+        }
+
+        if (matches(s, "energy correlation", "energy and habits", "does energy matter")) {
+            return Plan("get_energy_correlation", JSONObject(), 0.9)
+        }
+
+        if (matches(s, "miss patterns", "when do i miss", "weekday pattern", "why do i miss")) {
+            return Plan("get_miss_patterns", JSONObject(), 0.9)
+        }
+
+        return null
+    }
+
+    /** Core Growth Systems NLP that needs the repository, not just habit lookup. */
+    private fun interpretWithRepo(text: String, repo: Repository): Plan? {
+        val raw = text.trim()
+        val s = raw.lowercase()
+        if (s.contains("rate the reward") || s.contains("reward satisfaction")) {
+            Regex("(?:for |on )?([a-z ]+?)(?: as |: )?([1-5])(?:/5)?$").find(raw)?.let { m ->
+                val name = m.groupValues[1].trim()
+                repo.findHabit(name)?.let {
+                    return Plan("rate_reward",
+                        jsonOf("habit" to it.id, "rating" to m.groupValues[2].toInt()), 0.8)
+                }
+            }
+        }
+
+        if (startsAny(s, "evolve identity ", "i am now ", "identity evolution ")) {
+            val rest = stripLeading(raw, listOf("evolve identity", "i am now", "identity evolution"))
+            val newStatement = rest.trim().trim('"', '\'', '.', '!')
+            if (newStatement.length in 3..100) {
+                val id = repo.identities().firstOrNull()?.id
+                if (id != null) {
+                    return Plan("evolve_identity",
+                        jsonOf("id" to id, "newStatement" to newStatement,
+                            "reason" to "spoken evolution"), 0.75)
+                }
+            }
+        }
+
+        if (startsAny(s, "carry ", "carry over ")) {
+            val rest = stripLeading(raw, listOf("carry over", "carry"))
+            repo.focusFor(SfTime.format(repo.clock.today())).firstOrNull {
+                it.title.lowercase().contains(rest.lowercase()) && !it.done
+            }?.let {
+                return Plan("carry_over_focus", jsonOf("id" to it.id), 0.85)
+            }
+        }
+
+        if (startsAny(s, "star ", "priority ")) {
+            val rest = stripLeading(raw, listOf("star", "priority"))
+            repo.focusFor(SfTime.format(repo.clock.today())).firstOrNull {
+                it.title.lowercase().contains(rest.lowercase())
+            }?.let {
+                return Plan("set_focus_priority", jsonOf("id" to it.id, "priority" to true), 0.85)
+            }
+        }
+
+        if (startsAny(s, "milestone for ", "add milestone ")) {
+            val rest = stripLeading(raw, listOf("add milestone", "milestone for"))
+            val goal = repo.goals().firstOrNull()
+            if (goal != null && rest.isNotBlank()) {
+                return Plan("add_goal_milestone",
+                    jsonOf("goalId" to goal.id, "title" to rest), 0.8)
+            }
+        }
+
+        if (matches(s, "update goal metric", "goal progress", "goal metric")) {
+            val goal = repo.goals().firstOrNull() ?: return null
+            Regex("(\\d+(?:\\.\\d+)?)\\s*([a-z]*)$").find(raw)?.let { m ->
+                return Plan("update_goal_metric",
+                    jsonOf("goalId" to goal.id, "value" to m.groupValues[1].toDouble(),
+                        "unit" to m.groupValues[2]), 0.75)
+            }
+        }
+
+        if (startsAny(s, "run flow ", "start flow ")) {
+            val rest = stripLeading(raw, listOf("run flow", "start flow"))
+            val flow = repo.flows().firstOrNull {
+                it.title.lowercase().contains(rest.lowercase())
+            } ?: repo.flows().firstOrNull()
+            if (flow != null) {
+                return Plan("run_flow", jsonOf("flowId" to flow.id), 0.85)
+            }
+        }
+
+        if (startsAny(s, "complete flow ", "finished flow ")) {
+            val rest = stripLeading(raw, listOf("complete flow", "finished flow"))
+            val flow = repo.flows().firstOrNull {
+                it.title.lowercase().contains(rest.lowercase())
+            } ?: repo.flows().firstOrNull()
+            if (flow != null) {
+                return Plan("complete_flow", jsonOf("flowId" to flow.id), 0.85)
+            }
+        }
+
         return null
     }
 
@@ -222,12 +342,15 @@ object Coordinator {
 
         Try:
         · "done meditation" or "tiny walk"
-        · "skip reading" / "missed journaling"
+        · "skip reading" / "missed journaling because I was busy"
         · "focus on write, walk, call mum"
         · "plan tomorrow" / "minimum mode"
-        · "energy 2"
+        · "energy 2" / "today's load"
         · "create habit walk 10 minutes at 07:30 daily"
         · "if it rains, then stretch indoors"
+        · "carry walk to tomorrow" / "star the dentist call"
+        · "rate the reward for walk 4"
+        · "i am now someone who trains daily"
         · "how am I doing" / "list habits"
 
         With a Cloud Main Brain configured I can also handle open-ended requests

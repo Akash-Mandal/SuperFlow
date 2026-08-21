@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A single palette swatch: two overlapping colour discs (primary and
+  secondary) with the palette name beneath.
+
+  Two colours rather than one because the palettes differ as much in their
+  accent as in their primary - Forest and Calm are both green, and a single
+  disc would make them look identical.
+
+  Selection is shown by a ring AND a check mark, never by colour alone: the
+  colours are the content here, so using colour to indicate state would be
+  unreadable for a colour-blind user.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:minWidth="@dimen/touch_min"
+    android:paddingStart="@dimen/space_xs"
+    android:paddingEnd="@dimen/space_xs"
+    android:paddingTop="@dimen/space_xs"
+    android:paddingBottom="@dimen/space_xs"
+    android:background="?attr/selectableItemBackgroundBorderless"
+    android:focusable="true"
+    android:clickable="true">
+
+    <FrameLayout
+        android:layout_width="@dimen/swatch_size"
+        android:layout_height="@dimen/swatch_size">
+
+        <!-- Secondary sits behind and offset, so both hues read at a glance. -->
+        <View
+            android:id="@+id/swatch_secondary"
+            android:layout_width="@dimen/swatch_disc"
+            android:layout_height="@dimen/swatch_disc"
+            android:layout_gravity="bottom|end" />
+
+        <View
+            android:id="@+id/swatch_primary"
+            android:layout_width="@dimen/swatch_disc"
+            android:layout_height="@dimen/swatch_disc"
+            android:layout_gravity="top|start" />
+
+        <!-- Drawn over the discs when selected. -->
+        <ImageView
+            android:id="@+id/swatch_check"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_check"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/swatch_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:textAppearance="@style/Text.SuperFlow.LabelMedium"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+</LinearLayout>

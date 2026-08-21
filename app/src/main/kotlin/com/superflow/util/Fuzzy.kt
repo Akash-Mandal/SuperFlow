@@ -1,0 +1,97 @@
+package com.superflow.util
+
+/**
+ * Fuzzy string matching used by [com.superflow.data.Repository.findHabit]
+ * so AI commands and search tolerate small typos ("wlak" -> "Walk").
+ */
+object Fuzzy {
+
+    /**
+     * Classic Wagner–Fischer Levenshtein distance.
+     *
+     * Uses the two-row O(min(m,n)) memory variant. Returns 0 for equal
+     * strings and the edit count otherwise.
+     */
+    fun levenshtein(a: String, b: String): Int {
+        if (a == b) return 0
+        if (a.isEmpty()) return b.length
+        if (b.isEmpty()) return a.length
+
+        // Keep the shorter string in the inner row to use less memory.
+        val (s, t) = if (a.length <= b.length) a to b else b to a
+        val n = s.length
+        val m = t.length
+
+        var prev = IntArray(n + 1) { it }
+        var curr = IntArray(n + 1)
+
+        for (j in 1..m) {
+            curr[0] = j
+            val tj = t[j - 1]
+            for (i in 1..n) {
+                val cost = if (s[i - 1] == tj) 0 else 1
+                curr[i] = minOf(
+                    curr[i - 1] + 1,       // insertion
+                    prev[i] + 1,           // deletion
+                    prev[i - 1] + cost     // substitution
+                )
+            }
+            val swap = prev; prev = curr; curr = swap
+        }
+        return prev[n]
+    }
+
+    /**
+     * Normalised similarity in 0.0..1.0 (1.0 = identical). Useful for
+     * ranking candidates and for a confidence threshold.
+     */
+    fun similarity(a: String, b: String): Double {
+        val (s, t) = a.lowercase() to b.lowercase()
+        if (s == t) return 1.0
+        val maxLen = maxOf(s.length, t.length)
+        if (maxLen == 0) return 1.0
+        return 1.0 - levenshtein(s, t).toDouble() / maxLen
+    }
+
+    /**
+     * Pick the best-matching candidate for [query] among [candidates],
+     * keyed by [key]. Returns null when no candidate clears a length-aware
+     * threshold.
+     *
+     * The threshold scales with the longer string's length so that a single
+     * typo in a short title ("wlak" -> "Walk", 0.5 similarity) still matches,
+     * while an unrelated word of the same length stays below it:
+     *
+     *  - length 3:  ~0.45  (one edit out of three)
+     *  - length 4:  ~0.50
+     *  - length 5+: 0.60
+     *
+     * Callers may override [minThreshold] (a hard floor) or pass an explicit
+     * fixed [threshold] (which disables the length-aware scaling when >= 0).
+     */
+    fun <T> bestMatch(
+        query: String,
+        candidates: List<T>,
+        threshold: Double = -1.0,
+        minThreshold: Double = 0.45,
+        key: (T) -> String
+    ): T? {
+        val q = query.trim().lowercase()
+        if (q.isEmpty() || candidates.isEmpty()) return null
+        val fixed = threshold >= 0
+        var best: T? = null
+        var bestScore = Double.NEGATIVE_INFINITY
+        for (c in candidates) {
+            val title = key(c).lowercase()
+            if (title.isEmpty()) continue
+            val score = similarity(q, title)
+            val required = if (fixed) threshold
+            else maxOf(minThreshold, 1.0 - 2.0 / maxOf(q.length, title.length))
+            if (score >= required && score > bestScore) {
+                bestScore = score
+                best = c
+            }
+        }
+        return best
+    }
+}

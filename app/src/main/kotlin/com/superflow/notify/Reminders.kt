@@ -40,6 +40,12 @@ object Reminders {
 
     const val CHANNEL_HABITS = "superflow_habits"
     const val CHANNEL_CHECKPOINTS = "superflow_checkpoints"
+    const val CHANNEL_PROACTIVE = "superflow_proactive"
+    const val CHANNEL_MILESTONES = "superflow_milestones"
+    const val CHANNEL_REVIEWS = "superflow_reviews"
+    const val CHANNEL_AI = "superflow_ai"
+    const val CHANNEL_WEEKLY_SUMMARY = "superflow_weekly_summary"
+    const val CHANNEL_BACKUP = "superflow_backup"
 
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < 26) return
@@ -53,10 +59,58 @@ object Reminders {
             }
         )
         nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_PROACTIVE,
+                context.getString(R.string.channel_proactive),
+                NotificationManager.IMPORTANCE_LOW).apply {
+                description = context.getString(R.string.channel_proactive_desc)
+                setShowBadge(false)
+            }
+        )
+        nm.createNotificationChannel(
             NotificationChannel(CHANNEL_CHECKPOINTS,
                 context.getString(R.string.channel_checkpoints),
                 NotificationManager.IMPORTANCE_LOW).apply {
                 description = context.getString(R.string.channel_checkpoints_desc)
+                setShowBadge(false)
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_MILESTONES,
+                context.getString(R.string.channel_milestones),
+                NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = context.getString(R.string.channel_milestones_desc)
+                setShowBadge(true)
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_REVIEWS,
+                context.getString(R.string.channel_reviews),
+                NotificationManager.IMPORTANCE_LOW).apply {
+                description = context.getString(R.string.channel_reviews_desc)
+                setShowBadge(false)
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_AI,
+                context.getString(R.string.channel_ai),
+                NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = context.getString(R.string.channel_ai_desc)
+                setShowBadge(false)
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_WEEKLY_SUMMARY,
+                context.getString(R.string.channel_weekly_summary),
+                NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = context.getString(R.string.channel_weekly_summary_desc)
+                setShowBadge(false)
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_BACKUP,
+                context.getString(R.string.channel_backup),
+                NotificationManager.IMPORTANCE_LOW).apply {
+                description = context.getString(R.string.channel_backup_desc)
                 setShowBadge(false)
             }
         )
@@ -76,7 +130,61 @@ object Reminders {
     }
 
     fun inQuietHours(prefs: Prefs, hhmm: String): Boolean =
-        quietHoursActive(hhmm, prefs.quietFrom, prefs.quietTo)
+        inQuietHours(prefs, hhmm, java.time.LocalDate.now().dayOfWeek.value)
+
+    /**
+     * Whether [hhmm] falls inside the quiet window for [isoDay] (1=Mon..7=Sun).
+     * A per-day override (Prefs.quietPerDay) takes precedence; otherwise the
+     * global quietFrom/quietTo applies.
+     */
+    fun inQuietHours(prefs: Prefs, hhmm: String, isoDay: Int): Boolean {
+        val t = Dates.minutesOfDay(hhmm)
+        if (t < 0) return false
+        val override = parseQuietPerDay(prefs.quietPerDay)[isoDay]
+        val from: Int
+        val to: Int
+        when (override) {
+            QuietOverride.None -> return false
+            null -> {
+                from = Dates.minutesOfDay(prefs.quietFrom)
+                to = Dates.minutesOfDay(prefs.quietTo)
+                if (from < 0 || to < 0) return false
+            }
+            is QuietOverride.Window -> {
+                from = Dates.minutesOfDay(override.from)
+                to = Dates.minutesOfDay(override.to)
+                if (from < 0 || to < 0) return false
+            }
+        }
+        return if (from <= to) t in from..to else (t >= from || t <= to)
+    }
+
+    /** Per-day quiet override parsed from the encoded pref string. */
+    private sealed class QuietOverride {
+        object None : QuietOverride()
+        data class Window(val from: String, val to: String) : QuietOverride()
+    }
+
+    private fun parseQuietPerDay(encoded: String): Map<Int, QuietOverride> {
+        if (encoded.isBlank()) return emptyMap()
+        val out = HashMap<Int, QuietOverride>()
+        encoded.split("|").forEachIndexed { i, pair ->
+            val day = i + 1
+            if (day in 1..7) {
+                when {
+                    pair.isBlank() -> { /* use global default */ }
+                    pair == "-" -> out[day] = QuietOverride.None
+                    pair.contains("-") -> {
+                        val parts = pair.split("-", limit = 2)
+                        if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                            out[day] = QuietOverride.Window(parts[0].trim(), parts[1].trim())
+                        }
+                    }
+                }
+            }
+        }
+        return out
+    }
 
     /* ------------------------------------------------- reschedule (async) */
 
@@ -143,6 +251,26 @@ object Reminders {
                 budget--
             }
 
+            // Environment prep reminders (§4): "Prep for [habit]: [environmentPrep]"
+            // fires the evening before a morning habit, or a few hours before otherwise.
+            val prepHabits = repo.habits()
+                .filter { it.environmentPrep.isNotBlank() && Dates.isValidTime(it.cueTime) }
+            for (h in prepHabits) {
+                if (budget <= 0) break
+                val prepTime = h.environmentPrepReminderTime
+                    ?.takeIf { Dates.isValidTime(it) }
+                    ?: defaultPrepTime(h.cueTime)
+                if (inQuietHours(prefs, prepTime)) continue
+                val intent = Intent(context, ReminderReceiver::class.java).apply {
+                    putExtra("kind", "prep")
+                    putExtra("habitId", h.id)
+                    putExtra("title", h.title)
+                    putExtra("prep", h.environmentPrep)
+                }
+                schedule(context, am, slot++, prepTime, intent)
+                budget--
+            }
+
             if (prefs.checkpointsEnabled) {
                 val cps = listOf(
                     Checkpoint.MORNING to prefs.morningCheckpoint,
@@ -163,6 +291,19 @@ object Reminders {
             // the app down, but it is not silent either.
             Log.w(TAG, "Reminder reschedule failed", e)
         }
+    }
+
+    /**
+     * Default prep time (§4): the evening before (21:00) when the cue is before
+     * noon, otherwise two hours before the cue.
+     */
+    fun defaultPrepTime(cueTime: String): String {
+        val minutes = Dates.minutesOfDay(cueTime)
+        if (minutes < 0) return "21:00"
+        val prep = if (minutes < 12 * 60) 21 * 60 else (minutes - 120).coerceAtLeast(0)
+        val hh = (prep / 60).toString().padStart(2, '0')
+        val mm = (prep % 60).toString().padStart(2, '0')
+        return "$hh:$mm"
     }
 
     private fun schedule(context: Context, am: AlarmManager, slot: Int, hhmm: String, intent: Intent) {
@@ -230,6 +371,28 @@ object Reminders {
             // reminders simply will not surface. Log for supportability.
             Log.w(TAG, "Not permitted to show notification $id", e)
         }
+    }
+
+    
+    fun showProactiveNotification(
+        context: Context,
+        suggestion: com.superflow.data.model.ProactiveSuggestion
+    ) {
+        if (!Prefs.get(context).proactiveNotifications) return
+        val id = suggestion.id.hashCode() and 0xFFFF
+        notify(
+            context, id + 10000, CHANNEL_CHECKPOINTS,
+            suggestion.type.name.lowercase().replaceFirstChar { it.uppercase() },
+            suggestion.text,
+            listOf(
+                action(context, R.drawable.ic_check, "View",
+                    mapOf("kind" to "action", "action" to "open_proactive", "suggestionId" to suggestion.id),
+                    id * 3),
+                action(context, R.drawable.ic_close, "Dismiss",
+                    mapOf("kind" to "action", "action" to "dismiss_proactive", "suggestionId" to suggestion.id),
+                    id * 3 + 1)
+            )
+        )
     }
 
     fun action(
@@ -300,6 +463,19 @@ class ReminderReceiver : BroadcastReceiver() {
                             id * 3 + 2)
                     )
                 )
+            }
+
+            "prep" -> {
+                val habitId = intent.getStringExtra("habitId") ?: return
+                val title = intent.getStringExtra("title") ?: "Your habit"
+                val prep = intent.getStringExtra("prep").orEmpty()
+                if (!prefs.remindersEnabled || Reminders.inQuietHours(prefs, SfTime.formatTime(java.time.LocalTime.now()))) return
+                val repo = Repository.get(context)
+                if (repo.checkIn(habitId, SfTime.format(repo.clock.today())) != null) return
+                val id = (habitId.hashCode() and 0xFFFF) + 4096
+                Reminders.notify(context, id, Reminders.CHANNEL_HABITS,
+                    "Prep for $title",
+                    prep.ifBlank { "A little preparation now saves friction later." })
             }
 
             "checkpoint" -> {

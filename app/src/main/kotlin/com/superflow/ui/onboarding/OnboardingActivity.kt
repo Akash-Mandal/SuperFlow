@@ -1,60 +1,72 @@
 package com.superflow.ui.onboarding
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
-import android.view.View
-import android.widget.LinearLayout
-import android.widget.TextView
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.chip.Chip
-import com.google.android.material.chip.ChipGroup
-import com.google.android.material.materialswitch.MaterialSwitch
-import com.google.android.material.progressindicator.LinearProgressIndicator
-import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
-import com.superflow.AppBackground
-import com.superflow.R
 import com.superflow.ai.Coordinator
+import com.superflow.components.SfChip
 import com.superflow.data.Prefs
 import com.superflow.data.model.LifeArea
+import com.superflow.design.OnboardingFlow
+import com.superflow.design.Navigation
 import com.superflow.domain.Actor
 import com.superflow.domain.CommandBus
 import com.superflow.notify.Reminders
 import com.superflow.ui.MainActivity
-import com.superflow.ui.common.snack
-import com.superflow.ui.common.visible
+import com.superflow.ui.screens.OnboardingAction
+import com.superflow.ui.screens.OnboardingScreen
+import com.superflow.ui.screens.OnboardingUiState
+import com.superflow.ui.theme.SfThemeFromPrefs
 import com.superflow.util.jsonOf
-import com.superflow.widget.TodayWidget
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /**
- * Onboarding: from aspiration to first action in under five minutes.
+ * Onboarding (§14): six illustrated steps, from aspiration to first action.
  *
- * Skippable, no account wall, no name required. Notification permission is
- * requested only at the reminder step, with the reason stated.
+ * The flow itself — order, validation, labels, progress, what a skip leaves
+ * behind — is [OnboardingFlow], which is pure and tested. The screen is
+ * [OnboardingScreen], which is Compose. This class owns only the three
+ * things neither of those can: the example timer, the platform time picker,
+ * and the write to the database at the end.
+ *
+ * Three rules survive from the old eight-step version because they were the
+ * good parts:
+ *
+ * - **Nothing is written until the last step.** Someone who abandons at
+ *   step four leaves no orphaned identity behind. The whole flow is one
+ *   [OnboardingFlow.Answers] value until [complete].
+ * - **Notification permission is asked at the cue step**, and only if a
+ *   reminder was actually requested. Asking on launch, before the app has
+ *   said what it is for, is the fastest route to a permanent denial.
+ * - **Skip is always available and never punished.** It lands on Today with
+ *   an empty workspace, which is a legitimate way to use this app.
+ *
+ * What changed: the life-area question no longer owns a screen. It was a
+ * gate in front of a question that already implied the answer, so the chips
+ * moved under the identity field where they help instead of blocking.
  */
 class OnboardingActivity : AppCompatActivity() {
 
     private lateinit var bus: CommandBus
     private lateinit var prefs: Prefs
-    private lateinit var contentView: LinearLayout
-    private lateinit var progress: LinearProgressIndicator
-    private lateinit var back: MaterialButton
-    private lateinit var next: MaterialButton
 
-    private var step = 0
-    private var area = LifeArea.HEALTH
-    private val values = HashMap<String, String>()
-    private var wantsReminder = false
-
-    private val totalSteps = 8
+    private val state = MutableStateFlow(OnboardingUiState())
+    private var exampleTimer: Job? = null
 
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -62,336 +74,237 @@ class OnboardingActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_onboarding)
         bus = CommandBus.get(this)
         prefs = Prefs.get(this)
 
-        contentView = findViewById(R.id.onb_content)
-        progress = findViewById(R.id.onb_progress)
-        back = findViewById(R.id.onb_back)
-        next = findViewById(R.id.onb_next)
-
-        back.setOnClickListener { if (step > 0) { step--; render() } }
-        next.setOnClickListener { advance() }
-
-        ViewCompat.setOnApplyWindowInsetsListener(progress) { v, insets ->
-            v.updatePadding(top = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top)
-            insets
-        }
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.onb_nav)) { v, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
-            v.updatePadding(bottom = maxOf(bars.bottom, ime.bottom) +
-                    resources.getDimensionPixelSize(R.dimen.space_m))
-            insets
-        }
-
-        render()
-    }
-
-    private fun render() {
-        contentView.removeAllViews()
-        progress.setProgressCompat(((step + 1) * 100) / totalSteps, true)
-        back.visible(step in 1 until totalSteps - 1)
-        next.text = when (step) {
-            0 -> "Begin"
-            totalSteps - 1 -> "Create my system"
-            else -> getString(R.string.next)
-        }
-
-        when (step) {
-            0 -> welcome()
-            1 -> pickArea()
-            2 -> identity()
-            3 -> goal()
-            4 -> system()
-            5 -> habit()
-            6 -> cue()
-            else -> feel()
-        }
-        findViewById<androidx.core.widget.NestedScrollView>(R.id.onb_scroll).scrollTo(0, 0)
-    }
-
-    /* ---------------------------------------------------------------- steps */
-
-    private fun welcome() {
-        contentView.addView(TextView(this).apply {
-            text = getString(R.string.app_name)
-            setTextAppearance(R.style.Text_SuperFlow_DisplaySmall)
-            setPadding(0, dpi(48), 0, dpi(8))
-        })
-        contentView.addView(TextView(this).apply {
-            text = getString(R.string.tagline)
-            setTextAppearance(R.style.Text_SuperFlow_BodyLarge)
-            alpha = 0.8f
-            setPadding(0, 0, 0, dpi(24))
-        })
-        contentView.addView(card("A promise",
-            "Everything stays on your device. No account, no ads, no streak guilt, nothing " +
-                    "uploaded unless you connect a provider yourself.", accent = true))
-        contentView.addView(card("How it works", buildString {
-            append("Identity — who you are becoming\n")
-            append("Goal — the outcome that would matter\n")
-            append("System — the repeatable process\n")
-            append("Habit — the smallest useful action\n")
-            append("Review — improve the system, not blame yourself")
-        }))
-        contentView.addView(MaterialButton(this, null,
-            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
-            text = "Skip for now"
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        state.update {
+            it.copy(
+                step = OnboardingFlow.stepAt(savedInstanceState?.getInt(KEY_STEP) ?: 0),
+                lifeAreas = lifeAreaChips(),
+                widthClass = widthClass(),
             )
-            setOnClickListener { complete(skipped = true) }
-        })
-    }
-
-    private fun pickArea() {
-        header("Where do you want to grow?", "One area is enough to start.")
-        val chips = ChipGroup(this).apply { isSingleSelection = true }
-        LifeArea.values().forEach { la ->
-            chips.addView(Chip(this).apply {
-                text = la.label
-                isCheckable = true
-                isChecked = la == area
-                setEnsureMinTouchTargetSize(false)
-                setOnClickListener { area = la }
-            })
         }
-        contentView.addView(chips)
-    }
 
-    private fun identity() {
-        header("Who are you becoming?",
-            "Habits stick when they say something true about you.")
-        field("identity", "I am becoming someone who…", "someone who moves every day", lines = 2)
-        contentView.addView(card("Examples",
-            "someone who takes care of their body · a person who writes daily · " +
-                    "someone who is present with their family"))
-    }
-
-    private fun goal() {
-        header("What outcome would matter?",
-            "A goal gives direction. Your system does the work.")
-        field("goal", "Goal", "Comfortably walk 5 km")
-        field("why", "Why does this matter to you?", "", lines = 3)
-    }
-
-    private fun system() {
-        header("What process could produce it?",
-            "Describe the repeatable routine, not the result.")
-        field("system", "System", "Move after breakfast on weekdays", lines = 2)
-    }
-
-    private fun habit() {
-        header("Pick one habit",
-            "And the smallest version you could do on your worst day.")
-        field("habit", "Habit", "Walk for 10 minutes")
-        field("tiny", "Tiny start — about two minutes", "Put on my shoes and step outside")
-        contentView.addView(MaterialButton(this, null,
-            androidx.appcompat.R.attr.borderlessButtonStyle).apply {
-            text = "Suggest a tiny start"
-            setOnClickListener {
-                val title = v("habit")
-                if (title.isBlank()) findViewById<View>(R.id.root).snack("Name the habit first")
-                else { values["tiny"] = Coordinator.defaultTinyStart(title); render() }
+        setContent {
+            SfThemeFromPrefs {
+                val ui by state.collectAsState()
+                OnboardingScreen(state = ui, onAction = ::onAction)
             }
-        })
-        contentView.addView(card("Why so small?",
-            "The tiny version is not a lesser version. It is the one that survives a bad week."))
-    }
-
-    private fun cue() {
-        header("What will make you notice it?",
-            "A time and place, or an existing routine to attach to.")
-        timeField()
-        field("anchor", "Or after this existing routine", "breakfast")
-    }
-
-    private fun feel() {
-        header("What makes it worth it?",
-            "An immediate, honest payoff right after the action.")
-        field("reward", "Reward", "Listen to my favourite playlist")
-
-        val row = layoutInflater.inflate(R.layout.item_setting_toggle, contentView, false)
-        row.findViewById<TextView>(R.id.toggle_title).text = "Remind me at my cue time"
-        row.findViewById<TextView>(R.id.toggle_sub).apply {
-            visible(true)
-            text = "Android will ask for notification permission so SuperFlow can send that one " +
-                    "reminder. Nothing else uses it."
         }
-        val sw = row.findViewById<MaterialSwitch>(R.id.toggle_switch)
-        sw.isChecked = wantsReminder
-        row.setOnClickListener { sw.isChecked = !sw.isChecked; wantsReminder = sw.isChecked }
-        contentView.addView(row)
-    }
 
-    /* -------------------------------------------------------------- widgets */
-
-    private fun header(title: String, body: String) {
-        contentView.addView(TextView(this).apply {
-            text = "STEP ${step + 1} OF $totalSteps"
-            setTextAppearance(R.style.Text_SuperFlow_Overline)
-            setPadding(0, dpi(24), 0, dpi(8))
-        })
-        contentView.addView(TextView(this).apply {
-            text = title
-            setTextAppearance(R.style.Text_SuperFlow_HeadlineSmall)
-            setPadding(0, 0, 0, dpi(6))
-        })
-        contentView.addView(TextView(this).apply {
-            text = body
-            setTextAppearance(R.style.Text_SuperFlow_BodyMedium)
-            alpha = 0.75f
-            setPadding(0, 0, 0, dpi(20))
-        })
-    }
-
-    private fun card(title: String, body: String, accent: Boolean = false): View {
-        val v = layoutInflater.inflate(
-            if (accent) R.layout.item_identity else R.layout.item_text_card, contentView, false
-        )
-        if (accent) {
-            v.findViewById<TextView>(R.id.identity_text).text = title
-            v.findViewById<TextView>(R.id.identity_votes).text = body
-        } else {
-            v.findViewById<TextView>(R.id.text_title).text = title
-            v.findViewById<TextView>(R.id.text_body).text = body
+        onBackPressedDispatcher.addCallback(this) {
+            // Back walks the flow, not out of it. Leaving from step five
+            // by reflex, losing five answers, is a worse outcome than
+            // making someone press back twice.
+            val previous = OnboardingFlow.previous(state.value.step)
+            if (previous == null) finish() else goTo(previous)
         }
-        return v
+
+        startExampleTimer()
     }
 
-    private fun field(key: String, hint: String, placeholder: String, lines: Int = 1) {
-        val v = layoutInflater.inflate(R.layout.part_field, contentView, false)
-        val layout = v.findViewById<TextInputLayout>(R.id.field_layout)
-        val edit = v.findViewById<TextInputEditText>(R.id.field_edit)
-        layout.hint = hint
-        if (placeholder.isNotBlank()) layout.placeholderText = placeholder
-        edit.setText(values[key].orEmpty())
-        if (lines > 1) {
-            edit.isSingleLine = false
-            edit.minLines = lines
-            edit.inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                    android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-        }
-        edit.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                values[key] = s?.toString().orEmpty()
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(KEY_STEP, state.value.step.index)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        exampleTimer?.cancel()
+    }
+
+    /* ------------------------------------------------------------- actions */
+
+    private fun onAction(action: OnboardingAction) {
+        when (action) {
+            OnboardingAction.Next -> advance()
+            OnboardingAction.Back -> OnboardingFlow.previous(state.value.step)?.let(::goTo)
+            OnboardingAction.Skip -> complete(skipped = true)
+            is OnboardingAction.Edit -> edit(action.field, action.value)
+            is OnboardingAction.Reminder -> state.update {
+                it.copy(answers = it.answers.copy(reminder = action.enabled))
             }
-        })
-        contentView.addView(v)
-    }
-
-    private fun timeField() {
-        val v = layoutInflater.inflate(R.layout.part_field, contentView, false)
-        val layout = v.findViewById<TextInputLayout>(R.id.field_layout)
-        val edit = v.findViewById<TextInputEditText>(R.id.field_edit)
-        layout.hint = "At this time"
-        layout.placeholderText = "07:30"
-        edit.setText(values["cueTime"].orEmpty())
-        edit.isFocusable = false
-        edit.setOnClickListener {
-            val picker = MaterialTimePicker.Builder()
-                .setTimeFormat(TimeFormat.CLOCK_24H).setHour(7).setMinute(30).build()
-            picker.addOnPositiveButtonClickListener {
-                val text = String.format("%02d:%02d", picker.hour, picker.minute)
-                values["cueTime"] = text
-                edit.setText(text)
-            }
-            picker.show(supportFragmentManager, "cue")
+            OnboardingAction.PickTime -> pickTime()
         }
-        contentView.addView(v)
     }
 
-    private fun dpi(v: Int) = (v * resources.displayMetrics.density).toInt()
-
-    private fun v(key: String) = values[key]?.trim().orEmpty()
-
-    /* --------------------------------------------------------------- finish */
+    private fun edit(field: String, value: String) = state.update { s ->
+        val a = s.answers
+        val next = when (field) {
+            "lifeArea" -> a.copy(lifeArea = value)
+            "identity" -> a.copy(identity = value)
+            "goal" -> a.copy(goal = value)
+            "why" -> a.copy(why = value)
+            "system" -> a.copy(system = value)
+            "habit" -> a.copy(habit = value)
+            "tinyStart" -> a.copy(tinyStart = value)
+            "cueTime" -> a.copy(cueTime = value)
+            "anchor" -> a.copy(anchor = value)
+            "reward" -> a.copy(reward = value)
+            else -> a
+        }
+        // Editing clears the blocker: the message was about the field being
+        // empty, and leaving it up while someone types reads as the app
+        // still refusing them.
+        s.copy(answers = next, blocker = null)
+    }
 
     private fun advance() {
-        val required = when (step) {
-            2 -> "identity" to "Write something, even roughly"
-            3 -> "goal" to "Name the outcome"
-            5 -> "habit" to "Name the habit"
-            else -> null
-        }
-        if (required != null && v(required.first).isBlank()) {
-            findViewById<View>(R.id.root).snack(required.second)
+        val current = state.value
+        val blocker = OnboardingFlow.blockedBecause(current.step, current.answers)
+        if (blocker != null) {
+            state.update { it.copy(blocker = blocker) }
             return
         }
-        if (step == totalSteps - 1) complete(skipped = false) else { step++; render() }
+        if (OnboardingFlow.asksNotificationPermission(current.step, current.answers)) {
+            requestNotifications()
+        }
+        val next = OnboardingFlow.next(current.step)
+        if (next == null) complete(skipped = false) else goTo(next)
     }
 
-    private fun complete(skipped: Boolean) {
-        if (!skipped) {
-            // The permission prompt must come from a live activity, so it
-            // happens here; the four database writes and the alarm pass run on
-            // the background lane and are ordered before the reschedule.
-            if (wantsReminder && android.os.Build.VERSION.SDK_INT >= 33) {
-                val perm = android.Manifest.permission.POST_NOTIFICATIONS
-                if (checkSelfPermission(perm) !=
-                    android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    notificationPermission.launch(perm)
-                }
+    private fun goTo(step: OnboardingFlow.Step) {
+        state.update { it.copy(step = step, blocker = null, exampleIndex = 0) }
+        startExampleTimer()
+    }
+
+    /**
+     * Cycles the worked examples on the identity and goal steps.
+     *
+     * A static example gets read once and ignored; a rotating one shows the
+     * *range* of what belongs in the field, which is the actual difficulty.
+     * The timer only runs on the steps that have examples, so it is not
+     * quietly waking the CPU on the welcome screen.
+     */
+    private fun startExampleTimer() {
+        exampleTimer?.cancel()
+        val step = state.value.step
+        val cycles = step == OnboardingFlow.Step.IDENTITY || step == OnboardingFlow.Step.GOAL
+        if (!cycles) return
+        exampleTimer = lifecycleScope.launch {
+            while (true) {
+                delay(OnboardingFlow.EXAMPLE_DWELL_MS)
+                state.update { it.copy(exampleIndex = it.exampleIndex + 1) }
             }
-            createWorkspace()
         }
+    }
+
+    private fun pickTime() {
+        val existing = state.value.answers.cueTime.split(":")
+        val hour = existing.getOrNull(0)?.toIntOrNull()?.coerceIn(0, 23) ?: DEFAULT_HOUR
+        val minute = existing.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: DEFAULT_MINUTE
+        val picker = MaterialTimePicker.Builder()
+            .setTimeFormat(if (android.text.format.DateFormat.is24HourFormat(this))
+                TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H)
+            .setHour(hour)
+            .setMinute(minute)
+            .build()
+        picker.addOnPositiveButtonClickListener {
+            // Stored as 24-hour regardless of what the picker displayed:
+            // the presentation format is a device setting, the stored value
+            // is data, and mixing the two is how you get 7:30 PM parsed as
+            // half past seven in the morning.
+            edit("cueTime", String.format("%02d:%02d", picker.hour, picker.minute))
+        }
+        picker.show(supportFragmentManager, "cue")
+    }
+
+    private fun requestNotifications() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val permission = Manifest.permission.POST_NOTIFICATIONS
+        if (checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) return
+        notificationPermission.launch(permission)
+    }
+
+    /* -------------------------------------------------------------- finish */
+
+    /**
+     * Writes the workspace and leaves.
+     *
+     * Everything goes through [CommandBus] as [Actor.USER] rather than
+     * straight into the repository, so onboarding lands in Activity like
+     * any other change and is undoable. Someone who regrets their first
+     * identity statement at 9am on day one should be able to remove it the
+     * same way they would remove anything else.
+     */
+    private fun complete(skipped: Boolean) {
+        if (state.value.busy) return
+        state.update { it.copy(busy = true) }
+
+        if (!skipped) {
+            val a = state.value.answers
+            val identityId = bus.execute(
+                "create_identity",
+                jsonOf(
+                    "statement" to a.identity.trim(),
+                    "lifeArea" to (LifeArea.from(a.lifeArea).name),
+                ),
+                Actor.USER,
+            ).data?.optString("id")
+
+            val goalId = bus.execute(
+                "create_goal",
+                jsonOf(
+                    "title" to a.goal.trim(),
+                    "why" to a.why.trim(),
+                    "identityId" to identityId,
+                ),
+                Actor.USER,
+            ).data?.optString("id")
+
+            val systemId = bus.execute(
+                "create_system",
+                jsonOf("title" to a.systemName(), "goalId" to goalId),
+                Actor.USER,
+            ).data?.optString("id")
+
+            bus.execute(
+                "create_habit",
+                jsonOf(
+                    "title" to a.habit.trim(),
+                    "tinyStart" to a.tinyStart.trim()
+                        .ifBlank { Coordinator.defaultTinyStart(a.habit.trim()) },
+                    "standardVersion" to a.habit.trim(),
+                    "cueTime" to a.cueTime,
+                    "anchorText" to a.anchor.trim(),
+                    "reward" to a.reward.trim(),
+                    "systemId" to systemId,
+                    "identityId" to identityId,
+                    "reminder" to a.reminder,
+                    "days" to "daily",
+                ),
+                Actor.USER,
+            )
+        }
+
         prefs.onboarded = true
         Reminders.rescheduleAll(this)
-        TodayWidget.refresh(this, force = true)
         startActivity(Intent(this, MainActivity::class.java))
         finish()
     }
 
-    /** Identity -> goal -> system -> habit, off the main thread. */
-    private fun createWorkspace() {
-        next.isEnabled = false
-        val identity = v("identity")
-        val goal = v("goal")
-        val why = v("why")
-        val system = v("system").ifBlank { "My ${v("goal")} routine" }
-        val habit = v("habit")
-        val tiny = v("tiny").ifBlank { Coordinator.defaultTinyStart(v("habit")) }
-        val cueTime = v("cueTime")
-        val anchor = v("anchor")
-        val reward = v("reward")
-        val wantsReminder = wantsReminder
+    /* --------------------------------------------------------------- setup */
 
-        AppBackground.launch {
-            try {
-                val identityId = bus.execute("create_identity",
-                    jsonOf("statement" to identity, "lifeArea" to area.name), Actor.USER)
-                    .data?.optString("id")
+    /**
+     * Life-area chips, in the order the enum declares them minus CUSTOM.
+     *
+     * "Custom" as a chip is a dead end during onboarding — it names no
+     * area and offers no field to name one — so it is left to the designer
+     * screens where an area can actually be typed.
+     */
+    private fun lifeAreaChips(): List<SfChip> =
+        LifeArea.entries
+            .filter { it != LifeArea.CUSTOM }
+            .map { SfChip(id = it.name, label = it.label) }
 
-                val goalId = bus.execute("create_goal",
-                    jsonOf("title" to goal, "why" to why, "identityId" to identityId),
-                    Actor.USER).data?.optString("id")
+    private fun widthClass(): Navigation.WidthClass {
+        val metrics = resources.displayMetrics
+        return Navigation.widthClass((metrics.widthPixels / metrics.density).toInt())
+    }
 
-                val systemId = bus.execute("create_system", jsonOf(
-                    "title" to system, "goalId" to goalId
-                ), Actor.USER).data?.optString("id")
-
-                bus.execute("create_habit", jsonOf(
-                    "title" to habit,
-                    "tinyStart" to tiny,
-                    "standardVersion" to habit,
-                    "cueTime" to cueTime,
-                    "anchorText" to anchor,
-                    "reward" to reward,
-                    "systemId" to systemId,
-                    "identityId" to identityId,
-                    "reminder" to wantsReminder,
-                    "days" to "daily"
-                ), Actor.USER)
-            } catch (e: Exception) {
-                // Onboarding must complete even if a write fails; the user can
-                // recreate the pieces from Journey. Log for supportability.
-                android.util.Log.w("Onboarding", "Workspace creation failed", e)
-            }
-        }
+    private companion object {
+        const val KEY_STEP = "step"
+        const val DEFAULT_HOUR = 7
+        const val DEFAULT_MINUTE = 30
     }
 }

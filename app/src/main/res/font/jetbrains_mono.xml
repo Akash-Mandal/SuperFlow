@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  JetBrains Mono (SIL OFL 1.1). Used only for numeric data: streak counts,
+  stat readouts, chart axis labels. Tabular figures stop numbers jittering
+  as they animate or tick over.
+-->
+<font-family xmlns:android="http://schemas.android.com/apk/res/android">
+    <font android:fontStyle="normal" android:fontWeight="400" android:font="@font/jetbrains_mono_regular" />
+    <font android:fontStyle="normal" android:fontWeight="500" android:font="@font/jetbrains_mono_medium" />
+</font-family>

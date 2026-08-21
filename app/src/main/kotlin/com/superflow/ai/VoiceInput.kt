@@ -38,6 +38,12 @@ class VoiceInput(private val context: Context) {
             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
                     PackageManager.PERMISSION_GRANTED
 
+        /**
+         * An intent that opens the system voice-input settings, so a user on a
+         * de-Googled device without a recogniser can install/enable one (#2).
+         */
+        fun settingsIntent(): Intent = Intent(RecognizerIntent.ACTION_VOICE_INPUT_SETTINGS)
+
         const val PERMISSION = Manifest.permission.RECORD_AUDIO
     }
 
@@ -46,7 +52,11 @@ class VoiceInput(private val context: Context) {
     fun start(callbacks: Callbacks) {
         if (listening) return
         if (!isAvailable(context)) {
-            callbacks.onError("Speech recognition is not available on this device")
+            callbacks.onError(
+                "No speech recogniser found. On de-Googled devices, install or enable a " +
+                        "voice-input provider (e.g. a system speech engine), then grant " +
+                        "microphone permission."
+            )
             return
         }
         if (!hasPermission(context)) {

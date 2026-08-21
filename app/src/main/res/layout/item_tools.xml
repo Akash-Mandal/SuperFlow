@@ -18,7 +18,8 @@
         android:focusable="true">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="vertical" android:gravity="center" android:padding="16dp">
-            <ImageView android:id="@+id/tool_1_icon" android:layout_width="24dp"
+            <ImageView android:id="@+id/tool_1_icon"
+            android:importantForAccessibility="no" android:layout_width="24dp"
                 android:layout_height="24dp" app:tint="?attr/colorPrimary" />
             <TextView android:id="@+id/tool_1_label" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:layout_marginTop="8dp"
@@ -39,7 +40,8 @@
         android:focusable="true">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="vertical" android:gravity="center" android:padding="16dp">
-            <ImageView android:id="@+id/tool_2_icon" android:layout_width="24dp"
+            <ImageView android:id="@+id/tool_2_icon"
+            android:importantForAccessibility="no" android:layout_width="24dp"
                 android:layout_height="24dp" app:tint="?attr/colorPrimary" />
             <TextView android:id="@+id/tool_2_label" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:layout_marginTop="8dp"
@@ -59,7 +61,8 @@
         android:focusable="true">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="vertical" android:gravity="center" android:padding="16dp">
-            <ImageView android:id="@+id/tool_3_icon" android:layout_width="24dp"
+            <ImageView android:id="@+id/tool_3_icon"
+            android:importantForAccessibility="no" android:layout_width="24dp"
                 android:layout_height="24dp" app:tint="?attr/colorPrimary" />
             <TextView android:id="@+id/tool_3_label" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:layout_marginTop="8dp"

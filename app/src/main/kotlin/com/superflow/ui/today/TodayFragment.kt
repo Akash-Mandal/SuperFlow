@@ -13,9 +13,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.DefaultItemAnimator
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.superflow.R
 import com.superflow.data.model.Checkpoint
@@ -24,10 +27,15 @@ import com.superflow.data.model.Habit
 import com.superflow.data.model.Level
 import com.superflow.core.time.Greeting
 import com.superflow.core.time.SfTime
+import com.superflow.design.Navigation
 import com.superflow.ui.MainActivity
+import com.superflow.data.Prefs
 import com.superflow.ui.common.snack
+import com.superflow.ui.common.wireRefresh
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.detail.HabitDetailActivity
+import com.superflow.ui.search.SearchActivity
+import com.superflow.ui.settings.SettingsActivity
 import com.superflow.ui.sheets.TextInputSheet
 import com.superflow.util.Dates
 import kotlinx.coroutines.launch
@@ -43,6 +51,9 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
     private lateinit var adapter: TodayAdapter
     private lateinit var list: RecyclerView
 
+    /** Dismisses the refresh spinner once the new rows are on screen. */
+    private var pendingRefresh: (() -> Unit)? = null
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -55,11 +66,47 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
         val toolbar = view.findViewById<MaterialToolbar>(R.id.toolbar)
         val fab = view.findViewById<ExtendedFloatingActionButton>(R.id.fab)
         list = view.findViewById(R.id.list)
+        // Pull to refresh. The completion callback fires on the next state
+        // emission rather than on a timer, so the spinner is honest about
+        // when the data actually changed.
+        val refresh = view.findViewById<SwipeRefreshLayout>(R.id.refresh)
+        refresh.wireRefresh(Prefs.get(requireContext())) { done ->
+            pendingRefresh = done
+            model.refresh()
+        }
 
         adapter = TodayAdapter(this)
         list.layoutManager = LinearLayoutManager(requireContext())
         list.adapter = adapter
         (list.itemAnimator as? DefaultItemAnimator)?.supportsChangeAnimations = false
+
+        // Drag-and-drop reorder of habit rows (#12). Long-press a card to drag;
+        // only Habit rows are movable, and the new order is persisted on drop.
+        val touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0
+        ) {
+            override fun isLongPressDragEnabled() = true
+
+            override fun onMove(
+                rv: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean {
+                val fromHabit = (viewHolder as? TodayAdapter.HabitVH)?.habit ?: return false
+                val toHabit = (target as? TodayAdapter.HabitVH)?.habit ?: return false
+                model.reorderHabitTo(fromHabit.id, toHabit.id)
+                return true
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit
+
+            override fun getMovementFlags(
+                rv: RecyclerView, viewHolder: RecyclerView.ViewHolder
+            ): Int = if (viewHolder is TodayAdapter.HabitVH) {
+                makeMovementFlags(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0)
+            } else 0
+        })
+        touchHelper.attachToRecyclerView(list)
 
         ViewCompat.setOnApplyWindowInsetsListener(view.findViewById(R.id.header)) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -69,8 +116,41 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
 
         toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                R.id.action_plan_tomorrow -> { model.planTomorrow(); true }
+                R.id.action_search -> {
+                    startActivity(Intent(requireContext(), SearchActivity::class.java))
+                    true
+                }
+                R.id.action_plan_tomorrow -> {
+                    startActivity(Intent(requireContext(), PlanTomorrowActivity::class.java))
+                    true
+                }
+                // Settings is reached from here rather than the tab bar
+                // since 10.1 — see Navigation.Tab, which has no entry for it.
+                R.id.action_settings -> {
+                    startActivity(Intent(requireContext(), SettingsActivity::class.java))
+                    true
+                }
+                R.id.action_refresh -> { model.refresh(); true }
                 R.id.action_minimum_mode -> { model.minimumMode(); true }
+                R.id.action_complete_all_tiny -> {
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.complete_all_tiny)
+                        .setMessage("Mark every habit still open today as Tiny? " +
+                                "A small win still counts, and you can undo it.")
+                        .setNegativeButton(R.string.cancel, null)
+                        .setPositiveButton(R.string.done) { _, _ -> model.completeAllTiny() }
+                        .show()
+                    true
+                }
+                R.id.action_undo_today -> {
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.undo_today)
+                        .setMessage("Revert every check-in recorded today? This can be undone from the Activity trail.")
+                        .setNegativeButton(R.string.cancel, null)
+                        .setPositiveButton(R.string.undo) { _, _ -> model.undoToday() }
+                        .show()
+                    true
+                }
                 R.id.action_recovery -> {
                     startActivity(Intent(requireContext(),
                         com.superflow.ui.recovery.RecoveryActivity::class.java))
@@ -81,7 +161,7 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
         }
 
         fab.setOnClickListener {
-            (activity as? MainActivity)?.goToTab(3)
+            (activity as? MainActivity)?.select(Navigation.Tab.STUDIO)
         }
         list.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
@@ -99,7 +179,13 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
                             Greeting.EVENING -> getString(R.string.good_evening)
                         }
                         dateTitle.text = SfTime.humanDay(state.date)
-                        adapter.submitList(state.rows)
+                        adapter.submitList(state.rows) {
+                            // submitList's callback runs after the diff has
+                            // been applied, which is the first moment the
+                            // user can see the new data.
+                            pendingRefresh?.invoke()
+                            pendingRefresh = null
+                        }
                     }
                 }
                 launch {
@@ -148,7 +234,30 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
 
     override fun onFocusSuggest() = model.suggestFocus()
     override fun onEnergy(value: Int) = model.logEnergy(value)
-    override fun onCheckpoint(cp: Checkpoint) = model.runCheckpoint(cp)
+    override fun onCheckpoint(cp: Checkpoint) {
+        startActivity(
+            Intent(requireContext(), CheckpointActivity::class.java)
+                .putExtra(CheckpointActivity.EXTRA_CHECKPOINT, cp.name)
+        )
+    }
+
+    override fun onSuggestionAction(row: TodayRow.Suggestion) {
+        when (row.tone) {
+            com.superflow.ai.Suggestions.Tone.DESIGN,
+            com.superflow.ai.Suggestions.Tone.INSIGHT,
+            com.superflow.ai.Suggestions.Tone.ENCOURAGE -> onSuggestionOpen(row)
+            else -> model.actOnSuggestion(row)
+        }
+    }
+
+    override fun onSuggestionOpen(row: TodayRow.Suggestion) {
+        val id = row.habitId ?: return
+        startActivity(
+            Intent(requireContext(), HabitDetailActivity::class.java)
+                .putExtra(HabitDetailActivity.EXTRA_HABIT_ID, id)
+        )
+        )
+    }
 
     override fun onEmptyAction() {
         startActivity(Intent(requireContext(), HabitDesignerActivity::class.java))

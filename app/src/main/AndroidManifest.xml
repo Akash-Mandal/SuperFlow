@@ -24,6 +24,9 @@
         </intent>
     </queries>
 
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+
     <application
         android:name=".SuperFlowApp"
         android:allowBackup="true"
@@ -36,15 +39,22 @@
         android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.SuperFlow">
 
+        <!--
+            MainActivity is NOT the launcher entry (19.3).
+
+            Icon variants are switched by enabling one activity-alias and
+            disabling the others, and the component that carries LAUNCHER
+            must be the one being toggled. If MainActivity itself carried
+            it, disabling an alias would leave two launcher entries and
+            enabling none would leave the app unlaunchable. So MainActivity
+            keeps the deep link and the shortcuts - which must stay
+            enabled at all times - and three aliases carry the icon.
+        -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -54,7 +64,69 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
+        <!--
+            Launcher aliases, one per icon variant.
+
+            Exactly one is enabled at a time; AppIcons does the switching.
+            The default alias is the only one enabled in the manifest, so a
+            fresh install and an install whose preference was never touched
+            agree without any code running.
+
+            Toggling an alias makes the launcher drop and re-add the app,
+            which clears its position on the home screen and any folder it
+            was in. That is unavoidable - it is how the platform models this
+            - and it is why the picker warns before applying.
+        -->
+        <activity-alias
+            android:name=".Launcher"
+            android:targetActivity=".ui.MainActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherMinimal"
+            android:targetActivity=".ui.MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_minimal"
+            android:roundIcon="@mipmap/ic_launcher_minimal_round"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherMono"
+            android:targetActivity=".ui.MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_mono"
+            android:roundIcon="@mipmap/ic_launcher_mono_round"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <activity android:name=".ui.onboarding.OnboardingActivity" android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <!--
+            Settings is a route, not a tab (10.1). configChanges is not set:
+            an appearance change here must rebuild, and that is exactly what
+            SettingsActivity.onResume relies on.
+        -->
+        <activity android:name=".ui.settings.SettingsActivity" android:exported="false"
             android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.designer.HabitDesignerActivity" android:exported="false"
             android:windowSoftInputMode="adjustResize" />
@@ -69,6 +141,27 @@
             android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.blueprint.BlueprintActivity" android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.search.SearchActivity" android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.pause.PauseActivity" android:exported="false" />
+        <activity android:name=".ui.today.CheckpointActivity" android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.today.PlanTomorrowActivity" android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".security.LockActivity" android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <receiver android:name=".notify.ReminderReceiver" android:exported="false" />
 
@@ -83,6 +176,7 @@
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.superflow.widget.CHECK" />
+                <action android:name="com.superflow.widget.FOCUS" />
                 <action android:name="com.superflow.widget.REFRESH" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider"
