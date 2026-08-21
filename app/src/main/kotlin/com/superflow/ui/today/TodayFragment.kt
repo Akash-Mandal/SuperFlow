@@ -31,7 +31,6 @@ import com.superflow.ui.common.snack
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.detail.HabitDetailActivity
 import com.superflow.ui.search.SearchActivity
-import com.superflow.ui.sheets.PlanTomorrowSheet
 import com.superflow.ui.sheets.TextInputSheet
 import com.superflow.util.Dates
 import kotlinx.coroutines.launch
@@ -106,7 +105,8 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
                     true
                 }
                 R.id.action_plan_tomorrow -> {
-                    PlanTomorrowSheet.show(parentFragmentManager); true
+                    startActivity(Intent(requireContext(), PlanTomorrowActivity::class.java))
+                    true
                 }
                 R.id.action_minimum_mode -> { model.minimumMode(); true }
                 R.id.action_complete_all_tiny -> {
@@ -206,35 +206,10 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
     override fun onFocusSuggest() = model.suggestFocus()
     override fun onEnergy(value: Int) = model.logEnergy(value)
     override fun onCheckpoint(cp: Checkpoint) {
-        model.runCheckpoint(cp)
-        // Show the guided checkpoint content (#22).
-        val scheduled = model.habitsToday()
-        val done = model.doneToday()
-        val focus = model.focusToday()
-        val title = when (cp) {
-            Checkpoint.MORNING -> "Morning checkpoint"
-            Checkpoint.MIDDAY -> "Midday checkpoint"
-            Checkpoint.EVENING -> "Evening checkpoint"
-        }
-        val body = buildString {
-            append(when (cp) {
-                Checkpoint.MORNING ->
-                    "${scheduled.size} habit(s) scheduled today." +
-                            if (focus.isNotEmpty()) " Focus: ${focus.joinToString(", ") { it.title }}." else ""
-                Checkpoint.MIDDAY ->
-                    "$done of ${scheduled.size} done so far. " +
-                            "If the day got away, a Tiny Start still counts."
-                Checkpoint.EVENING ->
-                    "$done of ${scheduled.size} completed. " +
-                            "You can mark open habits as Tiny or prepare one thing for tomorrow."
-            })
-            append("\n\nEnergy logged at this checkpoint shapes your insights.")
-        }
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle(title)
-            .setMessage(body)
-            .setPositiveButton(R.string.done, null)
-            .show()
+        startActivity(
+            Intent(requireContext(), CheckpointActivity::class.java)
+                .putExtra(CheckpointActivity.EXTRA_CHECKPOINT, cp.name)
+        )
     }
 
     override fun onSuggestionAction(row: TodayRow.Suggestion) {
@@ -251,6 +226,7 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
         startActivity(
             Intent(requireContext(), HabitDetailActivity::class.java)
                 .putExtra(HabitDetailActivity.EXTRA_HABIT_ID, id)
+        )
         )
     }
 

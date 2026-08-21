@@ -40,7 +40,7 @@ signed debug APK on real Android architecture.
 | minSdk / targetSdk / compileSdk | 26 / 34 / 36 |
 | Build | Gradle 8.11.1, AGP 8.9.1, Kotlin 2.2.0, JDK 17 |
 | Stack | Material 3, AppCompat, RecyclerView, Fragment, ViewPager2, ViewModel/StateFlow, Coroutines, androidx.sqlite, WorkManager |
-| Capabilities | 49 registered commands shared by the UI and the AI |
+| Capabilities | see IMPLEMENTATION_STATUS.md for the merged catalog count |
 
 SuperFlow is a full AndroidX application: MVVM with `ViewModel` + `StateFlow`,
 `RecyclerView` + `DiffUtil` lists, Material 3 theming with a complete dark mode,

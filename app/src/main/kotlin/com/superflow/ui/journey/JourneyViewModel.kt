@@ -34,7 +34,8 @@ sealed class JourneyRow {
         val title: String,
         val subtitle: String,
         val icon: Int,
-        val archived: Boolean = false
+        val archived: Boolean = false,
+        val graduated: Boolean = false
     ) : JourneyRow() {
         override val stableId = (kind + id).hashCode().toLong()
     }
@@ -76,7 +77,7 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
         val snap = repo.snapshot()
         val goals = repo.goals()
         val systems = repo.systems()
-        val habits = snap.activeHabits
+        val habits = snap.activeHabits.filter { !it.graduated }
 
         // Identities
         rows.add(JourneyRow.Header("Identities", "Add", "identity"))
@@ -159,6 +160,20 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
             ))
         }
 
+        // Graduated habits live in maintenance, off Today, checked weekly.
+        val graduated = snap.habits.filter { it.graduated }
+        if (graduated.isNotEmpty()) {
+            rows.add(JourneyRow.Header("Maintenance", null, "maintenance"))
+            for (h in graduated) {
+                val stats = Insights.forHabit(repo, h)
+                rows.add(JourneyRow.Entity(
+                    h.id, "habit", h.title,
+                    "Automatic · weekly check-in · ${stats.repetitions} reps",
+                    com.superflow.R.drawable.ic_star, graduated = true
+                ))
+            }
+        }
+
         val archived = snap.habits.filter { it.status == Status.ARCHIVED }
         if (archived.isNotEmpty()) {
             rows.add(JourneyRow.Header("Archived", null, "archived"))
@@ -217,6 +232,17 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
     fun duplicateHabit(id: String) = run("duplicate_habit", jsonOf("habit" to id))
     fun moveHabit(id: String, direction: String) =
         run("reorder_habit", jsonOf("habit" to id, "direction" to direction))
+
+    /** Persists the drag-and-drop order for the active habits. */
+    fun reorderHabits(ids: List<String>) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val arr = org.json.JSONArray()
+                ids.forEach { arr.put(it) }
+                bus.execute("reorder_habits", jsonOf("ids" to arr), Actor.USER)
+            }
+        }
+    }
 
     fun undoLast() {
         viewModelScope.launch {

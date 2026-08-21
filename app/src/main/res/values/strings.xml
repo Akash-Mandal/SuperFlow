@@ -11,6 +11,10 @@
     <string name="tab_settings">Settings</string>
 
     <!-- Common -->
+    <string name="search">Search</string>
+    <string name="share_progress_card">Share progress card</string>
+    <string name="app_lock">App lock</string>
+    <string name="unlock">Unlock</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="close">Close</string>
@@ -143,6 +147,10 @@
     <string name="channel_reviews_desc">Weekly review reminders and draft notifications</string>
     <string name="channel_ai">AI suggestions</string>
     <string name="channel_ai_desc">Proactive suggestions from the AI coach</string>
+    <string name="channel_weekly_summary">Weekly summary</string>
+    <string name="channel_weekly_summary_desc">Your week in SuperFlow, every Sunday</string>
+    <string name="channel_backup">Backup status</string>
+    <string name="channel_backup_desc">Automatic backup results</string>
 
     <!-- Content descriptions -->
     <string name="cd_back">Navigate up</string>

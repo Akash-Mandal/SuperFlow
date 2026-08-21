@@ -209,6 +209,10 @@ class CoachFragment : Fragment() {
 
         toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                R.id.action_search -> {
+                    startActivity(Intent(requireContext(),
+                        com.superflow.ui.search.SearchActivity::class.java)); true
+                }
                 R.id.action_blueprint -> { openBlueprint(); true }
                 R.id.action_engine -> { openEngine(); true }
                 R.id.action_activity -> {

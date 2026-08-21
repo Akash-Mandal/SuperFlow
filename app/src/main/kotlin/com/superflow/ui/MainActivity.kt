@@ -91,6 +91,15 @@ class MainActivity : AppCompatActivity() {
         // (see AppBackground) and must not delay the first frame.
         Reminders.rescheduleAll(this)
         TodayWidget.refresh(this)
+        com.superflow.Shortcuts.update(this)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (::prefs.isInitialized && prefs.onboarded &&
+            com.superflow.security.AppLock.shouldLock(prefs)) {
+            startActivity(Intent(this, com.superflow.security.LockActivity::class.java))
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -100,6 +109,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
+        // Dynamic shortcut: one-tap check-in without opening a screen.
+        if (intent?.action == com.superflow.Shortcuts.ACTION_CHECK_IN) {
+            val habitId = intent.getStringExtra(com.superflow.Shortcuts.EXTRA_HABIT_ID)
+            if (!habitId.isNullOrBlank()) {
+                com.superflow.domain.CommandBus.get(this).execute(
+                    "check_in",
+                    com.superflow.util.jsonOf("habit" to habitId, "level" to "STANDARD"),
+                    com.superflow.domain.Actor.USER
+                )
+            }
+        }
         val tab = intent?.getStringExtra(EXTRA_TAB) ?: return
         val index = when (tab) {
             "today" -> 0; "journey" -> 1; "insights" -> 2; "coach" -> 3; "settings" -> 4

@@ -1,22 +1,31 @@
 package com.superflow.work
 
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.superflow.R
+import com.superflow.core.schedule.Opportunities
+import com.superflow.core.schedule.Recurrence
+import com.superflow.core.time.SfTime
 import com.superflow.data.Backups
 import com.superflow.data.Prefs
-import com.superflow.core.time.SfTime
 import com.superflow.data.Repository
 import com.superflow.data.model.CheckIn
 import com.superflow.data.model.CheckInResult
+import com.superflow.data.model.Habit
 import com.superflow.data.model.Level
 import com.superflow.domain.Insights
 import com.superflow.notify.Reminders
+import com.superflow.ui.MainActivity
+import com.superflow.ui.review.ReviewActivity
 import com.superflow.widget.TodayWidget
 import java.time.Duration
 import java.time.LocalDate
@@ -332,6 +341,99 @@ class BackupWorker(
     }
 }
 
+/** One week's derived numbers, for the weekly summary notification. */
+data class WeekSummary(
+    val consistency: Int,
+    val repetitions: Int,
+    val recoveries: Int,
+    val bestHabit: Habit?
+)
+
+/**
+ * Weekly report, posted on the configured day (Sunday by default).
+ *
+ * Runs daily and no-ops unless today is the configured day, which keeps the
+ * WorkManager schedule trivial and robust to doze, reboots and time-zone
+ * changes.
+ */
+class WeeklySummaryWorker(
+    context: Context,
+    params: WorkerParameters
+) : CoroutineWorker(context, params) {
+
+    override suspend fun doWork(): Result = try {
+        val prefs = Prefs.get(applicationContext)
+        if (!prefs.weeklySummaryEnabled) return Result.success()
+        val repo = Repository.get(applicationContext)
+        if (repo.clock.today().dayOfWeek.value != prefs.weeklySummaryDay) return Result.success()
+        postSummary(repo)
+        Result.success()
+    } catch (e: Exception) {
+        Result.retry()
+    }
+
+    private fun postSummary(repo: Repository) {
+        val summary = weekStats(repo)
+        val text = buildString {
+            append("Consistency: ${summary.consistency}%")
+            append(" · Repetitions: ${summary.repetitions}")
+            append(" · Recoveries: ${summary.recoveries}")
+            summary.bestHabit?.let { append("\nBest habit: ${it.title}") }
+        }
+
+        val insights = PendingIntent.getActivity(
+            applicationContext, 1,
+            Intent(applicationContext, MainActivity::class.java)
+                .putExtra(MainActivity.EXTRA_TAB, "insights"),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val review = PendingIntent.getActivity(
+            applicationContext, 2,
+            Intent(applicationContext, ReviewActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val actions = listOf(
+            NotificationCompat.Action.Builder(R.drawable.ic_insights, "View full report", insights).build(),
+            NotificationCompat.Action.Builder(R.drawable.ic_scorecard, "Start review", review).build()
+        )
+        Reminders.notify(
+            applicationContext, 8001, Reminders.CHANNEL_WEEKLY_SUMMARY,
+            "Your Week in SuperFlow", text, actions
+        )
+    }
+
+    private fun weekStats(repo: Repository): WeekSummary {
+        val today = repo.clock.today()
+        var hits = 0
+        var opportunities = 0
+        var repetitions = 0
+        var recoveries = 0
+        var best: Pair<Habit, Int>? = null
+
+        for (h in repo.habits()) {
+            val series = Insights.seriesFor(repo, h, 7, today)
+            val recurrence = Recurrence.decode(h.recurrenceRule)
+            val (hh, oo) = if (recurrence is Recurrence.TimesPerWeek) {
+                Opportunities.quotaAdherence(series, recurrence.times)
+            } else {
+                Opportunities.adherence(series)
+            }
+            hits += hh
+            opportunities += oo
+            recoveries += Opportunities.recoveries(series)
+            repetitions += series.count { it.succeeded }
+            val run = Opportunities.bestRun(series)
+            if (best == null || run > best.second) best = h to run
+        }
+        val consistency = if (opportunities == 0) 0 else (hits * 100) / opportunities
+        return WeekSummary(consistency, repetitions, recoveries, best?.first)
+    }
+
+    companion object {
+        const val NAME = "superflow_weekly_summary"
+    }
+}
+
 object BackgroundWork {
 
     private const val TAG = "BackgroundWork"
@@ -391,6 +493,7 @@ object BackgroundWork {
         periodic<MilestoneWorker>(manager, MilestoneWorker.NAME, 12, TimeUnit.HOURS)
         periodic<ReviewWorker>(manager, ReviewWorker.NAME, 1, TimeUnit.DAYS)
         periodic<SnapshotCleanupWorker>(manager, SnapshotCleanupWorker.NAME, 1, TimeUnit.DAYS)
+        periodic<WeeklySummaryWorker>(manager, WeeklySummaryWorker.NAME, 1, TimeUnit.DAYS)
         // Widget periodic refresh (every 30 minutes is the WorkManager minimum).
         periodic<WidgetRefreshWorker>(manager, WidgetRefreshWorker.NAME, 30, TimeUnit.MINUTES)
         // Backup cadence is user-configurable; UPDATE replaces the prior schedule.
@@ -436,6 +539,7 @@ object BackgroundWork {
                 cancelUniqueWork(SnapshotCleanupWorker.NAME)
                 cancelUniqueWork(WidgetRefreshWorker.NAME)
                 cancelUniqueWork(BackupWorker.NAME)
+                cancelUniqueWork(WeeklySummaryWorker.NAME)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Could not cancel periodic work", e)

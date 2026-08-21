@@ -74,7 +74,8 @@ object Serial {
         "stretchCount" to h.stretchCount, "consecutiveStandards" to h.consecutiveStandards,
         "estimatedMinutes" to h.estimatedMinutes, "difficultyRating" to h.difficultyRating,
         "colorSeed" to h.colorSeed, "orderIndex" to h.orderIndex,
-        "status" to h.status.name, "createdAt" to h.createdAt
+        "status" to h.status.name, "graduated" to h.graduated, "graduatedAt" to h.graduatedAt,
+        "createdAt" to h.createdAt
     )
 
     fun of(c: CheckIn): JSONObject = jsonOf(
@@ -232,7 +233,10 @@ object Serial {
         difficultyRating = o.optInt("difficultyRating", 3).coerceIn(1, 5),
         colorSeed = o.optInt("colorSeed", 0),
         orderIndex = o.optInt("orderIndex", 0),
-        status = Status.valueOf(o.string("status", "ACTIVE")), createdAt = long(o, "createdAt")
+        status = Status.valueOf(o.string("status", "ACTIVE")),
+        graduated = o.optBoolean("graduated", false),
+        graduatedAt = if (o.isNull("graduatedAt")) null else o.optLong("graduatedAt"),
+        createdAt = long(o, "createdAt")
     )
 
     fun checkIn(o: JSONObject) = CheckIn(

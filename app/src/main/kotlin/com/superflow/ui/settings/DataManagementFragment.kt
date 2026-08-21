@@ -511,30 +511,11 @@ class DataManagementFragment : Fragment() {
     private fun doAutoBackup(): Boolean =
         Backups.create(requireContext(), repo, prefs) != null
 
-    private fun checkIntegrity(): String {
-        val issues = repo.integrityReport()
-        return if (issues.isEmpty()) "✓ All data is consistent. No orphaned references found."
-        else "Issues found:\n" + issues.joinToString("\n") { "· ${it.count} ${it.detail}" }
-    }
+    private fun checkIntegrity(): String =
+        com.superflow.domain.Diagnostics.checkIntegrity(repo)
 
     private fun fixIntegrity() {
-        // Delete rows that reference a missing parent.
-        val habitIds = repo.habits(true).map { it.id }.toSet()
-        val identityIds = repo.identities(true).map { it.id }.toSet()
-        val goalIds = repo.goals().map { it.id }.toSet()
-        val systemIds = repo.systems().map { it.id }.toSet()
-        repo.runInTransaction {
-            repo.checkIns().filter { it.habitId !in habitIds }.forEach {
-                repo.delete("checkin", "id=?", arrayOf(it.id))
-            }
-            repo.obstacles().filter { it.habitId !in habitIds }.forEach { repo.deleteObstacle(it.id) }
-            repo.goals().filter { it.identityId != null && it.identityId !in identityIds }
-                .forEach { repo.delete("goal", "id=?", arrayOf(it.id)) }
-            repo.systems().filter { it.goalId != null && it.goalId !in goalIds }
-                .forEach { repo.delete("sys", "id=?", arrayOf(it.id)) }
-            repo.habits(true).filter { it.systemId != null && it.systemId !in systemIds }
-                .forEach { repo.delete("habit", "id=?", arrayOf(it.id)) }
-        }
+        com.superflow.domain.Diagnostics.fix(repo)
     }
 
     /* ------------------------------------------------------------- helpers */

@@ -101,7 +101,9 @@ object Rows {
         estimatedMinutes = c.int("estimatedMinutes").coerceAtLeast(1),
         difficultyRating = c.int("difficultyRating").coerceIn(1, 5),
         colorSeed = c.int("colorSeed"), orderIndex = c.int("orderIndex"),
-        status = Status.valueOf(c.str("status").ifBlank { "ACTIVE" }), createdAt = c.lng("createdAt")
+        status = Status.valueOf(c.str("status").ifBlank { "ACTIVE" }),
+        graduated = c.bool("graduated"), graduatedAt = c.lngOrNull("graduatedAt"),
+        createdAt = c.lng("createdAt")
     )
 
     fun checkIn(c: Cursor) = CheckIn(

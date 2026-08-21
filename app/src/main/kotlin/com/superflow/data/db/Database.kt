@@ -99,7 +99,8 @@ object Schema {
                 environmentPrepReminderTime TEXT, ladderHistory TEXT,
                 lastDifficultyRating INTEGER, stretchCount INTEGER, consecutiveStandards INTEGER,
                 estimatedMinutes INTEGER, difficultyRating INTEGER,
-                colorSeed INTEGER, orderIndex INTEGER, status TEXT, createdAt INTEGER)"""
+                colorSeed INTEGER, orderIndex INTEGER, status TEXT,
+                graduated INTEGER, graduatedAt INTEGER, createdAt INTEGER)"""
         )
         db.execSQL("CREATE INDEX idx_habit_system ON habit(systemId)")
         db.execSQL("CREATE INDEX idx_habit_identity ON habit(identityId)")
@@ -431,6 +432,9 @@ object Schema {
                 date TEXT, createdAt INTEGER)""")
         }
         // ── Functional Plan (PR #8) new tables (idempotent) ─────────────
+        // ── Alpha2 (PR #6): habit graduation columns ─────────────────
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN graduated INTEGER DEFAULT 0") }
+        runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN graduatedAt INTEGER") }
         // ── Gap plan (PR #10) Wave 0: foreign-key and query indexes ─────
         listOf(
             "CREATE INDEX IF NOT EXISTS idx_goal_identity ON goal(identityId)",

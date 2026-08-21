@@ -250,6 +250,13 @@ object DataPolicy {
         "remindersEnabled" to prefs.remindersEnabled,
         "quietFrom" to prefs.quietFrom,
         "quietTo" to prefs.quietTo,
+        "quietWeekdayFrom" to prefs.quietWeekdayFrom,
+        "quietWeekdayTo" to prefs.quietWeekdayTo,
+        "quietWeekendFrom" to prefs.quietWeekendFrom,
+        "quietWeekendTo" to prefs.quietWeekendTo,
+        "weeklySummaryEnabled" to prefs.weeklySummaryEnabled,
+        "weeklySummaryDay" to prefs.weeklySummaryDay,
+        "weeklySummaryTime" to prefs.weeklySummaryTime,
         "reminderBudget" to prefs.reminderBudget,
         "checkpointsEnabled" to prefs.checkpointsEnabled,
         "morningCheckpoint" to prefs.morningCheckpoint,
@@ -313,8 +320,12 @@ object DataPolicy {
         "autoBackupFrequency" to prefs.autoBackupFrequency,
         "maxBackups" to prefs.maxBackups,
         "aiInstructions" to prefs.aiInstructions,
-        "aiLocalMemory" to prefs.aiLocalMemory
-        // NOTE: apiKey is deliberately excluded (stored in secrets file)
+        "aiLocalMemory" to prefs.aiLocalMemory,
+        "appLockEnabled" to prefs.appLockEnabled,
+        "appLockMethod" to prefs.appLockMethod,
+        "appLockTimeout" to prefs.appLockTimeout
+        // NOTE: apiKey and the app-lock PIN hash are deliberately excluded
+        // (stored in the secrets file).
     )
 
     /**
@@ -332,6 +343,13 @@ object DataPolicy {
         bool("remindersEnabled")?.let { prefs.remindersEnabled = it }
         str("quietFrom")?.let { prefs.quietFrom = it }
         str("quietTo")?.let { prefs.quietTo = it }
+        str("quietWeekdayFrom")?.let { prefs.quietWeekdayFrom = it }
+        str("quietWeekdayTo")?.let { prefs.quietWeekdayTo = it }
+        str("quietWeekendFrom")?.let { prefs.quietWeekendFrom = it }
+        str("quietWeekendTo")?.let { prefs.quietWeekendTo = it }
+        bool("weeklySummaryEnabled")?.let { prefs.weeklySummaryEnabled = it }
+        int("weeklySummaryDay")?.let { prefs.weeklySummaryDay = it }
+        str("weeklySummaryTime")?.let { prefs.weeklySummaryTime = it }
         int("reminderBudget")?.let { prefs.reminderBudget = it }
         bool("checkpointsEnabled")?.let { prefs.checkpointsEnabled = it }
         str("morningCheckpoint")?.let { prefs.morningCheckpoint = it }
@@ -396,6 +414,10 @@ object DataPolicy {
         int("maxBackups")?.let { prefs.maxBackups = it }
         str("aiInstructions")?.let { prefs.aiInstructions = it }
         str("aiLocalMemory")?.let { prefs.aiLocalMemory = it }
+        bool("appLockEnabled")?.let { prefs.appLockEnabled = it }
+        str("appLockMethod")?.let { prefs.appLockMethod = it }
+        int("appLockTimeout")?.let { prefs.appLockTimeout = it }
+        // NOTE: the PIN hash itself is a secret and is never imported.
     }
 
     /**

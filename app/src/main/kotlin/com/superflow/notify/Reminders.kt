@@ -44,6 +44,8 @@ object Reminders {
     const val CHANNEL_MILESTONES = "superflow_milestones"
     const val CHANNEL_REVIEWS = "superflow_reviews"
     const val CHANNEL_AI = "superflow_ai"
+    const val CHANNEL_WEEKLY_SUMMARY = "superflow_weekly_summary"
+    const val CHANNEL_BACKUP = "superflow_backup"
 
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < 26) return
@@ -93,6 +95,22 @@ object Reminders {
                 context.getString(R.string.channel_ai),
                 NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = context.getString(R.string.channel_ai_desc)
+                setShowBadge(false)
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_WEEKLY_SUMMARY,
+                context.getString(R.string.channel_weekly_summary),
+                NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = context.getString(R.string.channel_weekly_summary_desc)
+                setShowBadge(false)
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_BACKUP,
+                context.getString(R.string.channel_backup),
+                NotificationManager.IMPORTANCE_LOW).apply {
+                description = context.getString(R.string.channel_backup_desc)
                 setShowBadge(false)
             }
         )

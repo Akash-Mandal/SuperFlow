@@ -776,16 +776,14 @@ class AiEngineActivity : ScrollActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             )
             setOnClickListener {
-                val issues = bus.repo.integrityReport()
+                val issues = com.superflow.domain.Diagnostics.issues(bus.repo)
                 val message = if (issues.isEmpty())
                     "All references are intact. No orphaned records found."
                 else buildString {
                     append("Found ${issues.size} issue")
                     if (issues.size != 1) append("s")
                     append(":\n\n")
-                    issues.forEach {
-                        append("· ${it.count} ${it.detail} (${it.table})\n")
-                    }
+                    issues.forEach { append("· ${it.message}\n") }
                     append("\nThese rows reference records that no longer exist. " +
                             "Deleting a parent cascades its children, so orphans usually " +
                             "come from an import or an older app version.")

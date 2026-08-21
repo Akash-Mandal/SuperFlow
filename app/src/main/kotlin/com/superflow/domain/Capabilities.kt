@@ -18,20 +18,23 @@ import org.json.JSONObject
  */
 object Capabilities {
 
-    const val CATALOG_VERSION = 4  // growth engine, templates, journal, routines, memory, what-if, accountability, milestones, sprints, settings, analysis, coaching, blueprint V2, environment, simulation, notification, integrity, polish
+    const val CATALOG_VERSION = 4  // growth engine, templates, journal, routines, memory, what-if, accountability, milestones, sprints, settings, analysis, coaching, blueprint V2, environment, simulation, notification, integrity, polish, graduation, search
 
     fun all(): List<Capability> = buildList {
         addAll(identityCaps())
         addAll(habitCaps())
+        addAll(templateCaps())
+        addAll(graduationCaps())
         addAll(checkInCaps())
         addAll(focusCaps())
         addAll(designCaps())
         addAll(pauseCaps())
         addAll(reviewCaps())
         addAll(queryCaps())
+        addAll(diagnosticsCaps())
         addAll(dataCaps())
         addAll(growthCaps())
-        addAll(templateCaps())
+        addAll(templateSuggestCaps())
         addAll(journalCaps())
         addAll(routineCaps())
         addAll(memoryCaps())
@@ -414,27 +417,26 @@ object Capabilities {
             okResult("Habit deleted", null, id)
         },
 
-        Capability("duplicate_habit", "Deep-copy a habit with all its design fields",
+        Capability("duplicate_habit", "Create a copy of an existing habit, including its obstacle plans",
             listOf("habit" to "id or title", "title" to "string"), Risk.LOW) { c ->
-            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val original = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
             val all = c.repo.habits(true)
-            val copyTitle = Limits.title(c.str("title")).ifBlank { "${old.title} (copy)" }
-            val copy = old.copy(
+            val copyTitle = Limits.title(c.str("title")).ifBlank { "${original.title} (copy)" }
+            val copy = original.copy(
                 id = newId(),
                 title = copyTitle,
-                // A copy starts fresh: no history, at the end of the list.
+                graduated = false,
+                graduatedAt = null,
                 orderIndex = all.size,
-                colorSeed = (all.size) % 6,
+                colorSeed = all.size % 6,
                 status = Status.ACTIVE,
                 createdAt = System.currentTimeMillis()
             )
             c.repo.saveHabit(copy)
-            // Carry over obstacle plans so the duplicated habit keeps its safety net.
-            c.repo.obstacles(old.id).forEach {
-                c.repo.saveObstacle(it.copy(id = newId(), habitId = copy.id))
+            c.repo.obstacles(original.id).forEach { o ->
+                c.repo.saveObstacle(o.copy(id = newId(), habitId = copy.id))
             }
-            val id = c.bus.record(c.actor, "duplicate_habit",
-                "Duplicated \"${old.title}\" as \"$copyTitle\"",
+            val id = c.bus.record(c.actor, "duplicate_habit", "Duplicated \"${original.title}\"",
                 Serial.of(copy), undoDelete("habit", copy.id), c.groupId)
             okResult("Duplicated as \"$copyTitle\"", jsonOf("id" to copy.id), id)
         },
@@ -451,6 +453,26 @@ object Capabilities {
                 "Evolved \"${old.title}\" to \"$newStandard\"",
                 Serial.of(updated), undoRestore("habit", Serial.of(old)), c.groupId)
             okResult("Standard version updated", jsonOf("id" to updated.id), id)
+        },
+
+        Capability("reorder_habits", "Persist a new order for the active habits (drag-and-drop)",
+            listOf("ids" to "array of habit ids in the new order"), Risk.LOW) { c ->
+            val arr = c.args.optJSONArray("ids")
+                ?: return@Capability CommandResult.fail("An ordered list of habit ids is required")
+            val ids = (0 until arr.length()).mapNotNull { arr.optString(it).trim().ifBlank { null } }
+            val active = c.repo.habits()
+            val byId = active.associateBy { it.id }
+            val orderedIds = LinkedHashSet<String>()
+            ids.forEach { if (it in byId) orderedIds.add(it) }
+            active.forEach { orderedIds.add(it.id) }
+            val prev = active.associate { it.id to it.orderIndex }
+            var i = 0
+            orderedIds.forEach { id -> byId[id]?.let { c.repo.saveHabit(it.copy(orderIndex = i++)) } }
+            val rows = JSONArray()
+            prev.forEach { (id, order) -> byId[id]?.let { rows.put(Serial.of(it.copy(orderIndex = order))) } }
+            val aid = c.bus.record(c.actor, "reorder_habits", "Reordered $i habits", null,
+                jsonOf("kind" to "restoreRows", "table" to "habit", "rows" to rows), c.groupId)
+            okResult("Order updated", null, aid)
         },
 
         Capability("reorder_habit", "Move a habit up or down the Today timeline",
@@ -674,6 +696,137 @@ object Capabilities {
                 else -> "coral"
             }
             okResult("Load: ${habits.size} habits, ~${totalMinutes}min, avg diff %.1f/5 (${color})".format(avgDiff))
+        }
+    )
+
+    /* -------------------------------------------------------- template layer */
+
+    private fun templateCaps() = listOf(
+        Capability("list_templates", "List the habit template library, optionally by life area",
+            listOf("area" to "string"), Risk.LOW) { c ->
+            val areaName = c.str("area").trim()
+            val templates = when {
+                areaName.isBlank() -> Templates.all()
+                LifeArea.values().any { it.name.equals(areaName, true) } ->
+                    Templates.byArea(LifeArea.from(areaName))
+                else -> return@Capability CommandResult.fail(
+                    "Unknown area: $areaName. Choose one of: " +
+                            Templates.areas().joinToString(", ") { it.name.lowercase() }
+                )
+            }
+            val text = buildString {
+                templates.groupBy { it.area }.forEach { (area, list) ->
+                    append(area.label).append(":\n")
+                    list.forEach { t ->
+                        append("· ${t.title} — ${t.standardVersion.ifBlank { t.title }} " +
+                                "(${t.estimatedMinutes}m, ${t.difficulty}/5)\n")
+                    }
+                }
+            }
+            okResult(text.trim().ifBlank { "No templates match." })
+        },
+
+        Capability("apply_template", "Create a habit from a library template",
+            listOf("template" to "id or title", "title" to "string (optional override)",
+                "identityId" to "string", "systemId" to "string"), Risk.LOW) { c ->
+            val t = Templates.find(c.str("template"))
+                ?: return@Capability CommandResult.fail("Template not found")
+            val title = c.str("title").trim().ifBlank { t.title }
+            val existing = c.repo.habits(true)
+            val h = Habit(
+                systemId = c.strOrNull("systemId") ?: c.repo.systems().firstOrNull()?.id,
+                identityId = c.strOrNull("identityId") ?: c.repo.identities().firstOrNull()?.id,
+                title = title,
+                benefit = t.benefit,
+                cueTime = t.cueTime, cuePlace = t.cuePlace, anchorText = t.anchorText,
+                tinyStart = t.tinyStart, minimumVersion = t.minimumVersion,
+                standardVersion = t.standardVersion.ifBlank { title },
+                stretchVersion = t.stretchVersion,
+                frictionPlan = t.frictionPlan, environmentPrep = t.environmentPrep,
+                reward = t.reward, recoveryPlan = t.recoveryPlan,
+                recurrenceRule = Recurrence.parse(t.schedule).encode(),
+                startDate = SfTime.format(c.repo.clock.today()),
+                colorSeed = existing.size % 6,
+                orderIndex = existing.size
+            )
+            c.repo.saveHabit(h)
+            t.obstacles.forEach { (ifText, thenText) ->
+                c.repo.saveObstacle(ObstaclePlan(habitId = h.id, ifText = ifText, thenText = thenText))
+            }
+            val id = c.bus.record(c.actor, "apply_template",
+                "Created \"$title\" from template \"${t.title}\"",
+                Serial.of(h), undoDelete("habit", h.id), c.groupId)
+            okResult("Created \"$title\" from the ${t.area.label} template.",
+                jsonOf("id" to h.id, "contract" to h.contract()), id)
+        }
+    )
+
+    /* ------------------------------------------------------ graduation layer */
+
+    private fun graduationCaps() = listOf(
+        Capability("graduation_status", "Report a habit's graduation eligibility",
+            listOf("habit" to "id or title"), Risk.LOW) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val s = Graduation.status(c.repo, h)
+            val text = when {
+                h.graduated -> "\"${h.title}\" is already in maintenance."
+                s.eligible -> "\"${h.title}\" is ready to graduate: ${s.consistency}% over " +
+                        "${s.opportunities} opportunities across ${s.trackedDays} days."
+                !s.hasEnoughData -> "\"${h.title}\" needs more data before a graduation call " +
+                        "(${s.opportunities} opportunities so far)."
+                else -> "\"${h.title}\": ${s.consistency}% over ${s.trackedDays} tracked days. " +
+                        "Graduation opens at ${Graduation.MIN_DAYS} days with " +
+                        "${Graduation.MIN_CONSISTENCY}% consistency."
+            }
+            okResult(text, jsonOf(
+                "eligible" to s.eligible, "consistency" to s.consistency,
+                "opportunities" to s.opportunities, "trackedDays" to s.trackedDays
+            ), null)
+        },
+
+        Capability("graduate_habit", "Move a habit to maintenance — tracked weekly, not daily",
+            listOf("habit" to "id or title"), Risk.MEDIUM) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            if (old.graduated) return@Capability CommandResult.fail("Already in maintenance")
+            val updated = old.copy(graduated = true, graduatedAt = System.currentTimeMillis())
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "graduate_habit",
+                "\"${old.title}\" moved to maintenance",
+                Serial.of(updated), undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("\"${old.title}\" graduated. It now checks in weekly, not daily.",
+                jsonOf("id" to updated.id), id)
+        },
+
+        Capability("ungraduate_habit", "Return a graduated habit to daily tracking",
+            listOf("habit" to "id or title"), Risk.LOW) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            if (!old.graduated) return@Capability CommandResult.fail("Not in maintenance")
+            val updated = old.copy(graduated = false, graduatedAt = null)
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "ungraduate_habit",
+                "\"${old.title}\" back to daily tracking",
+                Serial.of(updated), undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("\"${old.title}\" is back on Today.", jsonOf("id" to updated.id), id)
+        },
+
+        Capability("upgrade_habit", "Increase a habit's standard version instead of graduating",
+            listOf("habit" to "id or title"), Risk.MEDIUM) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val harder = old.stretchVersion.ifBlank {
+                old.standardVersion.ifBlank { old.title }
+            }
+            val updated = old.copy(
+                standardVersion = harder,
+                graduated = false,
+                graduatedAt = null,
+                scheduleVersion = old.scheduleVersion
+            )
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "upgrade_habit",
+                "\"${old.title}\" upgraded to \"$harder\"",
+                Serial.of(updated), undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("\"${old.title}\" upgraded: the new standard is \"$harder\".",
+                jsonOf("id" to updated.id), id)
         }
     )
 
@@ -1338,15 +1491,17 @@ object Capabilities {
         Capability("create_review", "Save a weekly, monthly or quarterly review",
             listOf("kind" to "WEEKLY|MONTHLY|QUARTERLY", "whatWorked" to "string",
                 "whatDidnt" to "string", "systemChange" to "string",
-                "identityEvidence" to "string", "data" to "string"), Risk.LOW) { c ->
+                "identityEvidence" to "string", "data" to "string", "periodLabel" to "string"), Risk.LOW) { c ->
             val kind = runCatching { ReviewKind.valueOf(c.str("kind", "WEEKLY").uppercase()) }
                 .getOrDefault(ReviewKind.WEEKLY)
-            val label = when (kind) {
-                ReviewKind.WEEKLY -> "Week of ${SfTime.shortDay(
-                    SfTime.startOfWeek(c.repo.clock.today()))}"
-                ReviewKind.MONTHLY -> SfTime.monthLabel(c.repo.clock.today())
-                ReviewKind.QUARTERLY ->
-                    "Quarter ending ${SfTime.shortDay(c.repo.clock.today())}"
+            val label = c.str("periodLabel").ifBlank {
+                when (kind) {
+                    ReviewKind.WEEKLY -> "Week of ${SfTime.shortDay(
+                        SfTime.startOfWeek(c.repo.clock.today()))}"
+                    ReviewKind.MONTHLY -> SfTime.monthLabel(c.repo.clock.today())
+                    ReviewKind.QUARTERLY ->
+                        "Quarter ending ${SfTime.shortDay(c.repo.clock.today())}"
+                }
             }
             val previous = c.repo.reviews().firstOrNull()
             val data = c.str("data").ifBlank { Insights.reviewData(c.repo, kind) }
@@ -1498,20 +1653,42 @@ object Capabilities {
             okResult(sb.toString())
         },
 
-        Capability("search", "Search habits, goals, identities and systems",
+        Capability("search", "Search every entity — habits, goals, identities, reviews, journal, activity",
             listOf("query" to "string"), Risk.LOW) { c ->
-            val q = c.str("query").trim().lowercase()
+            val q = c.str("query").trim()
             if (q.isBlank()) return@Capability CommandResult.fail("What should I search for?")
-            val hits = ArrayList<String>()
-            c.repo.identities().filter { it.statement.lowercase().contains(q) }
-                .forEach { hits.add("Identity: ${it.statement}") }
-            c.repo.goals().filter { it.title.lowercase().contains(q) }
-                .forEach { hits.add("Goal: ${it.title}") }
-            c.repo.systems().filter { it.title.lowercase().contains(q) }
-                .forEach { hits.add("System: ${it.title}") }
-            c.repo.habits(true).filter { it.title.lowercase().contains(q) }
-                .forEach { hits.add("Habit: ${it.title}") }
-            okResult(if (hits.isEmpty()) "No matches for \"$q\"." else hits.joinToString("\n"))
+            val results = Search.search(c.repo, q)
+            if (results.isEmpty()) return@Capability okResult("No matches for \"$q\".")
+            val lines = ArrayList<String>()
+            results.take(20).forEach { r ->
+                lines.add("${r.type.replaceFirstChar { it.uppercase() }}: ${r.title}" +
+                        if (r.subtitle.isBlank()) "" else " — ${r.subtitle}")
+            }
+            okResult(lines.joinToString("\n"))
+        }
+    )
+
+    /* ------------------------------------------------------ diagnostics layer */
+
+    private fun diagnosticsCaps() = listOf(
+        Capability("check_integrity", "Scan the workspace for orphaned or dangling records",
+            listOf(), Risk.LOW) { c ->
+            okResult(Diagnostics.checkIntegrity(c.repo))
+        },
+
+        Capability("fix_integrity", "Clean up orphaned check-ins, obstacles and dangling links",
+            listOf("confirm" to "bool"), Risk.HIGH, destructive = true) { c ->
+            val found = Diagnostics.issues(c.repo)
+            if (found.isEmpty()) return@Capability okResult("Nothing to fix — all data is consistent")
+            val rows = Diagnostics.captureDeletions(c.repo)
+            val touched = Diagnostics.fix(c.repo)
+            val undo = if (rows.length() > 0)
+                jsonOf("kind" to "restoreRows", "table" to "checkin", "rows" to rows)
+            else jsonOf("kind" to "noop")
+            val id = c.bus.record(c.actor, "fix_integrity",
+                "Fixed ${found.size} integrity issue(s), $touched records touched",
+                null, undo, c.groupId)
+            okResult("Fixed ${found.size} issue(s). $touched records touched.", null, id)
         }
     )
 
@@ -1607,7 +1784,7 @@ object Capabilities {
 
     /* ---------------------------------------------------- template caps */
 
-    private fun templateCaps() = listOf(
+    private fun templateSuggestCaps() = listOf(
         Capability("suggest_templates", "Get habit templates for a goal",
             listOf("goal" to "string", "area" to "string"), Risk.LOW) { c ->
             val goal = c.str("goal")

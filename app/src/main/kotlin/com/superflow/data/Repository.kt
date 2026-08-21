@@ -305,7 +305,9 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         "stretchCount" to h.stretchCount, "consecutiveStandards" to h.consecutiveStandards,
         "estimatedMinutes" to h.estimatedMinutes, "difficultyRating" to h.difficultyRating,
         "colorSeed" to h.colorSeed, "orderIndex" to h.orderIndex,
-        "status" to h.status.name, "createdAt" to h.createdAt
+        "status" to h.status.name,
+        "graduated" to h.graduated, "graduatedAt" to h.graduatedAt,
+        "createdAt" to h.createdAt
     ))
 
     fun deleteHabit(id: String) {
@@ -339,7 +341,9 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     )
 
     fun habitsForDay(date: LocalDate): List<Habit> =
-        habits().filter { it.status == Status.ACTIVE && scheduleOf(it).activeOn(date) }
+        habits().filter {
+            it.status == Status.ACTIVE && !it.graduated && scheduleOf(it).activeOn(date)
+        }
 
     fun habitsForDay(snap: DataSnapshot, date: LocalDate): List<Habit> =
         snap.activeHabits.filter { scheduleOf(it).activeOn(date) }

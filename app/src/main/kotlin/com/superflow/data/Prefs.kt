@@ -105,6 +105,23 @@ class Prefs private constructor(context: Context) {
         get() = str("quietPerDay", "")
         set(v) = setStr("quietPerDay", v)
 
+    /** Alpha2: separate quiet hours for weekdays and weekends. Empty inherits. */
+    var quietWeekdayFrom: String
+        get() = str("quietWeekdayFrom", "")
+        set(v) = setStr("quietWeekdayFrom", v)
+
+    var quietWeekdayTo: String
+        get() = str("quietWeekdayTo", "")
+        set(v) = setStr("quietWeekdayTo", v)
+
+    var quietWeekendFrom: String
+        get() = str("quietWeekendFrom", "")
+        set(v) = setStr("quietWeekendFrom", v)
+
+    var quietWeekendTo: String
+        get() = str("quietWeekendTo", "")
+        set(v) = setStr("quietWeekendTo", v)
+
     var reminderBudget: Int
         get() = num("reminderBudget", 6)
         set(v) = setNum("reminderBudget", v)
@@ -128,6 +145,21 @@ class Prefs private constructor(context: Context) {
     var energyTracking: Boolean
         get() = bool("energyTracking", true)
         set(v) = setBool("energyTracking", v)
+
+    /* ------------------------------------------------------ weekly summary */
+
+    var weeklySummaryEnabled: Boolean
+        get() = bool("weeklySummaryEnabled", true)
+        set(v) = setBool("weeklySummaryEnabled", v)
+
+    /** ISO day of week (Monday = 1 .. Sunday = 7) for the weekly report. */
+    var weeklySummaryDay: Int
+        get() = num("weeklySummaryDay", 7)
+        set(v) = setNum("weeklySummaryDay", v.coerceIn(1, 7))
+
+    var weeklySummaryTime: String
+        get() = str("weeklySummaryTime", "18:00")
+        set(v) = setStr("weeklySummaryTime", v)
 
     var crashReporting: Boolean
         get() = bool("crashReporting", false)
@@ -474,6 +506,18 @@ class Prefs private constructor(context: Context) {
     var aiLocalMemory: String
         get() = str("aiLocalMemory", "")
         set(v) = setStr("aiLocalMemory", v)
+
+    /* ------------------------------------------------- app-lock extras (PR6) */
+
+    /** "pin", "biometric", or "both". */
+    var appLockMethod: String
+        get() = str("appLockMethod", "pin")
+        set(v) = setStr("appLockMethod", v)
+
+    /** Auto-lock after this many minutes. 0 = lock on app open. */
+    var appLockTimeout: Int
+        get() = num("appLockTimeout", 0)
+        set(v) = setNum("appLockTimeout", v.coerceIn(0, 60))
 
     /* ------------------------------------------------------------- secrets */
 

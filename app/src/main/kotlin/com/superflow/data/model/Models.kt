@@ -177,6 +177,9 @@ data class Habit(
     val colorSeed: Int = 0,
     val orderIndex: Int = 0,
     val status: Status = Status.ACTIVE,
+    // Alpha2: a graduated habit is automatic — tracked weekly, not daily.
+    val graduated: Boolean = false,
+    val graduatedAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis()
 ) {
     fun levelText(level: Level): String = when (level) {

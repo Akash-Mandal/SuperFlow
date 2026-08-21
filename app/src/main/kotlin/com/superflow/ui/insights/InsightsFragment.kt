@@ -30,6 +30,7 @@ import com.superflow.data.model.CheckInResult
 import com.superflow.domain.Insights
 import com.superflow.ui.common.BarChart
 import com.superflow.ui.common.HeatmapView
+import com.superflow.ui.common.snack
 import com.superflow.ui.common.visible
 import com.superflow.core.time.SfTime
 import java.time.LocalDate
@@ -364,6 +365,15 @@ class InsightsFragment : Fragment() {
         val header = view.findViewById<ViewGroup>(R.id.header)
         header.addView(periodGroup)
 
+        val toolbar = view.findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.toolbar)
+        toolbar.inflateMenu(R.menu.insights_menu)
+        toolbar.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.action_share_card -> { shareCard(); true }
+                else -> false
+            }
+        }
+
         val list = view.findViewById<RecyclerView>(R.id.list)
         val adapter = InsightsAdapter()
         list.layoutManager = LinearLayoutManager(requireContext())
@@ -379,6 +389,20 @@ class InsightsFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         model.refresh()
+    }
+
+    private fun shareCard() {
+        val repo = com.superflow.data.Repository.get(requireContext())
+        val ctx = requireContext()
+        lifecycleScope.launch {
+            val file = runCatching {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.superflow.ui.common.ShareCard.saveToCache(ctx, repo)
+                }
+            }.getOrNull()
+            if (file == null) requireView().snack("Could not prepare the card")
+            else runCatching { com.superflow.ui.common.ShareCard.shareFile(ctx, file) }
+        }
     }
 }
 
