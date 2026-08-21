@@ -5,9 +5,30 @@ import org.json.JSONObject
 
 /** Helpers over org.json, which ships with the Android framework. */
 
+/**
+ * Converts Kotlin values into their org.json equivalents.
+ *
+ * [JSONObject.put] stores whatever object it is handed. A Kotlin `List` put
+ * straight in stays a `List`, so [JSONObject.optJSONArray] later returns null
+ * and every element is silently dropped on the way back — which is what made
+ * goal milestones, review action items, check-in context tags, identity
+ * evolution and ladder history all round-trip as empty. Wrap collections and
+ * maps so they serialise as real JSON arrays and objects.
+ */
+private fun wrapJson(v: Any?): Any = when (v) {
+    null -> JSONObject.NULL
+    is JSONObject, is JSONArray, JSONObject.NULL -> v
+    is Collection<*> -> JSONArray().also { a -> v.forEach { a.put(wrapJson(it)) } }
+    is Array<*> -> JSONArray().also { a -> v.forEach { a.put(wrapJson(it)) } }
+    is Map<*, *> -> JSONObject().also { o ->
+        v.forEach { (key, value) -> o.put(key.toString(), wrapJson(value)) }
+    }
+    else -> v
+}
+
 fun jsonOf(vararg pairs: Pair<String, Any?>): JSONObject {
     val o = JSONObject()
-    for ((k, v) in pairs) o.put(k, v ?: JSONObject.NULL)
+    for ((k, v) in pairs) o.put(k, wrapJson(v))
     return o
 }
 

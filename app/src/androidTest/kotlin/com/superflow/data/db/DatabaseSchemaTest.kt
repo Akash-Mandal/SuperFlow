@@ -142,7 +142,7 @@ class DatabaseSchemaTest {
         assertEquals("x", v.get("s"))
         assertEquals(3, v.getAsInteger("i"))
         assertEquals(9L, v.getAsLong("l"))
-        assertEquals(1.5, v.getAsDouble("d"))
+        assertEquals(1.5, v.getAsDouble("d"), 0.001)
         assertEquals(1, v.getAsInteger("b"))
         assertTrue(v.valueAt(5) == null)
     }
