@@ -226,7 +226,7 @@ class TodayAdapter(
                 val title = v.findViewById<TextView>(R.id.focus_title)
                 title.text = item.title
                 check.buttonTintList = android.content.res.ColorStateList.valueOf(
-                    v.context.themeColor(com.google.android.material.R.attr.colorPrimary)
+                    v.context.themeColor(androidx.appcompat.R.attr.colorPrimary)
                 )
                 check.setOnCheckedChangeListener(null)
                 check.isChecked = item.done

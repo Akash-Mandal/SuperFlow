@@ -101,6 +101,58 @@ CHECKED_MATERIAL_PREFIXES = (
     "ShapeAppearance.MaterialComponents",
 )
 
+# Library R references made from Kotlin, each verified to exist in the library
+# that owns it (material:1.13.0, appcompat:1.7.1).
+#
+# With non-transitive R classes each library's R contains only the resources
+# that library declares, so the owning package has to be right. Two ways this
+# goes wrong, both of which reached CI as :app:compileDebugKotlin failures:
+#
+#   * inventing a name -- com.google.android.material.R.attr
+#     .materialButtonFilledStyle does not exist (the filled button is the
+#     default, materialButtonStyle);
+#   * attributing a real name to the wrong library --
+#     com.google.android.material.R.attr.colorPrimary does not exist either,
+#     because colorPrimary is declared by AppCompat, not Material.
+#
+# Adding an entry is deliberate: confirm the attribute is declared by that
+# exact library at the pinned version, then list it.
+KNOWN_LIBRARY_R_REFS = {
+    "androidx.appcompat.R.attr.borderlessButtonStyle",
+    "androidx.appcompat.R.attr.colorError",
+    "androidx.appcompat.R.attr.colorPrimary",
+    "com.google.android.material.R.attr.colorSecondaryContainer",
+    "com.google.android.material.R.attr.colorSurfaceContainerHigh",
+    "com.google.android.material.R.attr.materialButtonOutlinedStyle",
+    "com.google.android.material.R.attr.materialButtonStyle",
+}
+
+LIBRARY_R_RE = re.compile(
+    r'(?:com\.google\.android\.material|androidx\.[a-z0-9.]+)\.R\.\w+\.\w+')
+
+
+def check_library_r_refs(kotlin_files):
+    """Verify every library R reference in Kotlin against the allowlist."""
+    errors = []
+    for path in kotlin_files:
+        try:
+            text = open(path, encoding="utf-8").read()
+        except OSError:
+            continue
+        for lineno, line in enumerate(text.splitlines(), 1):
+            line = line.split("//", 1)[0]
+            for ref in LIBRARY_R_RE.findall(line):
+                if ref in KNOWN_LIBRARY_R_REFS:
+                    continue
+                errors.append(
+                    f"{path}:{lineno}: unverified library reference {ref!r} -- "
+                    f"it is not in KNOWN_LIBRARY_R_REFS in tools/check_res.py. "
+                    f"With non-transitive R classes the owning library must be "
+                    f"exact; confirm the resource is declared by that library "
+                    f"at the pinned version, then add it there.")
+    return errors
+
+
 # Reference prefixes that belong to the framework or a library rather than
 # to this project. These cannot be checked without the AARs.
 EXTERNAL_PREFIXES = (
@@ -373,11 +425,16 @@ def main():
     dupes = check_dupes(per_bucket)
     parity = check_night_parity(res_dirs)
 
+    kotlin = sorted(glob.glob("app/src/main/kotlin/**/*.kt", recursive=True))
+    lib_refs = check_library_r_refs(kotlin)
+    if kotlin:
+        print(f"    checked library R references in {len(kotlin)} kotlin files")
+
     if external:
         print(f"    {len(external)} framework/library refs (not checkable "
               f"without AARs)")
 
-    problems = parse_errors + errors + dupes + parity
+    problems = parse_errors + errors + dupes + parity + lib_refs
     if problems:
         print(f"\n==> {len(problems)} PROBLEM(S)\n")
         for p in problems:
