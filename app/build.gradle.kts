@@ -22,6 +22,13 @@ android {
         versionCode = 3
         versionName = "2.0.0"
 
+        // Required for `connectedDebugAndroidTest`: every test in
+        // app/src/androidTest is a @RunWith(AndroidJUnit4::class) class from
+        // androidx.test. Without this the AGP default
+        // (android.test.InstrumentationTestRunner) is used and the suite does
+        // not run at all.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
         // Vector drawables are used everywhere; keep the support library
         // fallback for pre-21 vector features (minSdk is 26, this is a no-op
         // kept for clarity).
