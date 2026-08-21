@@ -8,6 +8,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
@@ -54,6 +55,7 @@ android {
 
     buildFeatures {
         buildConfig = true
+        compose = true
     }
 
     lint {
@@ -88,6 +90,16 @@ dependencies {
     implementation(libs.androidx.sqlite.framework)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.kotlinx.coroutines.android)
+
+    // Jetpack Compose (UI/UX upgrade) — the Studio tab and onboarding are
+    // Compose; Today/Journey/Insights still ship their View implementations
+    // until design/Rendering is flipped per screen.
+    implementation(libs.androidx.compose.runtime)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.compose.animation)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.activity.compose)
 
     // JVM unit tests
     testImplementation(libs.junit)

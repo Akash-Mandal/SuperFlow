@@ -55,6 +55,7 @@ library versions the source was developed and field-tested against:
 | Area | Libraries |
 |---|---|
 | UI | Material **1.13.0**, AppCompat 1.7.1, RecyclerView 1.4.0, ViewPager2 1.1.0, Activity 1.11.0 |
+| Compose | Compose **1.7.6** (runtime/ui/foundation/animation), Material3 **1.3.1**, Activity-Compose **1.9.3** — enabled via the Kotlin 2.2.0 Compose compiler plugin (`org.jetbrains.kotlin.plugin.compose`) and `buildFeatures.compose = true` |
 | Architecture | Fragment 1.6.1, Lifecycle/ViewModel 2.6.2 (+ `-ktx`), Core-ktx 1.17.0 |
 | Async | Kotlin Coroutines 1.8.1 |
 | Data | `androidx.sqlite` 2.1.0 + framework |

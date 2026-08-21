@@ -364,7 +364,11 @@ was not re-introduced. Logic suites are exercised with a real JDK 17 + Kotlin
 Ai 33 · Design 3071 · Role 786).
 
 **Honest gaps.** The Compose layer (`ui/theme`, `ui/components`, `ui/screens`,
-`ui/studio`) is written but uncompiled (no AndroidX AARs reachable here);
+`ui/studio`) is written and now fully wired into the Gradle build (Compose
+1.7.6 + Material3 1.3.1 + Activity-Compose 1.9.3 + the Kotlin 2.2.0 Compose
+compiler plugin + `buildFeatures.compose = true`), but it could not be compiled
+in this sandbox because Google Maven is unreachable; the first standard
+`./gradlew assembleDebug` on a connected machine will compile it. Until then
 `design/Rendering` keeps the View implementations live. The APK has not been
 rebuilt or run on a device. PR #8's habit-template library ships 31 templates
 against the plan's 100+ promise. Biometric unlock from PR #6 was not carried

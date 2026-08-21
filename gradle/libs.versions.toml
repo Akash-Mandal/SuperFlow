@@ -19,6 +19,11 @@ viewpager2 = "1.1.0"
 sqlite = "2.1.0"
 work = "2.7.0"
 coroutines = "1.8.1"
+# Jetpack Compose — added with the UI/UX upgrade (PR #9). Versions match the
+# historical tools/libs.txt the Compose sources were written against.
+compose = "1.7.6"
+composeMaterial3 = "1.3.1"
+activityCompose = "1.9.3"
 junit = "4.13.2"
 androidxTestExtJunit = "1.2.1"
 androidxTestRunner = "1.6.2"
@@ -41,6 +46,18 @@ androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx"
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 
+# --- Jetpack Compose (UI/UX upgrade plan, appendix A) --------------------
+# Compose is additive, not a replacement: Compose screens are hosted in the
+# existing Activities via ComposeView/setContent while design/Rendering keeps
+# the View implementations of Today/Journey/Insights live. foundation brings
+# foundation-layout and the ui/graphics/text/unit leaves come via ui.
+androidx-compose-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "compose" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "compose" }
+androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "compose" }
+androidx-compose-animation = { group = "androidx.compose.animation", name = "animation", version.ref = "compose" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "composeMaterial3" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+
 # --- unit tests (JVM)
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 org-json = { group = "org.json", name = "json", version = "20240303" }
@@ -54,3 +71,6 @@ espresso-core = { group = "androidx.test.espresso", name = "espresso-core", vers
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+# Kotlin 2.x bundles the Compose compiler; this plugin (same version as Kotlin)
+# enables it. Required for every @Composable function to compile.
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
