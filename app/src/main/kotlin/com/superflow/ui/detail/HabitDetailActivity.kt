@@ -109,13 +109,18 @@ class HabitDetailActivity : ScrollActivity() {
         val histCard = layoutInflater.inflate(R.layout.item_text_card, content, false)
         histCard.findViewById<TextView>(R.id.text_title).text =
             Capabilities.daysLabel(h) + (if (h.cueTime.isNotBlank()) " · ${h.cueTime}" else "")
-        histCard.findViewById<TextView>(R.id.text_body).visible(false)
+        val states = Insights.historyStates(repo, h, 14)
+        val succeeded14 = states.count { it == 1 }
+        histCard.findViewById<TextView>(R.id.text_body).apply {
+            visible(true)
+            text = "$succeeded14 of ${states.count { it >= 0 }} scheduled days completed"
+        }
         val strip = HistoryStrip(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dpi(24)
             ).also { it.topMargin = dpi(12) }
         }
-        strip.setStates(Insights.historyStates(repo, h, 14))
+        strip.setStates(states)
         (histCard.findViewById<TextView>(R.id.text_title).parent as LinearLayout).addView(strip)
         content.addView(histCard)
 

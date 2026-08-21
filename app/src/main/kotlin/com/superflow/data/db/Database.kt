@@ -16,7 +16,7 @@ class SuperFlowDatabase private constructor(context: Context) {
 
     companion object {
         const val NAME = "superflow.db"
-        const val VERSION = 3
+        const val VERSION = 4
 
         @Volatile private var instance: SuperFlowDatabase? = null
 
@@ -55,11 +55,13 @@ object Schema {
                 id TEXT PRIMARY KEY, identityId TEXT, title TEXT, why TEXT, outcomeMetric TEXT,
                 targetValue REAL, targetDate INTEGER, status TEXT, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_goal_identity ON goal(identityId)")
         db.execSQL(
             """CREATE TABLE sys(
                 id TEXT PRIMARY KEY, goalId TEXT, title TEXT, description TEXT,
                 status TEXT, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_sys_goal ON sys(goalId)")
         db.execSQL(
             """CREATE TABLE habit(
                 id TEXT PRIMARY KEY, systemId TEXT, identityId TEXT, title TEXT, mode TEXT,
@@ -72,6 +74,9 @@ object Schema {
                 reminderEnabled INTEGER, protectedRoutine INTEGER,
                 colorSeed INTEGER, orderIndex INTEGER, status TEXT, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_habit_system ON habit(systemId)")
+        db.execSQL("CREATE INDEX idx_habit_identity ON habit(identityId)")
+        db.execSQL("CREATE INDEX idx_habit_status ON habit(status)")
         db.execSQL(
             """CREATE TABLE checkin(
                 id TEXT PRIMARY KEY, habitId TEXT, date TEXT, result TEXT, level TEXT,
@@ -79,16 +84,19 @@ object Schema {
         )
         db.execSQL("CREATE UNIQUE INDEX idx_checkin_day ON checkin(habitId, date)")
         db.execSQL("CREATE INDEX idx_checkin_date ON checkin(date)")
+        db.execSQL("CREATE INDEX idx_checkin_habit ON checkin(habitId)")
         db.execSQL(
             """CREATE TABLE focus(
                 id TEXT PRIMARY KEY, date TEXT, habitId TEXT, title TEXT,
                 done INTEGER, orderIndex INTEGER)"""
         )
         db.execSQL("CREATE INDEX idx_focus_date ON focus(date)")
+        db.execSQL("CREATE INDEX idx_focus_habit ON focus(habitId)")
         db.execSQL(
             """CREATE TABLE obstacle(
                 id TEXT PRIMARY KEY, habitId TEXT, ifText TEXT, thenText TEXT, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_obstacle_habit ON obstacle(habitId)")
         db.execSQL(
             """CREATE TABLE scorecard(
                 id TEXT PRIMARY KEY, routine TEXT, verdict INTEGER, note TEXT, createdAt INTEGER)"""
@@ -99,6 +107,8 @@ object Schema {
                 id TEXT PRIMARY KEY, flowId TEXT, habitId TEXT, title TEXT,
                 existingBehaviour INTEGER, orderIndex INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_flowstep_flow ON flowstep(flowId)")
+        db.execSQL("CREATE INDEX idx_flowstep_habit ON flowstep(habitId)")
         db.execSQL(
             """CREATE TABLE review(
                 id TEXT PRIMARY KEY, kind TEXT, periodLabel TEXT, whatWorked TEXT, whatDidnt TEXT,
@@ -109,6 +119,7 @@ object Schema {
                 id TEXT PRIMARY KEY, date TEXT, checkpoint TEXT, energy INTEGER,
                 note TEXT, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_energy_date ON energy(date)")
         db.execSQL(
             """CREATE TABLE audit(
                 id TEXT PRIMARY KEY, actor TEXT, command TEXT, summary TEXT, payload TEXT,
@@ -129,16 +140,19 @@ object Schema {
                 id TEXT PRIMARY KEY, projectId TEXT, name TEXT, kind TEXT, content TEXT,
                 instructions TEXT, lineCount INTEGER, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_bp_source_project ON bp_source(projectId)")
         db.execSQL(
             """CREATE TABLE bp_req(
                 id TEXT PRIMARY KEY, projectId TEXT, text TEXT, sourceId TEXT, citation TEXT,
                 status TEXT, assumption INTEGER, plannedCommand TEXT, note TEXT, orderIndex INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_bp_req_project ON bp_req(projectId)")
         db.execSQL(
             """CREATE TABLE pause(
                 id TEXT PRIMARY KEY, habitId TEXT, startDate TEXT, endDate TEXT,
                 reason TEXT, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_pause_habit ON pause(habitId)")
         db.execSQL(
             """CREATE TABLE profile(
                 id TEXT PRIMARY KEY, displayName TEXT, locale TEXT, zoneId TEXT,
@@ -149,9 +163,31 @@ object Schema {
                 id TEXT PRIMARY KEY, projectId TEXT, version INTEGER, label TEXT,
                 ledgerJson TEXT, createdAt INTEGER)"""
         )
+        db.execSQL("CREATE INDEX idx_bp_version_project ON bp_version(projectId)")
     }
 
     fun upgrade(db: SupportSQLiteDatabase, old: Int, new: Int) {
+        if (old < 4) {
+            // Wave 0: add foreign-key and query indexes. Every statement is
+            // idempotent so a partially migrated database still upgrades.
+            listOf(
+                "CREATE INDEX IF NOT EXISTS idx_goal_identity ON goal(identityId)",
+                "CREATE INDEX IF NOT EXISTS idx_sys_goal ON sys(goalId)",
+                "CREATE INDEX IF NOT EXISTS idx_habit_system ON habit(systemId)",
+                "CREATE INDEX IF NOT EXISTS idx_habit_identity ON habit(identityId)",
+                "CREATE INDEX IF NOT EXISTS idx_habit_status ON habit(status)",
+                "CREATE INDEX IF NOT EXISTS idx_checkin_habit ON checkin(habitId)",
+                "CREATE INDEX IF NOT EXISTS idx_focus_habit ON focus(habitId)",
+                "CREATE INDEX IF NOT EXISTS idx_obstacle_habit ON obstacle(habitId)",
+                "CREATE INDEX IF NOT EXISTS idx_flowstep_flow ON flowstep(flowId)",
+                "CREATE INDEX IF NOT EXISTS idx_flowstep_habit ON flowstep(habitId)",
+                "CREATE INDEX IF NOT EXISTS idx_energy_date ON energy(date)",
+                "CREATE INDEX IF NOT EXISTS idx_bp_source_project ON bp_source(projectId)",
+                "CREATE INDEX IF NOT EXISTS idx_bp_req_project ON bp_req(projectId)",
+                "CREATE INDEX IF NOT EXISTS idx_bp_version_project ON bp_version(projectId)",
+                "CREATE INDEX IF NOT EXISTS idx_pause_habit ON pause(habitId)"
+            ).forEach { sql -> runCatching { db.execSQL(sql) } }
+        }
         if (old < 3) {
             // daysMask -> recurrenceRule, plus schedule versioning and pauses.
             runCatching { db.execSQL("ALTER TABLE habit ADD COLUMN recurrenceRule TEXT") }

@@ -52,7 +52,7 @@ class OnboardingActivity : AppCompatActivity() {
     private val values = HashMap<String, String>()
     private var wantsReminder = false
 
-    private val totalSteps = 8
+    private val totalSteps = 9
 
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -105,7 +105,8 @@ class OnboardingActivity : AppCompatActivity() {
             4 -> system()
             5 -> habit()
             6 -> cue()
-            else -> feel()
+            7 -> feel()
+            else -> preview()
         }
         findViewById<androidx.core.widget.NestedScrollView>(R.id.onb_scroll).scrollTo(0, 0)
     }
@@ -134,6 +135,13 @@ class OnboardingActivity : AppCompatActivity() {
             append("Habit — the smallest useful action\n")
             append("Review — improve the system, not blame yourself")
         }))
+        contentView.addView(MaterialButton(this).apply {
+            text = "I don't know what to track"
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.topMargin = dpi(12) }
+            setOnClickListener { guideDiscovery() }
+        })
         contentView.addView(MaterialButton(this, null,
             com.google.android.material.R.attr.borderlessButtonStyle).apply {
             text = "Skip for now"
@@ -142,6 +150,37 @@ class OnboardingActivity : AppCompatActivity() {
             )
             setOnClickListener { complete(skipped = true) }
         })
+    }
+
+    /**
+     * Lightweight, offline goal discovery (#76): asks "how do you want to
+     * feel?" and suggests a starter habit from the templates based on the
+     * chosen life area. No AI required.
+     */
+    private fun guideDiscovery() {
+        val options = arrayOf("More energised", "Calmer", "More focused",
+            "Healthier", "More present with people")
+        MaterialAlertDialogBuilder(this)
+            .setTitle("How do you want to feel?")
+            .setItems(options) { _, which ->
+                val pick = when (which) {
+                    0 -> "Morning walk"
+                    1 -> "Meditate"
+                    2 -> "Read"
+                    3 -> "Work out"
+                    else -> "Journal"
+                }
+                val t = com.superflow.ui.designer.HabitTemplates.all
+                    .firstOrNull { it.name == pick }
+                if (t != null) {
+                    values["identity"] = "someone who ${t.title.lowercase()}s"
+                    values["habit"] = t.title
+                    values["tiny"] = t.tinyStart
+                    values["system"] = t.benefit
+                }
+                step = 5 // jump to the habit step, pre-filled
+                render()
+            }.show()
     }
 
     private fun pickArea() {
@@ -184,6 +223,30 @@ class OnboardingActivity : AppCompatActivity() {
     private fun habit() {
         header("Pick one habit",
             "And the smallest version you could do on your worst day.")
+        // Template quick-fill (#74).
+        contentView.addView(TextView(this).apply {
+            text = "OR START FROM A TEMPLATE"
+            setTextAppearance(R.style.Text_SuperFlow_Overline)
+            setPadding(0, dpi(8), 0, dpi(4))
+        })
+        val chips = ChipGroup(this)
+        listOf("Morning walk", "Read", "Meditate", "Journal", "Work out").forEach { name ->
+            chips.addView(Chip(this).apply {
+                text = name
+                isCheckable = false
+                setEnsureMinTouchTargetSize(false)
+                setOnClickListener {
+                    val t = com.superflow.ui.designer.HabitTemplates.all
+                        .firstOrNull { it.name == name }
+                    if (t != null) {
+                        values["habit"] = t.title
+                        values["tiny"] = t.tinyStart
+                        render()
+                    }
+                }
+            })
+        }
+        contentView.addView(chips)
         field("habit", "Habit", "Walk for 10 minutes")
         field("tiny", "Tiny start — about two minutes", "Put on my shoes and step outside")
         contentView.addView(MaterialButton(this, null,
@@ -222,6 +285,23 @@ class OnboardingActivity : AppCompatActivity() {
         sw.isChecked = wantsReminder
         row.setOnClickListener { sw.isChecked = !sw.isChecked; wantsReminder = sw.isChecked }
         contentView.addView(row)
+    }
+
+    /** Preview of what the user's Today will look like (#75). */
+    private fun preview() {
+        header("Here's what your Today will look like",
+            "One tiny habit, an obvious cue, and an immediate reward. You can change any of it later.")
+        val previewBody = buildString {
+            append("Tiny: ")
+            append(v("tiny").ifBlank { Coordinator.defaultTinyStart(v("habit")) })
+            if (v("cueTime").isNotBlank() || v("anchor").isNotBlank()) {
+                append("\nCue: ")
+                append(listOf(v("cueTime"), v("anchor")).filter { it.isNotBlank() }.joinToString(" after "))
+            }
+            if (v("reward").isNotBlank()) append("\nReward: ${v("reward")}")
+            append("\nReminder: ${if (wantsReminder) "on" else "off"}")
+        }
+        contentView.addView(card(v("habit").ifBlank { "Your habit" }, previewBody, accent = true))
     }
 
     /* -------------------------------------------------------------- widgets */

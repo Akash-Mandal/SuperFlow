@@ -164,13 +164,112 @@ the reminder step.
 | App shortcuts / deep links | Done |
 | Real Material components | Done — this was the headline gap |
 
+### Wave 0 — Data Integrity (GAP_ANALYSIS_AND_FIXES issues #30–40)
+
+| Gap | Resolution |
+|---|---|
+| #31 No batch operations / transactions | Private `transaction{}` plus public `Repository.runInTransaction{}`; cascading deletes, check-in/energy upserts, reorder, Minimum Mode, focus replace, plan-tomorrow, JSON import and project delete all commit as one unit |
+| #32 No indexes on foreign keys | 15 indexes added in `onCreate` and a v3→v4 migration: `goal.identityId`, `sys.goalId`, `habit.systemId/identityId/status`, `checkin.habitId`, `focus.habitId`, `obstacle.habitId`, `flowstep.flowId/habitId`, `energy.date`, `bp_source/bp_req/bp_version.projectId`, `pause.habitId` |
+| #33 No orphan cleanup | `deleteIdentity`/`deleteGoal`/`deleteSystem` cascade identity→goal→system→habit→children; deleting a habit detaches referencing flow steps rather than stranding them |
+| #34 `counts()` missing tables | `counts()` now reports every table via one shared `allTables` list |
+| #35 `deleteAllData()` missing tables | Clears every table in child-before-parent order, atomically |
+| #36 No data integrity check tool | `Repository.integrityReport()` finds orphaned references; "Check data integrity" button added to AI Engine → Diagnostics |
+| #37 No DB version bump | `Schema.VERSION` 3→4 with an idempotent (`CREATE INDEX IF NOT EXISTS`) migration |
+| #38 No aggregation in SQL | `checkInCounts(habitId)` (GROUP BY) and `repetitions(habitId)` aggregate in SQL |
+| #39 No pagination for audit/messages | `audit(limit, offset)` and `messages(limit, offset)` accept offsets (backward-compatible defaults) |
+| #40 No concurrent write protection | A reentrant `writeLock` serialises every write; multi-step writes run inside transactions |
+| #30 `findHabit()` fuzzy matching | Levenshtein-based final-resort matching with a length-aware threshold (`util/Fuzzy.kt`), covered by the TextTest suite |
+
+### Wave 1 — Search & Navigation (issues #11–16, 26)
+
+| Gap | Resolution |
+|---|---|
+| #11 No search anywhere | New `SearchActivity` with a live field filtering identities, goals, systems and habits (substring + one fuzzy habit match); reachable via a search icon in both the Today and Journey toolbars. Tapping a habit opens its detail; other entities jump to Journey. |
+| #12 No habit reordering | Drag-and-drop on the Today list via `ItemTouchHelper` (long-press a habit card), plus a Move up/down submenu on Journey habit rows — both routed through the existing transactional `reorder_habit` capability. |
+| #13 No duplicate habit | New `duplicate_habit` capability deep-copies every design field (with a fresh id, reset order/status, and carried-over obstacle plans); "Duplicate" added to the Journey habit context menu. |
+| #14 No complete-all-remaining | New `complete_all_tiny` capability marks every still-open habit today as Tiny (evening wrap-up), with a confirm dialog and grouped undo; added to the Today toolbar. |
+| #15 No undo-all-today | New `undo_today` capability reverts every check-in recorded today in one transaction; added to the Today toolbar with a confirm dialog. `Repository.clearCheckInsForDate` and a `clearCheckInsForDate` undo type back it. |
+| #16 No habit templates in Designer | Designer opens with a "Template" step (new habits only) offering eight pre-filled Four-Laws designs plus "Blank"; all fields remain editable. |
+| #26 No pause/vacation UI | New `PauseActivity` ("Pause / vacation" in Settings → Reminders) with range chips (today/weekend/1–2 weeks), a Material date-range picker, all-habits-or-one scope, a reason, and a list of active pauses with Resume. Uses the existing `pause_habits`/`resume_habits` capabilities. |
+
+Catalog bumped to v3 (52 capabilities).
+
+### Wave 2 — Background Workers (issues #41–45)
+
+| Gap | Resolution |
+|---|---|
+| #41 Only 2 workers exist | Added `MilestoneWorker`, `ReviewWorker`, `SnapshotCleanupWorker`, `WidgetRefreshWorker` to the existing `DailyRolloverWorker`/`ReminderRefreshWorker`; all registered in `BackgroundWork.schedule` and `cancel`. |
+| #42 No snapshot cleanup | `SnapshotCleanupWorker` deletes snapshots older than 30 days and keeps at most 20 most recent, daily. |
+| #43 No milestone detection worker | `MilestoneWorker` (every 12h) checks first rep, 7/21-day runs, 21/100 reps and 90% consistency per habit, notifying once per threshold (idempotent via new `WorkPrefs` marker store) on a new "Milestones" channel. |
+| #44 No review generation worker | `ReviewWorker` (daily, acts on Sundays) pre-generates one weekly review draft per ISO week from the same `Insights` numbers, guarded by a per-week marker. |
+| #45 Widget only refreshes on app pause | `WidgetRefreshWorker` refreshes the widget every 30 minutes (WorkManager minimum) as a backstop to the existing app-pause/check-in refreshes. |
+
+### Wave 3 — Notifications & engagement (issues #17–21, 70–73)
+
+| Gap | Resolution |
+|---|---|
+| #17 Weekly summary notification | `ReviewWorker` posts a Sunday-evening "Your week is ready to review" notification (reps + recoveries) on the new Reviews channel. |
+| #18 Shareable progress card | New `share.ProgressCard` renders a warm PNG card (ring, repetitions, best run, recoveries, top habit, per-habit consistency bars) on a dependency-free Canvas and shares it via a FileProvider; "Share progress card" added to Data Management. |
+| #19 App lock | New `security.AppLock` (salted SHA-256 PIN hash, never stored plaintext), `LockActivity`, `PinSetupSheet`, and an ActivityLifecycleCallbacks hook in `SuperFlowApp`; "App lock" toggle + Change PIN under Settings → Security. |
+| #20 Backup to file / scheduled auto-backup | New `data.Backups` writes full JSON snapshots to app-private storage with timestamp, rotation to a cap and restore through the transactional import; `BackupWorker` runs daily / every 3 days / weekly; Data Management gains Backup now, frequency and retention controls that re-schedule the worker. |
+| #21 Notification action buttons | Already present — habit reminders carry Done / Tiny / Skip action buttons (see `ReminderReceiver`). |
+| #70 Quiet hours per day of week | `Prefs.quietPerDay` encoded override (Mon–Sun: default / custom window / off); `Reminders.inQuietHours` resolves the per-day window; "Quiet hours by day" picker added under Settings → Reminders. |
+| #71 Notification channel for AI/proactive | Added `CHANNEL_AI` ("AI suggestions") channel. |
+| #72 Notification channel for milestones | Added `CHANNEL_MILESTONES` (Wave 2) used by `MilestoneWorker`. |
+| #73 Notification channel for reviews | Added `CHANNEL_REVIEWS` used by the weekly summary. |
+
+### Polish (issues #28, #29, #65)
+
+| Gap | Resolution |
+|---|---|
+| #28 Max length validation | New `util.Limits` (title 100, short text 200, description 500, note 1k, long text 5k) applied to every capability that accepts free text (identity/goal/system/habit titles, obstacle if/then, routines, notes, review fields); the Designer's `field()` adds an `InputFilter.LengthFilter` and a character counter. |
+| #29 / #65 Debounce rapid taps | New `View.onDebouncedClick{}` (500 ms) applied to the habit completion circle, level chips, return-today button and check-in chips, preventing double-firing during animations. |
+
+### Engagement & correctness
+
+| Gap | Resolution |
+|---|---|
+| #45 Haptics ignore setting | `View.haptic()`/`confirmHaptic()` now read `Prefs.hapticsEnabled` when no Prefs is supplied, so every tap respects the setting. |
+| #2 / #8 / #63 Proactive, non-pushy AI suggestions | New local `ai.Suggestions` engine derives one contextual nudge from existing data (return candidates, streak-at-risk, low-consistency redesign, high-consistency recognition, reduce-mode resistances, day-complete); surfaced as a dismissible card on the Today screen with a Tiny-check-in or open-habit action. No network, no push, and gentle in tone. |
+| #83 Track count per check-in | `Repository.checkInCounts`/`repetitions` SQL aggregation (Wave 0); reduce-mode suggestion counts resistances this week. |
+| #48 System-locale dates | All `SfTime`/`Dates` formatters already use `Locale.getDefault()`. |
+| #1 Text-to-speech for AI responses | New `ai.Speech` wraps the platform `TextToSpeech` (lazy init, rate/pitch from Prefs); Coach speaks each assistant reply when TTS is enabled and stops on pause/destroy. |
+| #29 Duplicate-habit warning | `create_habit` now flags an active duplicate title and returns a warning in the result. |
+| #20 Backup restore UI | Data Management lists saved backups with a confirm-restore chooser and "delete oldest". |
+
+### Remaining gap items completed
+
+| Gap | Resolution |
+|---|---|
+| #3 Blueprint dumps everything | Tightened the Compiler's intent-first `looksActionable` so pasted prose/descriptive sentences do not become junk habits; only clear first-person intentions, frequency phrases, and action verbs map to requirements. |
+| #4 / #8 No progressive difficulty / static ladder | New offline `domain.GrowthEngine` recommends stepping a habit's standard version up after sustained high consistency (≥85%, 14-day run) or down after repeated struggle, with a numeric increment helper; surfaced via `Suggestions` and a new `evolve_habit` capability (catalog v4). |
+| #9 Reviews produce no follow-through | New `domain.ReviewActions` parses a review's "one change" into bullets, persists done-state in Prefs, shows checkboxes on past reviews, and surfaces the top open item on Today. |
+| #10 Obstacle plans never surfaced | When a habit with a written if-then plan is still open, the plan is shown as the Today suggestion. |
+| #22 Checkpoints show nothing when tapped | Checkpoint taps now open a guided dialog with time-of-day content (scheduled count, progress, focus, next step). |
+| #23 No Plan Tomorrow flow | New `PlanTomorrowSheet` lets the user pick up to three of tomorrow's habits to pre-fill Daily Focus. |
+| #24 Flows have no guided execution | Each flow card gains a "Run flow" button that walks through steps with Done (checks in a linked habit) / Skip. |
+| #25 Scorecard never revisited | A monthly re-score prompt appears after 14+ days of inactivity. |
+| #27 No habit graduation | `GrowthEngine`/`Suggestions` proposes retiring a habit at 95%+ consistency over a 66-day best run. |
+| #63 No dynamic shortcuts | `DynamicShortcuts` publishes up to three most-used habits as long-press launcher shortcuts, refreshed on pause. |
+| #64 Coach keyboard on small screens | The message list now scrolls to the latest message while the IME is open. |
+| #66 No caching of computed Insights | New revision-aware `InsightsCache` (5-min TTL) backs `Insights.forHabit/allStats`. |
+| #67 Corrupted JSON imports | `DataPolicy.validateImport` throws specific, actionable errors; the import flow shows them and applies via `applyImport`. |
+| #68 No AI call rate limiting | The Agent enforces a sliding 10-calls-per-minute window against the Cloud Main Brain. |
+| #76 "I don't know what to track" guided flow | Onboarding welcome adds an offline mood → starter-template discovery path that pre-fills identity/habit/system. |
+| #77 No dark mode scheduling | Dark schedule (off / sunset–sunrise / custom hours) in Settings, applied and re-evaluated by `SuperFlowApp`. |
+| #78 Multi-user support | Lightweight active-profile label + switcher (Me / Partner / Family / custom) in Settings for shared tablets. |
+| #2 STT on de-Googled devices | Clearer no-recogniser message and a voice-input settings intent. |
+| #5 AI never acts proactively | The local `Suggestions` engine provides proactive, non-pushy contextual nudges (see above). |
+| #6 Energy data never used | Energy pattern feeds an energy-aware scheduling suggestion when evening energy is markedly lower. |
+| #79 Wear OS / #80 Slices | Explicitly future scope — not built (companion app / Assistant integration). |
+
 ---
 
 ## Partial
 
 | Area | State |
 |---|---|
-| Room | Uses `androidx.sqlite` (Room's own support layer) with hand-written DAOs and a real versioned migration (v2→v3 converts `daysMask` to recurrence rules). Room's annotation processor is unavailable offline; the runtime contract is identical, but there is no compile-time query verification. |
+| Room | Uses `androidx.sqlite` (Room's own support layer) with hand-written DAOs and real versioned migrations (v2→v3 converts `daysMask` to recurrence rules; v3→v4 adds foreign-key/query indexes). Room's annotation processor is unavailable offline; the runtime contract is identical, but there is no compile-time query verification. |
 | DataStore | Linked and available; settings still read through `Prefs` (SharedPreferences) with a StateFlow change feed. Migrating the backing store is a mechanical follow-up. |
 | PDF ingestion | Text extraction for digitally generated, Flate-compressed PDFs including hex strings. Scanned PDFs yield nothing and the UI says so. No OCR. |
 | Dynamic colour | Material You wallpaper extraction is not wired up; the app ships a fixed brand palette in light and dark. |

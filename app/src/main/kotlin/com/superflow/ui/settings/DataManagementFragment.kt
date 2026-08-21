@@ -122,6 +122,10 @@ class DataManagementFragment : Fragment() {
             actionRow("Share progress summary",
                 "A private, text-only recap for accountability") {
                 shareSummary()
+            },
+            actionRow("Share progress card",
+                "A simple image summary for the share sheet") {
+                com.superflow.share.ProgressCard.share(requireContext(), repo)
             }
         )))
 
@@ -146,8 +150,11 @@ class DataManagementFragment : Fragment() {
         container.addView(section("AUTO-BACKUP"))
         container.addView(group(listOf(
             toggleRow("Auto-backup enabled",
-                "Daily backup saved to app storage", prefs.autoBackupEnabled) {
-                prefs.autoBackupEnabled = it; render()
+                "Backup saved to app storage on your chosen schedule", prefs.autoBackupEnabled) {
+                prefs.autoBackupEnabled = it
+                com.superflow.work.BackgroundWork.schedule(requireContext())
+                if (it) view?.snack("Auto-backup enabled") else view?.snack("Auto-backup disabled")
+                render()
             }
         )))
         if (prefs.autoBackupEnabled) {
@@ -156,7 +163,11 @@ class DataManagementFragment : Fragment() {
                     pickFrom("Backup frequency",
                         listOf("Daily", "Every 3 days", "Weekly"),
                         listOf("daily", "3days", "weekly"),
-                        prefs.autoBackupFrequency) { prefs.autoBackupFrequency = it; render() }
+                        prefs.autoBackupFrequency) {
+                        prefs.autoBackupFrequency = it
+                        com.superflow.work.BackgroundWork.schedule(requireContext())
+                        render()
+                    }
                 },
                 actionRow("Keep backups", "${prefs.maxBackups} most recent") {
                     pickFrom("Keep backups",
@@ -176,6 +187,15 @@ class DataManagementFragment : Fragment() {
                 render()
             }
         })
+
+        // List of local backups with restore/delete.
+        val backups = Backups.list(requireContext())
+        if (backups.isNotEmpty()) {
+            container.addView(action(R.drawable.ic_history, "Restore a backup",
+                "${backups.size} saved — replaces all current data") {
+                pickBackup(backups)
+            })
+        }
 
         // Data integrity
         container.addView(section("DATA INTEGRITY"))
@@ -321,43 +341,35 @@ class DataManagementFragment : Fragment() {
             parentFragmentManager, "Import", "Paste exported JSON",
             subtitle = "This replaces everything currently in the app.", lines = 6
         ) { text ->
+            if (text.isBlank()) {
+                view?.snack("Nothing to import")
+                return@show
+            }
             lifecycleScope.launch {
-                val ok = withContext(Dispatchers.IO) {
+                val result = withContext(Dispatchers.IO) {
                     runCatching {
                         val json = JSONObject(text)
-                        val warnings = DataPolicy.validateImport(json)
-                        if (warnings.isNotEmpty()) {
-                            // Show warnings but proceed
-                            withContext(Dispatchers.Main) {
-                                MaterialAlertDialogBuilder(requireContext())
-                                    .setTitle("Import warnings")
-                                    .setMessage(warnings.joinToString("\n"))
-                                    .setPositiveButton("Import anyway") { _, _ ->
-                                        lifecycleScope.launch {
-                                            withContext(Dispatchers.IO) {
-                                                Serial.importAll(repo, json)
-                                                json.optJSONObject("preferences")?.let {
-                                                    DataPolicy.importPreferences(prefs, it)
-                                                }
-                                            }
-                                            view?.snack("Import complete")
-                                            render()
-                                        }
-                                    }
-                                    .setNegativeButton(R.string.cancel, null)
-                                    .show()
-                            }
-                            return@runCatching true
-                        }
-                        Serial.importAll(repo, json)
-                        json.optJSONObject("preferences")?.let {
-                            DataPolicy.importPreferences(prefs, it)
-                        }
-                        true
-                    }.getOrDefault(false)
+                        DataPolicy.validateImport(json) to json
+                    }
                 }
-                view?.snack(if (ok) "Import complete" else "That did not look like a SuperFlow export")
-                render()
+                val parsed = result.getOrNull()
+                if (parsed == null) {
+                    val reason = result.exceptionOrNull()?.message
+                        ?: "That did not look like a SuperFlow export"
+                    view?.snack(reason)
+                    return@launch
+                }
+                val (warnings, json) = parsed
+                if (warnings.isNotEmpty()) {
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("Import warnings")
+                        .setMessage(warnings.joinToString("\n"))
+                        .setPositiveButton("Import anyway") { _, _ ->
+                            applyImport(json)
+                        }
+                        .setNegativeButton(R.string.cancel, null)
+                        .show()
+                } else applyImport(json)
             }
         }
     }
@@ -402,6 +414,21 @@ class DataManagementFragment : Fragment() {
         }
     }
 
+    private fun applyImport(json: JSONObject) {
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    Serial.importAll(repo, json)
+                    json.optJSONObject("preferences")?.let {
+                        DataPolicy.importPreferences(prefs, it)
+                    }
+                }.isSuccess
+            }
+            view?.snack(if (ok) "Import complete" else "Import failed partway through")
+            render()
+        }
+    }
+
     private fun shareSummary() {
         lifecycleScope.launch {
             val text = withContext(Dispatchers.IO) {
@@ -416,56 +443,61 @@ class DataManagementFragment : Fragment() {
         }
     }
 
-    private fun doAutoBackup(): Boolean = try {
-        val json = DataPolicy.exportFull(repo, prefs).toString(2)
-        val dir = File(requireContext().filesDir, "backups").apply { mkdirs() }
-        val date = com.superflow.core.time.SfTime.format(repo.clock.today())
-        File(dir, "superflow-backup-$date.json").writeText(json)
-        // Prune old backups
-        val maxBackups = prefs.maxBackups
-        dir.listFiles()?.sortedByDescending { it.lastModified() }
-            ?.drop(maxBackups)?.forEach { it.delete() }
-        true
-    } catch (e: Exception) { false }
+    private fun pickBackup(files: List<File>) {
+        val labels = files.map { Backups.label(it) + "  (${it.length() / 1024} KB)" }.toTypedArray()
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Restore a backup")
+            .setItems(labels) { dialog, which ->
+                val file = files[which]
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Restore this backup?")
+                    .setMessage("This replaces all current data. Consider exporting first.")
+                    .setNegativeButton(R.string.cancel, null)
+                    .setPositiveButton(R.string.open) { _, _ ->
+                        lifecycleScope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                Backups.restore(requireContext(), file, repo)
+                            }
+                            view?.snack(if (ok) "Backup restored" else "Restore failed")
+                            render()
+                        }
+                    }.show()
+                dialog.dismiss()
+            }
+            .setPositiveButton("Delete oldest") { _, _ ->
+                Backups.delete(files.last())
+                view?.snack("Oldest backup deleted")
+                render()
+            }
+            .show()
+    }
+
+    private fun doAutoBackup(): Boolean =
+        Backups.create(requireContext(), repo, prefs) != null
 
     private fun checkIntegrity(): String {
-        val issues = mutableListOf<String>()
+        val issues = repo.integrityReport()
+        return if (issues.isEmpty()) "✓ All data is consistent. No orphaned references found."
+        else "Issues found:\n" + issues.joinToString("\n") { "· ${it.count} ${it.detail}" }
+    }
+
+    private fun fixIntegrity() {
+        // Delete rows that reference a missing parent.
         val habitIds = repo.habits(true).map { it.id }.toSet()
         val identityIds = repo.identities(true).map { it.id }.toSet()
         val goalIds = repo.goals().map { it.id }.toSet()
         val systemIds = repo.systems().map { it.id }.toSet()
-
-        // Orphaned check-ins
-        val orphanCI = repo.checkIns().count { it.habitId !in habitIds }
-        if (orphanCI > 0) issues.add("$orphanCI check-ins for deleted habits")
-
-        // Orphaned obstacles
-        val orphanOb = repo.obstacles().count { it.habitId !in habitIds }
-        if (orphanOb > 0) issues.add("$orphanOb obstacle plans for deleted habits")
-
-        // Goals without identities
-        val orphanG = repo.goals().count { it.identityId != null && it.identityId !in identityIds }
-        if (orphanG > 0) issues.add("$orphanG goals linked to deleted identities")
-
-        // Systems without goals
-        val orphanS = repo.systems().count { it.goalId != null && it.goalId !in goalIds }
-        if (orphanS > 0) issues.add("$orphanS systems linked to deleted goals")
-
-        // Habits without systems
-        val orphanH = repo.habits().count { it.systemId != null && it.systemId !in systemIds }
-        if (orphanH > 0) issues.add("$orphanH habits linked to deleted systems")
-
-        return if (issues.isEmpty()) "✓ All data is consistent. No issues found."
-        else "Issues found:\n" + issues.joinToString("\n") { "· $it" }
-    }
-
-    private fun fixIntegrity() {
-        val habitIds = repo.habits(true).map { it.id }.toSet()
-        repo.checkIns().filter { it.habitId !in habitIds }.forEach {
-            repo.delete("checkin", "id=?", arrayOf(it.id))
-        }
-        repo.obstacles().filter { it.habitId !in habitIds }.forEach {
-            repo.deleteObstacle(it.id)
+        repo.runInTransaction {
+            repo.checkIns().filter { it.habitId !in habitIds }.forEach {
+                repo.delete("checkin", "id=?", arrayOf(it.id))
+            }
+            repo.obstacles().filter { it.habitId !in habitIds }.forEach { repo.deleteObstacle(it.id) }
+            repo.goals().filter { it.identityId != null && it.identityId !in identityIds }
+                .forEach { repo.delete("goal", "id=?", arrayOf(it.id)) }
+            repo.systems().filter { it.goalId != null && it.goalId !in goalIds }
+                .forEach { repo.delete("sys", "id=?", arrayOf(it.id)) }
+            repo.habits(true).filter { it.systemId != null && it.systemId !in systemIds }
+                .forEach { repo.delete("habit", "id=?", arrayOf(it.id)) }
         }
     }
 

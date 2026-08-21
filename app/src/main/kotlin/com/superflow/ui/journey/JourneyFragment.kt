@@ -3,11 +3,13 @@ package com.superflow.ui.journey
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.widget.PopupMenu
+import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -31,6 +33,7 @@ import com.superflow.ui.detail.HabitDetailActivity
 import com.superflow.ui.flows.FlowActivity
 import com.superflow.ui.review.ReviewActivity
 import com.superflow.ui.scorecard.ScorecardActivity
+import com.superflow.ui.search.SearchActivity
 import com.superflow.ui.sheets.EntityEditorSheet
 import kotlinx.coroutines.launch
 
@@ -58,6 +61,20 @@ class JourneyFragment : Fragment() {
         fab.text = "Design habit"
         fab.setOnClickListener {
             startActivity(Intent(requireContext(), HabitDesignerActivity::class.java))
+        }
+
+        view.findViewById<Toolbar>(R.id.toolbar).apply {
+            menu.clear()
+            inflateMenu(R.menu.journey_menu)
+            setOnMenuItemClickListener { item: MenuItem ->
+                when (item.itemId) {
+                    R.id.action_search -> {
+                        startActivity(Intent(requireContext(), SearchActivity::class.java))
+                        true
+                    }
+                    else -> false
+                }
+            }
         }
         list.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
@@ -169,8 +186,20 @@ class JourneyFragment : Fragment() {
                     )
                     true
                 }
-                menu.menu.add("Archive").setOnMenuItemClickListener {
-                    model.archiveHabit(row.id); true
+                menu.menu.add("Duplicate").setOnMenuItemClickListener {
+                    model.duplicateHabit(row.id); true
+                }
+                val order = menu.menu.addSubMenu("Reorder")
+                order.add("Move up").setOnMenuItemClickListener {
+                    model.moveHabit(row.id, "up"); true
+                }
+                order.add("Move down").setOnMenuItemClickListener {
+                    model.moveHabit(row.id, "down"); true
+                }
+                if (!row.archived) {
+                    menu.menu.add("Archive").setOnMenuItemClickListener {
+                        model.archiveHabit(row.id); true
+                    }
                 }
             }
         }

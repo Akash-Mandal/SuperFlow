@@ -48,6 +48,22 @@
     <string name="minimum_mode">Minimum Mode</string>
     <string name="checkpoints">Checkpoints</string>
     <string name="energy_now">Energy right now</string>
+    <string name="search">Search</string>
+    <string name="search_hint">Search habits, goals, identities…</string>
+    <string name="complete_all_tiny">Mark open as Tiny</string>
+    <string name="undo_today">Undo all today</string>
+    <string name="duplicate">Duplicate</string>
+    <string name="reorder">Reorder</string>
+    <string name="unlock">Unlock</string>
+    <string name="app_lock">App lock</string>
+    <string name="app_lock_desc">Require a PIN to open SuperFlow</string>
+    <string name="set_pin">Set PIN</string>
+    <string name="change_pin">Change PIN</string>
+    <string name="remove_lock">Remove app lock</string>
+    <string name="backup">Backup</string>
+    <string name="share_card">Share progress card</string>
+    <string name="weekly_summary_title">Your week is ready to review</string>
+    <string name="pause_mode">Pause / vacation</string>
 
     <!-- Habit -->
     <string name="habit">Habit</string>
@@ -119,6 +135,12 @@
     <string name="channel_habits_desc">Gentle nudges for the habits you scheduled</string>
     <string name="channel_checkpoints">Checkpoints</string>
     <string name="channel_checkpoints_desc">Morning, midday and evening check-ins</string>
+    <string name="channel_milestones">Milestones</string>
+    <string name="channel_milestones_desc">Celebrations when you reach a streak or repetition milestone</string>
+    <string name="channel_reviews">Reviews</string>
+    <string name="channel_reviews_desc">Weekly review reminders and draft notifications</string>
+    <string name="channel_ai">AI suggestions</string>
+    <string name="channel_ai_desc">Proactive suggestions from the AI coach</string>
 
     <!-- Content descriptions -->
     <string name="cd_back">Navigate up</string>

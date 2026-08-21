@@ -35,6 +35,9 @@ object Reminders {
 
     const val CHANNEL_HABITS = "superflow_habits"
     const val CHANNEL_CHECKPOINTS = "superflow_checkpoints"
+    const val CHANNEL_MILESTONES = "superflow_milestones"
+    const val CHANNEL_REVIEWS = "superflow_reviews"
+    const val CHANNEL_AI = "superflow_ai"
 
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < 26) return
@@ -55,14 +58,87 @@ object Reminders {
                 setShowBadge(false)
             }
         )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_MILESTONES,
+                context.getString(R.string.channel_milestones),
+                NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = context.getString(R.string.channel_milestones_desc)
+                setShowBadge(true)
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_REVIEWS,
+                context.getString(R.string.channel_reviews),
+                NotificationManager.IMPORTANCE_LOW).apply {
+                description = context.getString(R.string.channel_reviews_desc)
+                setShowBadge(false)
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_AI,
+                context.getString(R.string.channel_ai),
+                NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = context.getString(R.string.channel_ai_desc)
+                setShowBadge(false)
+            }
+        )
     }
 
-    fun inQuietHours(prefs: Prefs, hhmm: String): Boolean {
+    fun inQuietHours(prefs: Prefs, hhmm: String): Boolean =
+        inQuietHours(prefs, hhmm, java.time.LocalDate.now().dayOfWeek.value)
+
+    /**
+     * Whether [hhmm] falls inside the quiet window for [isoDay] (1=Mon..7=Sun).
+     * A per-day override (Prefs.quietPerDay) takes precedence; otherwise the
+     * global quietFrom/quietTo applies.
+     */
+    fun inQuietHours(prefs: Prefs, hhmm: String, isoDay: Int): Boolean {
         val t = Dates.minutesOfDay(hhmm)
-        val from = Dates.minutesOfDay(prefs.quietFrom)
-        val to = Dates.minutesOfDay(prefs.quietTo)
-        if (t < 0 || from < 0 || to < 0) return false
+        if (t < 0) return false
+        val override = parseQuietPerDay(prefs.quietPerDay)[isoDay]
+        val from: Int
+        val to: Int
+        when (override) {
+            QuietOverride.None -> return false
+            null -> {
+                from = Dates.minutesOfDay(prefs.quietFrom)
+                to = Dates.minutesOfDay(prefs.quietTo)
+                if (from < 0 || to < 0) return false
+            }
+            is QuietOverride.Window -> {
+                from = Dates.minutesOfDay(override.from)
+                to = Dates.minutesOfDay(override.to)
+                if (from < 0 || to < 0) return false
+            }
+        }
         return if (from <= to) t in from..to else (t >= from || t <= to)
+    }
+
+    /** Per-day quiet override parsed from the encoded pref string. */
+    private sealed class QuietOverride {
+        object None : QuietOverride()
+        data class Window(val from: String, val to: String) : QuietOverride()
+    }
+
+    private fun parseQuietPerDay(encoded: String): Map<Int, QuietOverride> {
+        if (encoded.isBlank()) return emptyMap()
+        val out = HashMap<Int, QuietOverride>()
+        encoded.split("|").forEachIndexed { i, pair ->
+            val day = i + 1
+            if (day in 1..7) {
+                when {
+                    pair.isBlank() -> { /* use global default */ }
+                    pair == "-" -> out[day] = QuietOverride.None
+                    pair.contains("-") -> {
+                        val parts = pair.split("-", limit = 2)
+                        if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                            out[day] = QuietOverride.Window(parts[0].trim(), parts[1].trim())
+                        }
+                    }
+                }
+            }
+        }
+        return out
     }
 
     fun rescheduleAll(context: Context) {

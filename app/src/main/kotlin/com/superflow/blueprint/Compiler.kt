@@ -107,14 +107,35 @@ object Compiler {
         return dedupe(markConflicts(out))
     }
 
+    /**
+     * Intent-first extraction (#3): only prose that clearly states an
+     * intention/habit/routine becomes a requirement. Plain descriptive
+     * sentences ("The app has three tabs") are ignored, so pasting a document
+     * does not dump junk habits. A line under a relevant heading is a weaker
+     * signal and must still start with an actionable verb or first-person
+     * intention.
+     */
     private fun looksActionable(line: String): Boolean {
         val s = line.lowercase().trim()
         if (s.length !in 6..300) return false
         if (s.endsWith("?")) return false
+        // Ignore sentences that are clearly narrative/descriptive.
+        if (s.startsWith("the ") || s.startsWith("this ") || s.startsWith("these ") ||
+            s.startsWith("it ") || s.startsWith("they ") || s.startsWith("we ")) return false
+
+        val firstPerson = listOf("i want to", "i want ", "i need to", "i will", "i shall",
+            "i'm going to", "i am going to", "i plan to", "i intend to", "i should",
+            "my goal", "my habit", "my routine")
+        if (firstPerson.any { s.startsWith(it) }) return true
+
+        val frequency = listOf("every day", "every morning", "every evening", "every night",
+            "each day", "each morning", "each evening", "daily", "weekly", "on weekdays")
+        if (frequency.any { s.contains(it) }) return true
+
         return listOf(
-            "i want", "i need", "i should", "i will", "every day", "daily", "each morning",
-            "each evening", "habit", "goal", "routine", "stop ", "start ", "quit ",
-            "identity", "becom", "track", "reduce", "practice", "practise"
+            "habit", "routine", "stop ", "start ", "quit ", "reduce ",
+            "track ", "practice", "practise", "meditate", "exercise", "work out",
+            "stretch", "journal", "read ", "write ", "drink "
         ).any { s.contains(it) }
     }
 

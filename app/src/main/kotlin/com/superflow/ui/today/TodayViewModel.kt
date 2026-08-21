@@ -10,6 +10,7 @@ import com.superflow.domain.Actor
 import com.superflow.domain.CommandBus
 import com.superflow.domain.CommandResult
 import com.superflow.domain.Insights
+import com.superflow.ai.Suggestions
 import com.superflow.core.time.DayBucket
 import com.superflow.core.time.Greeting
 import com.superflow.core.time.SfTime
@@ -47,6 +48,15 @@ sealed class TodayRow {
 
     data class Checkpoints(val energy: Int?) : TodayRow() {
         override val stableId = 5L
+    }
+
+    data class Suggestion(
+        val title: String,
+        val body: String,
+        val tone: Suggestions.Tone,
+        val habitId: String?
+    ) : TodayRow() {
+        override val stableId = 6L
     }
 
     data class Section(val title: String) : TodayRow() {
@@ -100,6 +110,15 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // Read-only accessors used by the fragment's guided checkpoint dialog.
+    fun todayDate(): LocalDate = repo.clock.today()
+    fun habitsToday(): List<Habit> = repo.habitsForDay(repo.clock.today())
+    fun doneToday(): Int {
+        val date = repo.clock.today()
+        return repo.checkInsFor(SfTime.format(date)).count { it.isSuccess }
+    }
+    fun focusToday(): List<FocusItem> = repo.focusFor(SfTime.format(repo.clock.today()))
+
     private fun build(): TodayUiState {
         val date = repo.clock.today()
         val iso = SfTime.format(date)
@@ -123,6 +142,11 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
             val cp = currentCheckpoint()
             val energy = repo.energyFor(iso).firstOrNull { it.checkpoint == cp }?.energy
             rows.add(TodayRow.Checkpoints(energy))
+        }
+
+        // One contextual, non-pushy suggestion (#2/#8/#63).
+        Suggestions.forToday(repo, date, limit = 1).firstOrNull()?.let { s ->
+            rows.add(TodayRow.Suggestion(s.title, s.body, s.tone, s.habitId))
         }
 
         val todayHabits = repo.todayHabits(date)
@@ -223,9 +247,47 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
 
     fun runCheckpoint(cp: Checkpoint) = run("run_checkpoint", jsonOf("checkpoint" to cp.name))
 
+    /** Act on a suggestion: check the habit in as Tiny, or open its design. */
+    fun actOnSuggestion(row: TodayRow.Suggestion) {
+        val id = row.habitId ?: return
+        when (row.tone) {
+            Suggestions.Tone.DESIGN -> {
+                // Handled in the fragment (opens the designer).
+            }
+            else -> checkIn(repo.habit(id) ?: return, Level.TINY)
+        }
+    }
+
+    fun openSuggestionHabit(row: TodayRow.Suggestion) = row.habitId
+
     fun planTomorrow() = run("plan_tomorrow", JSONObject())
 
     fun minimumMode() = run("enter_minimum_mode", JSONObject())
+
+    /** Evening checkpoint wrap-up: close every still-open habit as Tiny. */
+    fun completeAllTiny() = run("complete_all_tiny", JSONObject())
+
+    /** Revert every check-in recorded today. */
+    fun undoToday() = run("undo_today", JSONObject())
+
+    /**
+     * Reorder by dragging: move [fromId] to the global position of [toId].
+     * Only meaningful among active habits; the adapter only allows dragging
+     * habit rows, so both ids are habits.
+     */
+    fun reorderHabitTo(fromId: String, toId: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val list = repo.habits().sortedBy { it.orderIndex }
+                val from = list.indexOfFirst { it.id == fromId }
+                val to = list.indexOfFirst { it.id == toId }
+                if (from >= 0 && to >= 0 && from != to) {
+                    bus.execute("reorder_habit",
+                        jsonOf("habit" to fromId, "toIndex" to to), Actor.USER)
+                }
+            }
+        }
+    }
 
     fun undoLast() {
         val id = lastAuditId ?: return

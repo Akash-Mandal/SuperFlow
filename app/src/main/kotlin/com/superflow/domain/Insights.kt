@@ -34,7 +34,14 @@ object Insights {
         )
     }
 
-    fun forHabit(repo: Repository, habit: Habit, today: LocalDate = repo.clock.today()): HabitStats {
+    fun forHabit(repo: Repository, habit: Habit, today: LocalDate = repo.clock.today()): HabitStats =
+        InsightsCache.forHabit(repo, habit, today)
+
+    /**
+     * Public for [InsightsCache]; other callers should use [forHabit] so they
+     * benefit from caching.
+     */
+    internal fun computeForHabit(repo: Repository, habit: Habit, today: LocalDate): HabitStats {
         val longSeries = seriesFor(repo, habit, 365, today)
         val window = longSeries.filter { !it.date.isBefore(today.minusDays(29)) }
         val recurrence = Recurrence.decode(habit.recurrenceRule)
@@ -62,7 +69,7 @@ object Insights {
     }
 
     fun allStats(repo: Repository, today: LocalDate = repo.clock.today()): List<HabitStats> =
-        repo.habits().map { forHabit(repo, it, today) }
+        InsightsCache.allStats(repo, today)
 
     /** Done vs scheduled for one day. */
     fun dayProgress(repo: Repository, date: LocalDate = repo.clock.today()): Pair<Int, Int> {

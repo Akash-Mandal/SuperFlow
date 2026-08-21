@@ -1,6 +1,7 @@
 package com.superflow.domain
 
 import com.superflow.data.Repository
+import com.superflow.domain.InsightsCache
 import com.superflow.data.model.*
 import com.superflow.util.jsonOf
 import com.superflow.util.objects
@@ -265,21 +266,26 @@ object Serial {
 
     fun importAll(repo: Repository, root: JSONObject) {
         repo.deleteAllData()
-        root.optJSONArray("identities")?.objects()?.forEach { repo.saveIdentity(identity(it)) }
-        root.optJSONArray("goals")?.objects()?.forEach { repo.saveGoal(goal(it)) }
-        root.optJSONArray("systems")?.objects()?.forEach { repo.saveSystem(system(it)) }
-        root.optJSONArray("habits")?.objects()?.forEach { repo.saveHabit(habit(it)) }
-        root.optJSONArray("checkIns")?.objects()?.forEach { repo.saveCheckIn(checkIn(it)) }
-        root.optJSONArray("focus")?.objects()?.forEach { repo.saveFocus(focus(it)) }
-        root.optJSONArray("obstacles")?.objects()?.forEach { repo.saveObstacle(obstacle(it)) }
-        root.optJSONArray("scorecard")?.objects()?.forEach { repo.saveScorecard(scorecard(it)) }
-        root.optJSONArray("flows")?.objects()?.forEach { repo.saveFlow(flow(it)) }
-        root.optJSONArray("flowSteps")?.objects()?.forEach { repo.saveFlowStep(flowStep(it)) }
-        root.optJSONArray("reviews")?.objects()?.forEach { repo.saveReview(review(it)) }
-        root.optJSONArray("energy")?.objects()?.forEach { repo.saveEnergy(energy(it)) }
-        root.optJSONArray("pauses")?.objects()?.forEach { repo.savePause(pause(it)) }
-        root.optJSONArray("projects")?.objects()?.forEach { repo.saveProject(project(it)) }
-        root.optJSONArray("sources")?.objects()?.forEach { repo.saveSource(source(it)) }
-        root.optJSONArray("requirements")?.objects()?.forEach { repo.saveRequirement(requirement(it)) }
+        // Insert every row in one transaction so a malformed or truncated file
+        // never leaves a half-imported workspace behind.
+        repo.runInTransaction {
+            root.optJSONArray("identities")?.objects()?.forEach { repo.saveIdentity(identity(it)) }
+            root.optJSONArray("goals")?.objects()?.forEach { repo.saveGoal(goal(it)) }
+            root.optJSONArray("systems")?.objects()?.forEach { repo.saveSystem(system(it)) }
+            root.optJSONArray("habits")?.objects()?.forEach { repo.saveHabit(habit(it)) }
+            root.optJSONArray("checkIns")?.objects()?.forEach { repo.saveCheckIn(checkIn(it)) }
+            root.optJSONArray("focus")?.objects()?.forEach { repo.saveFocus(focus(it)) }
+            root.optJSONArray("obstacles")?.objects()?.forEach { repo.saveObstacle(obstacle(it)) }
+            root.optJSONArray("scorecard")?.objects()?.forEach { repo.saveScorecard(scorecard(it)) }
+            root.optJSONArray("flows")?.objects()?.forEach { repo.saveFlow(flow(it)) }
+            root.optJSONArray("flowSteps")?.objects()?.forEach { repo.saveFlowStep(flowStep(it)) }
+            root.optJSONArray("reviews")?.objects()?.forEach { repo.saveReview(review(it)) }
+            root.optJSONArray("energy")?.objects()?.forEach { repo.saveEnergy(energy(it)) }
+            root.optJSONArray("pauses")?.objects()?.forEach { repo.savePause(pause(it)) }
+            root.optJSONArray("projects")?.objects()?.forEach { repo.saveProject(project(it)) }
+            root.optJSONArray("sources")?.objects()?.forEach { repo.saveSource(source(it)) }
+            root.optJSONArray("requirements")?.objects()?.forEach { repo.saveRequirement(requirement(it)) }
+        }
+        InsightsCache.invalidate()
     }
 }

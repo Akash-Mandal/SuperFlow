@@ -113,6 +113,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         TodayWidget.refresh(this)
+        DynamicShortcuts.refresh(this)
     }
 
     private fun requestNotificationPermissionIfNeeded() {

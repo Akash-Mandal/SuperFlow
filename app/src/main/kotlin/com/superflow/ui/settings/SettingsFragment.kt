@@ -28,10 +28,13 @@ import com.superflow.domain.Actor
 import com.superflow.domain.CommandBus
 import com.superflow.domain.Serial
 import com.superflow.notify.Reminders
+import com.superflow.security.AppLock
+import com.superflow.security.PinSetupSheet
 import com.superflow.ui.common.snack
 import com.superflow.ui.common.visible
 import com.superflow.ui.engine.AiEngineActivity
 import com.superflow.ui.onboarding.OnboardingActivity
+import com.superflow.ui.pause.PauseActivity
 import com.superflow.ui.sheets.TextInputSheet
 import com.superflow.util.Dates
 import com.superflow.util.jsonOf
@@ -92,6 +95,28 @@ class SettingsFragment : Fragment() {
         container.removeAllViews()
         val inf = layoutInflater
 
+        // Active profile (#78) — handy on a shared tablet.
+        container.addView(action(R.drawable.ic_identity, "Profile",
+            prefs.activeProfile) {
+            val names = listOf("Me", "Partner", "Family member")
+            val current = names.indexOf(prefs.activeProfile).coerceAtLeast(0)
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Who is using the app?")
+                .setSingleChoiceItems(names.toTypedArray(), current) { d, which ->
+                    if (which < names.size - 1) {
+                        prefs.activeProfile = names[which]
+                        d.dismiss(); render()
+                    } else {
+                        d.dismiss()
+                        com.superflow.ui.sheets.TextInputSheet.show(
+                            parentFragmentManager, "Profile name", "A name for this profile"
+                        ) { name ->
+                            if (name.isNotBlank()) { prefs.activeProfile = name.trim(); render() }
+                        }
+                    }
+                }.show()
+        })
+
         // Appearance
         val theme = inf.inflate(R.layout.item_theme_picker, container, false)
         val group = theme.findViewById<MaterialButtonToggleGroup>(R.id.theme_group)
@@ -108,8 +133,36 @@ class SettingsFragment : Fragment() {
                 else -> Prefs.THEME_SYSTEM
             }
             SuperFlowApp.applyTheme(prefs.themeMode)
+            render()
         }
         container.addView(theme)
+
+        // Dark-mode schedule (#77), only relevant when following system/theme.
+        if (prefs.themeMode == Prefs.THEME_SYSTEM) {
+            container.addView(action(R.drawable.ic_moon, "Dark mode schedule",
+                when (prefs.darkSchedule) {
+                    "sunset" -> "Sunset to sunrise (21:00–07:00)"
+                    "custom" -> "${prefs.darkFrom} – ${prefs.darkTo}"
+                    else -> "Off"
+                }) {
+                val options = arrayOf("Off", "Sunset to sunrise", "Custom hours")
+                val values = arrayOf("off", "sunset", "custom")
+                val current = values.indexOf(prefs.darkSchedule).coerceAtLeast(0)
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Dark mode schedule")
+                    .setSingleChoiceItems(options, current) { d, which ->
+                        prefs.darkSchedule = values[which]
+                        if (values[which] == "custom") {
+                            pickTime(prefs.darkFrom) { from ->
+                                prefs.darkFrom = from
+                                pickTime(prefs.darkTo) { to ->
+                                    prefs.darkTo = to; d.dismiss(); render()
+                                }
+                            }
+                        } else { d.dismiss(); render() }
+                    }.show()
+            })
+        }
 
         // AI
         container.addView(section("AI"))
@@ -157,6 +210,14 @@ class SettingsFragment : Fragment() {
                         Reminders.rescheduleAll(requireContext())
                         render()
                     }.show()
+            },
+            action(R.drawable.ic_moon, "Quiet hours by day",
+                if (prefs.quietPerDay.isBlank()) "Same every day"
+                else "Custom schedule") {
+                editPerDayQuietHours()
+            },
+            action(R.drawable.ic_pause, getString(R.string.pause_mode), pauseSubtitle()) {
+                startActivity(Intent(requireContext(), PauseActivity::class.java))
             }
         )))
 
@@ -200,6 +261,33 @@ class SettingsFragment : Fragment() {
             toggle("Celebrations", "A brief animation when you complete the day.",
                 prefs.celebrationsEnabled) { prefs.celebrationsEnabled = it }
         )))
+
+        // Security
+        container.addView(section("SECURITY"))
+        container.addView(group(buildList {
+            val locked = AppLock.isEnabled(prefs)
+            add(toggle("App lock", "Require a PIN to open SuperFlow", locked) { enable ->
+                if (enable) {
+                    PinSetupSheet().apply {
+                        onSaved = { render() }
+                    }.show(parentFragmentManager, "pin")
+                } else {
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.remove_lock)
+                        .setMessage("Remove the PIN and app lock?")
+                        .setNegativeButton(R.string.cancel, null)
+                        .setPositiveButton(R.string.delete) { _, _ ->
+                            AppLock.clearPin(prefs); render()
+                        }.show()
+                }
+            })
+            if (locked) {
+                add(action(R.drawable.ic_lock, getString(R.string.change_pin), null) {
+                    PinSetupSheet().apply { onSaved = { view?.snack("PIN updated") } }
+                        .show(parentFragmentManager, "pin")
+                })
+            }
+        }))
 
         // Data Management — all-inclusive
         container.addView(section("YOUR DATA"))
@@ -252,6 +340,16 @@ class SettingsFragment : Fragment() {
     }
 
     /* ------------------------------------------------------------- builders */
+
+    private fun pauseSubtitle(): String {
+        val today = java.time.LocalDate.now()
+        val active = repo.pauses().count {
+            val end = runCatching { java.time.LocalDate.parse(it.endDate) }.getOrNull()
+            end != null && !end.isBefore(today)
+        }
+        return if (active == 0) "Pause habits for a holiday or break"
+        else "$active active pause${if (active == 1) "" else "s"}"
+    }
 
     private fun section(title: String): View =
         layoutInflater.inflate(R.layout.item_section, container, false).also {
@@ -306,6 +404,66 @@ class SettingsFragment : Fragment() {
         }
         v.setOnClickListener { onClick() }
         return v
+    }
+
+    /**
+     * Per-day-of-week quiet hours (#70). Each day can use the global default,
+     * its own from/to window, or be disabled entirely. The result is encoded
+     * into [Prefs.quietPerDay] and consumed by [Reminders.inQuietHours].
+     */
+    private fun editPerDayQuietHours() {
+        val names = arrayOf("Monday", "Tuesday", "Wednesday", "Thursday",
+            "Friday", "Saturday", "Sunday")
+        // Parse current overrides into per-day choices: 0=default, 1=custom, 2=off.
+        val current = prefs.quietPerDay.split("|")
+            .map { it.trim() }
+            .map {
+                when {
+                    it == "-" -> 2
+                    it.contains("-") && it.substringBefore("-").isNotBlank() -> 1
+                    else -> 0
+                }
+            }.toMutableList()
+        while (current.size < 7) current.add(0)
+        val choices = arrayOf("Use default (${prefs.quietFrom}–${prefs.quietTo})",
+            "Custom hours", "No quiet hours")
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Quiet hours by day")
+            .setSingleChoiceItems(names.map { name ->
+                val c = choices[current[names.indexOf(name)]]
+                "$name — $c"
+            }.toTypedArray(), -1) { dialog, which ->
+                val dayIndex = which
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(names[which])
+                    .setSingleChoiceItems(choices, current[dayIndex]) { inner, choice ->
+                        when (choice) {
+                            0 -> setQuietOverride(dayIndex, null)
+                            2 -> setQuietOverride(dayIndex, "-")
+                            1 -> pickQuietWindow(dayIndex)
+                        }
+                        inner.dismiss(); dialog.dismiss(); render()
+                    }.show()
+            }
+            .setPositiveButton(R.string.close, null)
+            .show()
+    }
+
+    private fun setQuietOverride(dayIndex: Int, value: String?) {
+        val parts = prefs.quietPerDay.split("|").toMutableList()
+        while (parts.size < 7) parts.add("")
+        parts[dayIndex] = value ?: ""
+        prefs.quietPerDay = parts.joinToString("|")
+        Reminders.rescheduleAll(requireContext())
+    }
+
+    private fun pickQuietWindow(dayIndex: Int) {
+        pickTime(prefs.quietFrom) { from ->
+            pickTime(prefs.quietTo) { to ->
+                setQuietOverride(dayIndex, "$from-$to")
+                render()
+            }
+        }
     }
 
     private fun pickTime(current: String, onPicked: (String) -> Unit) {

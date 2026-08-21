@@ -16,7 +16,7 @@ CP="$ANDROID_JAR:$OUT/shim"
 for j in "$TOOLCHAIN"/libjars/*.jar; do CP="$CP:$j"; done
 SRC=$(find app/src/main/kotlin -name '*.kt' | grep -vE "/ui/|/notify/|/widget/|/work/|SuperFlowApp" | sort)
 FAILED=0
-for suite in CoreTest LogicTest ParseTest AiTest; do
+for suite in CoreTest LogicTest ParseTest TextTest AiTest; do
   echo "==> $suite"
   mkdir -p "$OUT/$suite"
   "$KOTLINC" -nowarn -jvm-target 1.8 -classpath "$CP" -d "$OUT/$suite" \

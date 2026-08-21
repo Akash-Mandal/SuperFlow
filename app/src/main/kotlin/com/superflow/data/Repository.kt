@@ -10,8 +10,11 @@ import com.superflow.core.time.SuperFlowClock
 import com.superflow.core.time.SystemClock
 import com.superflow.data.db.*
 import com.superflow.data.model.*
+import com.superflow.util.Fuzzy
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,13 +28,53 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class Repository private constructor(context: Context, val clock: SuperFlowClock) {
 
+    internal val appContext = context.applicationContext
     private val database = SuperFlowDatabase.get(context)
     private val db: SupportSQLiteDatabase get() = database.db
+
+    /**
+     * Serialises writes from the UI thread, AI tool calls and WorkManager
+     * jobs. SQLite itself serialises writes, but without this guard a
+     * read-modify-write (e.g. check-in upsert, reorder) could interleave
+     * with another writer and lose an update. Reentrant so a transaction
+     * can call the individual [insert]/[delete] helpers.
+     */
+    private val writeLock = ReentrantLock()
 
     private val _revision = MutableStateFlow(0L)
 
     /** Bumped after every mutation. Observers re-query. */
     val revision: StateFlow<Long> = _revision.asStateFlow()
+
+    /**
+     * Runs [block] inside a single SQLite transaction under [writeLock].
+     *
+     * Multi-step mutations (cascading deletes, reorder, rollover, import)
+     * go through here so observers only see a consistent state and a failure
+     * midway never leaves half-written rows behind.
+     */
+    private inline fun <T> transaction(block: () -> T): T = writeLock.withLock {
+        db.beginTransaction()
+        try {
+            val result = block()
+            db.setTransactionSuccessful()
+            result
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /**
+     * Public, lock-and-transaction wrapper for bulk/atomic work performed by
+     * other layers (e.g. JSON import, grouped Blueprint execution). The whole
+     * block commits or rolls back together, and the revision counter is bumped
+     * exactly once on success.
+     */
+    fun <T> runInTransaction(block: () -> T): T {
+        val result = transaction(block)
+        invalidate()
+        return result
+    }
 
     companion object {
         @Volatile private var instance: Repository? = null
@@ -55,12 +98,12 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     private fun query(sql: String, args: Array<Any?>? = null) =
         db.query(SimpleSQLiteQuery(sql, args))
 
-    private fun insert(table: String, values: android.content.ContentValues) {
+    private fun insert(table: String, values: android.content.ContentValues) = writeLock.withLock {
         db.insert(table, android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE, values)
         invalidate()
     }
 
-    fun delete(table: String, where: String, args: Array<Any?>) {
+    fun delete(table: String, where: String, args: Array<Any?>) = writeLock.withLock {
         db.delete(table, where, args)
         invalidate()
     }
@@ -81,7 +124,14 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         "status" to i.status.name, "createdAt" to i.createdAt
     ))
 
-    fun deleteIdentity(id: String) = delete("identity", "id=?", arrayOf(id))
+    fun deleteIdentity(id: String) {
+        // Cascade: identity -> goals -> systems -> habits -> their children.
+        transaction {
+            goals().filter { it.identityId == id }.forEach { deleteGoalInternal(it.id) }
+            db.delete("identity", "id=?", arrayOf(id))
+        }
+        invalidate()
+    }
 
     /* ---------------------------------------------------------------- goal */
 
@@ -97,7 +147,16 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         "targetDate" to g.targetDate, "status" to g.status.name, "createdAt" to g.createdAt
     ))
 
-    fun deleteGoal(id: String) = delete("goal", "id=?", arrayOf(id))
+    fun deleteGoal(id: String) {
+        transaction { deleteGoalInternal(id) }
+        invalidate()
+    }
+
+    /** Must be called inside a [transaction]. Cascades to systems. */
+    private fun deleteGoalInternal(id: String) {
+        systems().filter { it.goalId == id }.forEach { deleteSystemInternal(it.id) }
+        db.delete("goal", "id=?", arrayOf(id))
+    }
 
     /* -------------------------------------------------------------- system */
 
@@ -112,7 +171,16 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         "status" to s.status.name, "createdAt" to s.createdAt
     ))
 
-    fun deleteSystem(id: String) = delete("sys", "id=?", arrayOf(id))
+    fun deleteSystem(id: String) {
+        transaction { deleteSystemInternal(id) }
+        invalidate()
+    }
+
+    /** Must be called inside a [transaction]. Cascades to habits. */
+    private fun deleteSystemInternal(id: String) {
+        habits(true).filter { it.systemId == id }.forEach { deleteHabitInternal(it.id) }
+        db.delete("sys", "id=?", arrayOf(id))
+    }
 
     /* --------------------------------------------------------------- habit */
 
@@ -126,15 +194,26 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         if (id == null) null
         else query("SELECT * FROM habit WHERE id=?", arrayOf(id)).mapAll(Rows::habit).firstOrNull()
 
-    /** Fuzzy lookup for AI commands and search. */
+    /**
+     * Fuzzy lookup for AI commands and search.
+     *
+     * Tries exact, prefix, substring and containment matches first, then
+     * falls back to Levenshtein distance so a one-character typo
+     * ("wlak", "jornaling") still resolves. The fuzzy threshold rejects
+     * unrelated words, and short titles (<3 chars) skip fuzzy matching to
+     * avoid spurious hits.
+     */
     fun findHabit(queryText: String): Habit? {
         val q = queryText.trim().lowercase()
         if (q.isEmpty()) return null
         val all = habits(true)
-        return all.firstOrNull { it.title.lowercase() == q }
-            ?: all.firstOrNull { it.title.lowercase().startsWith(q) }
-            ?: all.firstOrNull { it.title.lowercase().contains(q) }
-            ?: all.firstOrNull { q.contains(it.title.lowercase()) }
+        all.firstOrNull { it.title.lowercase() == q }?.let { return it }
+        all.firstOrNull { it.title.lowercase().startsWith(q) }?.let { return it }
+        all.firstOrNull { it.title.lowercase().contains(q) }?.let { return it }
+        all.firstOrNull { q.contains(it.title.lowercase()) && it.title.length >= 3 }?.let { return it }
+        // Typo tolerance: only consider candidates long enough to be meaningful.
+        val candidates = all.filter { it.title.length >= 3 }
+        return Fuzzy.bestMatch(q, candidates) { it.title.lowercase() }
     }
 
     fun saveHabit(h: Habit) = insert("habit", contentValuesOf(
@@ -155,11 +234,19 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     ))
 
     fun deleteHabit(id: String) {
+        transaction { deleteHabitInternal(id) }
+        invalidate()
+    }
+
+    /** Must be called inside a [transaction]. */
+    private fun deleteHabitInternal(id: String) {
         db.delete("habit", "id=?", arrayOf(id))
         db.delete("checkin", "habitId=?", arrayOf(id))
         db.delete("obstacle", "habitId=?", arrayOf(id))
         db.delete("focus", "habitId=?", arrayOf(id))
-        invalidate()
+        // Flow steps reference habits by id but survive the habit's deletion;
+        // they are simply detached so a flow can outlive an edited habit.
+        db.execSQL("UPDATE flowstep SET habitId=NULL WHERE habitId=?", arrayOf(id))
     }
 
     fun scheduleOf(habit: Habit): Schedule = Schedule(
@@ -220,17 +307,24 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         query("SELECT * FROM checkin WHERE habitId=? ORDER BY date DESC", arrayOf(habitId))
             .mapAll(Rows::checkIn)
 
-    fun saveCheckIn(ci: CheckIn) {
+    fun saveCheckIn(ci: CheckIn) = transaction {
         db.delete("checkin", "habitId=? AND date=?", arrayOf(ci.habitId, ci.date))
-        insert("checkin", contentValuesOf(
+        db.insert("checkin", android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE, contentValuesOf(
             "id" to ci.id, "habitId" to ci.habitId, "date" to ci.date, "result" to ci.result.name,
             "level" to ci.level.name, "amount" to ci.amount, "note" to ci.note,
             "createdAt" to ci.createdAt
         ))
+        invalidate()
     }
 
     fun clearCheckIn(habitId: String, date: String) =
         delete("checkin", "habitId=? AND date=?", arrayOf(habitId, date))
+
+    /** Clears every check-in for one date (used by undo_today). */
+    fun clearCheckInsForDate(date: String) = writeLock.withLock {
+        db.delete("checkin", "date=?", arrayOf(date))
+        invalidate()
+    }
 
     /* --------------------------------------------------------------- focus */
 
@@ -283,7 +377,7 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         "id" to f.id, "title" to f.title, "anchor" to f.anchor, "createdAt" to f.createdAt
     ))
 
-    fun deleteFlow(id: String) {
+    fun deleteFlow(id: String) = transaction {
         db.delete("flow", "id=?", arrayOf(id))
         db.delete("flowstep", "flowId=?", arrayOf(id))
         invalidate()
@@ -321,12 +415,13 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     fun energyFor(date: String): List<EnergyLog> =
         query("SELECT * FROM energy WHERE date=?", arrayOf(date)).mapAll(Rows::energy)
 
-    fun saveEnergy(e: EnergyLog) {
+    fun saveEnergy(e: EnergyLog) = transaction {
         db.delete("energy", "date=? AND checkpoint=?", arrayOf(e.date, e.checkpoint.name))
-        insert("energy", contentValuesOf(
+        db.insert("energy", android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE, contentValuesOf(
             "id" to e.id, "date" to e.date, "checkpoint" to e.checkpoint.name,
             "energy" to e.energy, "note" to e.note, "createdAt" to e.createdAt
         ))
+        invalidate()
     }
 
     /* --------------------------------------------------------------- pause */
@@ -358,8 +453,10 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
 
     /* --------------------------------------------------------------- audit */
 
-    fun audit(limit: Int = 300): List<AuditEntry> =
-        query("SELECT * FROM audit ORDER BY createdAt DESC LIMIT $limit").mapAll(Rows::audit)
+    fun audit(limit: Int = 300, offset: Int = 0): List<AuditEntry> =
+        query(
+            "SELECT * FROM audit ORDER BY createdAt DESC LIMIT $limit OFFSET $offset"
+        ).mapAll(Rows::audit)
 
     fun auditGroup(groupId: String): List<AuditEntry> =
         query("SELECT * FROM audit WHERE groupId=? ORDER BY createdAt DESC", arrayOf(groupId))
@@ -371,7 +468,7 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         "undone" to a.undone, "createdAt" to a.createdAt
     ))
 
-    fun markUndone(id: String) {
+    fun markUndone(id: String) = writeLock.withLock {
         db.execSQL("UPDATE audit SET undone=1 WHERE id=?", arrayOf(id))
         invalidate()
     }
@@ -380,8 +477,10 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
 
     /* ------------------------------------------------------------ messages */
 
-    fun messages(limit: Int = 200): List<AiMessage> =
-        query("SELECT * FROM aimsg ORDER BY createdAt ASC LIMIT $limit").mapAll(Rows::message)
+    fun messages(limit: Int = 200, offset: Int = 0): List<AiMessage> =
+        query(
+            "SELECT * FROM aimsg ORDER BY createdAt ASC LIMIT $limit OFFSET $offset"
+        ).mapAll(Rows::message)
 
     fun saveMessage(m: AiMessage) = insert("aimsg", contentValuesOf(
         "id" to m.id, "role" to m.role, "text" to m.text, "meta" to m.meta, "createdAt" to m.createdAt
@@ -404,7 +503,7 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         "createdAt" to p.createdAt
     ))
 
-    fun deleteProject(id: String) {
+    fun deleteProject(id: String) = transaction {
         db.delete("bp_project", "id=?", arrayOf(id))
         db.delete("bp_source", "projectId=?", arrayOf(id))
         db.delete("bp_req", "projectId=?", arrayOf(id))
@@ -447,23 +546,128 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
 
     /* ----------------------------------------------------------------- data */
 
-    fun deleteAllData() {
-        for (t in listOf("identity", "goal", "sys", "habit", "checkin", "focus", "obstacle",
-            "scorecard", "flow", "flowstep", "review", "energy", "audit", "aimsg",
-            "bp_project", "bp_source", "bp_req", "bp_version", "pause", "profile")) {
-            db.delete(t, null, null)
-        }
+    /** Every table in the schema, in child-before-parent delete order. */
+    private val allTables = listOf(
+        "checkin", "focus", "obstacle", "scorecard", "flowstep", "flow", "review",
+        "energy", "bp_req", "bp_source", "bp_version", "bp_project", "pause",
+        "aimsg", "audit", "habit", "sys", "goal", "identity", "profile"
+    )
+
+    fun deleteAllData() = transaction {
+        for (t in allTables) db.delete(t, null, null)
         invalidate()
     }
 
     fun counts(): Map<String, Int> {
         val out = LinkedHashMap<String, Int>()
-        for (t in listOf("identity", "goal", "sys", "habit", "checkin", "focus", "obstacle",
-            "scorecard", "flow", "review", "energy", "audit", "bp_project")) {
+        for (t in allTables) {
             query("SELECT COUNT(*) FROM $t").use { c ->
                 out[t] = if (c.moveToFirst()) c.getInt(0) else 0
             }
         }
         return out
+    }
+
+    /* ---------------------------------------------------- aggregation (#38) */
+
+    /**
+     * Aggregate check-in counts for one habit via SQL GROUP BY, avoiding a
+     * full in-memory scan. Returns a map of [CheckInResult] name -> count.
+     */
+    fun checkInCounts(habitId: String): Map<String, Int> {
+        val out = LinkedHashMap<String, Int>()
+        query(
+            "SELECT result, COUNT(*) FROM checkin WHERE habitId=? GROUP BY result",
+            arrayOf(habitId)
+        ).use { c ->
+            while (c.moveToNext()) out[c.getString(0)] = c.getInt(1)
+        }
+        return out
+    }
+
+    /** Repetitions (DONE + RESISTED) for a habit, counted in SQL. */
+    fun repetitions(habitId: String): Int = checkInCounts(habitId)
+        .filterKeys { it == CheckInResult.DONE.name || it == CheckInResult.RESISTED.name }
+        .values.sum()
+
+    /* ---------------------------------------------- data integrity (#36) */
+
+    /** One orphaned-record finding from [integrityReport]. */
+    data class IntegrityIssue(val table: String, val count: Int, val detail: String)
+
+    /**
+     * Finds records that point at parents which no longer exist. Used by the
+     * AI Engine diagnostics screen. Each query is a LEFT JOIN / NOT EXISTS
+     * scan over the (indexed) foreign-key columns.
+     */
+    fun integrityReport(): List<IntegrityIssue> {
+        val issues = ArrayList<IntegrityIssue>()
+
+        fun count(sql: String, args: Array<Any?>? = null): Int =
+            query(sql, args).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+
+        // goals with no identity (identityId set but missing)
+        count(
+            "SELECT COUNT(*) FROM goal g WHERE g.identityId IS NOT NULL AND " +
+                    "g.identityId<>'' AND NOT EXISTS (SELECT 1 FROM identity i WHERE i.id=g.identityId)"
+        ).let { if (it > 0) issues.add(IntegrityIssue("goal", it, "goals linked to a missing identity")) }
+
+        // systems with no goal
+        count(
+            "SELECT COUNT(*) FROM sys s WHERE s.goalId IS NOT NULL AND s.goalId<>'' AND " +
+                    "NOT EXISTS (SELECT 1 FROM goal g WHERE g.id=s.goalId)"
+        ).let { if (it > 0) issues.add(IntegrityIssue("sys", it, "systems linked to a missing goal")) }
+
+        // habits with no system
+        count(
+            "SELECT COUNT(*) FROM habit h WHERE h.systemId IS NOT NULL AND h.systemId<>'' AND " +
+                    "NOT EXISTS (SELECT 1 FROM sys s WHERE s.id=h.systemId)"
+        ).let { if (it > 0) issues.add(IntegrityIssue("habit", it, "habits linked to a missing system")) }
+
+        // habits with no identity
+        count(
+            "SELECT COUNT(*) FROM habit h WHERE h.identityId IS NOT NULL AND h.identityId<>'' AND " +
+                    "NOT EXISTS (SELECT 1 FROM identity i WHERE i.id=h.identityId)"
+        ).let { if (it > 0) issues.add(IntegrityIssue("habit", it, "habits linked to a missing identity")) }
+
+        // check-ins with no habit
+        count(
+            "SELECT COUNT(*) FROM checkin c WHERE NOT EXISTS " +
+                    "(SELECT 1 FROM habit h WHERE h.id=c.habitId)"
+        ).let { if (it > 0) issues.add(IntegrityIssue("checkin", it, "check-ins for a missing habit")) }
+
+        // obstacles with no habit
+        count(
+            "SELECT COUNT(*) FROM obstacle o WHERE NOT EXISTS " +
+                    "(SELECT 1 FROM habit h WHERE h.id=o.habitId)"
+        ).let { if (it > 0) issues.add(IntegrityIssue("obstacle", it, "obstacle plans for a missing habit")) }
+
+        // focus items with no habit (only when linked)
+        count(
+            "SELECT COUNT(*) FROM focus f WHERE f.habitId IS NOT NULL AND f.habitId<>'' AND " +
+                    "NOT EXISTS (SELECT 1 FROM habit h WHERE h.id=f.habitId)"
+        ).let { if (it > 0) issues.add(IntegrityIssue("focus", it, "focus items for a missing habit")) }
+
+        // flow steps with no flow
+        count(
+            "SELECT COUNT(*) FROM flowstep fs WHERE NOT EXISTS " +
+                    "(SELECT 1 FROM flow f WHERE f.id=fs.flowId)"
+        ).let { if (it > 0) issues.add(IntegrityIssue("flowstep", it, "flow steps for a missing flow")) }
+
+        // blueprint rows with no project
+        count(
+            "SELECT COUNT(*) FROM bp_source s WHERE NOT EXISTS " +
+                    "(SELECT 1 FROM bp_project p WHERE p.id=s.projectId)"
+        ).let { if (it > 0) issues.add(IntegrityIssue("bp_source", it, "sources for a missing project")) }
+        count(
+            "SELECT COUNT(*) FROM bp_req r WHERE NOT EXISTS " +
+                    "(SELECT 1 FROM bp_project p WHERE p.id=r.projectId)"
+        ).let { if (it > 0) issues.add(IntegrityIssue("bp_req", it, "requirements for a missing project")) }
+        count(
+            "SELECT COUNT(*) FROM bp_version v WHERE NOT EXISTS " +
+                    "(SELECT 1 FROM bp_project p WHERE p.id=v.projectId)"
+        ).let { if (it > 0) issues.add(IntegrityIssue("bp_version", it, "versions for a missing project")) }
+
+        return issues
     }
 }
