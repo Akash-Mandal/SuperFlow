@@ -21,10 +21,13 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.google.android.material.appbar.MaterialToolbar
 import com.superflow.R
+import com.superflow.data.Prefs
 import com.superflow.data.Repository
 import com.superflow.data.model.CheckInResult
 import com.superflow.domain.Insights
@@ -32,6 +35,7 @@ import com.superflow.ui.common.BarChart
 import com.superflow.ui.common.HeatmapView
 import com.superflow.ui.common.snack
 import com.superflow.ui.common.visible
+import com.superflow.ui.common.wireRefresh
 import com.superflow.core.time.SfTime
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
@@ -327,6 +331,9 @@ class InsightsFragment : Fragment() {
 
     private val model: InsightsViewModel by viewModels()
 
+    /** Dismisses the refresh spinner once the new rows are on screen. */
+    private var pendingRefresh: (() -> Unit)? = null
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View = inflater.inflate(R.layout.fragment_list, container, false)
@@ -375,13 +382,31 @@ class InsightsFragment : Fragment() {
         }
 
         val list = view.findViewById<RecyclerView>(R.id.list)
+        // The visible equivalent of the pull gesture, for users who have
+        // switched it off or cannot perform it.
+        view.findViewById<MaterialToolbar>(R.id.toolbar).apply {
+            inflateMenu(R.menu.list_menu)
+            setOnMenuItemClickListener { item ->
+                if (item.itemId == R.id.action_refresh) { model.refresh(); true } else false
+            }
+        }
+        view.findViewById<SwipeRefreshLayout>(R.id.refresh)
+            .wireRefresh(Prefs.get(requireContext())) { done ->
+                pendingRefresh = done
+                model.refresh()
+            }
         val adapter = InsightsAdapter()
         list.layoutManager = LinearLayoutManager(requireContext())
         list.adapter = adapter
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                model.rows.collect { adapter.submitList(it) }
+                model.rows.collect { rows ->
+                    adapter.submitList(rows) {
+                        pendingRefresh?.invoke()
+                        pendingRefresh = null
+                    }
+                }
             }
         }
     }

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  High-contrast overlay (§16 accessibility).
+
+  Applied last, after the palette / dark flavour / density overlays, so it can
+  strengthen whatever those chose. It is deliberately narrow: it does not
+  restate the accent colours, because doing so would fight every palette and
+  need one variant per palette. Instead it works on the parts of the design
+  that carry contrast regardless of hue - text, borders and dividers.
+
+    Calm Precision leans on low-contrast greys and hairline borders. That is a
+  deliberate aesthetic, but it is exactly what fails WCAG for a user with low
+  vision, and it is the first thing to break in sunlight. This overlay trades
+  the softness away. Measured against white, sRGB relative luminance:
+
+    * secondary text (colorOnSurfaceVariant) goes from sf_neutral_40 at
+      6.57:1 to sf_neutral_20 at 13.21:1, clearing AAA (7:1) for body sizes
+      rather than only AA
+    * card borders are the real failure. WCAG needs 3:1 for a meaningful UI
+      boundary; the default outlineVariant sf_neutral_90 manages 1.29:1, so
+      the card edge is decorative and effectively invisible to a low-vision
+      user. sf_neutral_50 raises it to 4.59:1
+    * borders also double from 1dp to 2dp, so the edge survives glare and
+      does not depend on a single hairline row of pixels
+
+  The colours here are neutral-ramp references, not literals, so the mono
+  palette and dynamic colour both still work underneath.
+-->
+<resources>
+
+    <style name="ThemeOverlay.SuperFlow.HighContrast" parent="">
+        <!-- Text to the extreme of the ramp. sf_neutral_0 is pure black,
+             which is correct here: this overlay is not trying to be calm. -->
+        <item name="colorOnSurface">@color/sf_neutral_0</item>
+        <item name="colorOnBackground">@color/sf_neutral_0</item>
+        <!-- The biggest single win: secondary text stops being grey. -->
+        <item name="colorOnSurfaceVariant">@color/sf_neutral_20</item>
+
+        <!-- Borders become structural rather than decorative. -->
+        <item name="colorOutline">@color/sf_neutral_30</item>
+        <item name="colorOutlineVariant">@color/sf_neutral_50</item>
+        <item name="sfDividerColor">@color/sf_neutral_50</item>
+        <item name="sfCardStrokeWidth">2dp</item>
+
+        <!-- Surfaces flatten to pure white so the tonal steps between
+             background, surface and surface-variant do not eat the gain. -->
+        <item name="colorSurface">@color/sf_neutral_100</item>
+        <item name="android:colorBackground">@color/sf_neutral_100</item>
+
+        <!-- State colours that were intentionally muted need to be legible
+             as text, not just as fills. -->
+        <item name="sfStateMissed">@color/sf_neutral_30</item>
+        <item name="sfStateSkipped">@color/sf_neutral_40</item>
+    </style>
+</resources>

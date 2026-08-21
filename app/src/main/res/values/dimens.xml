@@ -1,13 +1,75 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  SuperFlow spacing scale ("Calm Precision", design system v2 §4.1).
+
+  A geometric scale replaces the previous ad-hoc values. Every margin, padding
+  and gap in the app resolves to one of these steps, so spacing decisions are
+  made once here rather than re-argued per layout.
+
+  The legacy space_xs/s/m/l/xl names are retained as aliases of the new scale
+  so existing layouts keep rendering identically while they are migrated.
+-->
 <resources>
-    <dimen name="space_xs">4dp</dimen>
+
+    <!-- ================================================ geometric scale -->
+    <dimen name="space_2xs">2dp</dimen>     <!-- hairline gaps            -->
+    <dimen name="space_xs">4dp</dimen>      <!-- tight element grouping   -->
+    <dimen name="space_sm">8dp</dimen>      <!-- related items            -->
+    <dimen name="space_md">12dp</dimen>     <!-- card internal padding    -->
+    <dimen name="space_base">16dp</dimen>   <!-- standard separation      -->
+    <dimen name="space_lg">24dp</dimen>     <!-- section separation       -->
+    <dimen name="space_xl">32dp</dimen>     <!-- major section breaks     -->
+    <dimen name="space_2xl">48dp</dimen>    <!-- screen breathing room    -->
+    <dimen name="space_3xl">64dp</dimen>    <!-- hero / empty state       -->
+
+    <!-- Legacy aliases. Kept so in-flight layouts stay pixel-identical. -->
     <dimen name="space_s">8dp</dimen>
     <dimen name="space_m">16dp</dimen>
     <dimen name="space_l">24dp</dimen>
-    <dimen name="space_xl">32dp</dimen>
+
+    <!-- ========================================================= layout -->
     <dimen name="screen_margin">20dp</dimen>
-    <dimen name="card_padding">20dp</dimen>
     <dimen name="card_gap">12dp</dimen>
     <dimen name="list_bottom_padding">120dp</dimen>
+
+    <!-- Comfortable-density defaults. The density theme overlays in
+         values/themes_density.xml override the ?attr/ forms of these; these
+         raw dimens remain the fallback for views that predate the attrs. -->
+    <dimen name="card_padding">20dp</dimen>
+    <dimen name="list_item_height">56dp</dimen>
+
+    <!-- ================================================== touch targets -->
+    <!-- Motor accessibility (§17.3): nothing interactive falls below this. -->
     <dimen name="touch_min">48dp</dimen>
+
+    <!-- ======================================================= elevation -->
+    <!-- Tonal elevation model (§7.2). -->
+    <dimen name="elevation_0">0dp</dimen>
+    <dimen name="elevation_1">1dp</dimen>    <!-- cards (default)          -->
+    <dimen name="elevation_2">3dp</dimen>    <!-- active / selected cards  -->
+    <dimen name="elevation_3">6dp</dimen>    <!-- FABs, bottom nav         -->
+    <dimen name="elevation_4">8dp</dimen>    <!-- sheets, drawers          -->
+    <dimen name="elevation_5">12dp</dimen>   <!-- dialogs                  -->
+
+    <!-- ========================================================== stroke -->
+    <dimen name="stroke_hairline">1dp</dimen>
+    <dimen name="stroke_emphasis">2dp</dimen>
+    <!-- Left accent border on Journey entity cards (§6.5). -->
+    <dimen name="accent_border_width">3dp</dimen>
+
+    <!-- ====================================================== components -->
+    <dimen name="progress_ring_size">104dp</dimen>
+    <dimen name="progress_ring_stroke">10dp</dimen>
+    <dimen name="history_strip_dot">8dp</dimen>
+    <dimen name="history_strip_gap">4dp</dimen>
+    <dimen name="chip_min_height">38dp</dimen>
+    <dimen name="chip_corner">18dp</dimen>
+    <dimen name="skeleton_line_height">14dp</dimen>
+    <dimen name="skeleton_line_gap">10dp</dimen>
+    <dimen name="swatch_size">44dp</dimen>
+    <!-- The two colour discs inside a swatch; smaller than the swatch so
+         they can be offset from each other and still fit. -->
+    <dimen name="swatch_disc">30dp</dimen>
+    <dimen name="drag_handle_width">32dp</dimen>
+    <dimen name="drag_handle_height">4dp</dimen>
 </resources>

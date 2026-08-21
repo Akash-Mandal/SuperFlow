@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Source Serif 4 (SIL OFL 1.1). Reserved for identity statements and journal
+  entries: a typographic signal that the content is reflection, not data.
+  Italic is carried because identity statements are set in it (§5.4).
+-->
+<font-family xmlns:android="http://schemas.android.com/apk/res/android">
+    <font android:fontStyle="normal" android:fontWeight="400" android:font="@font/source_serif_regular" />
+    <font android:fontStyle="italic" android:fontWeight="400" android:font="@font/source_serif_italic" />
+    <font android:fontStyle="normal" android:fontWeight="600" android:font="@font/source_serif_semibold" />
+</font-family>

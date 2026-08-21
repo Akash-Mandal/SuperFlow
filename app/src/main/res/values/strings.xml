@@ -8,7 +8,17 @@
     <string name="tab_journey">Journey</string>
     <string name="tab_insights">Insights</string>
     <string name="tab_coach">Coach</string>
+    <string name="tab_studio">Studio</string>
     <string name="tab_settings">Settings</string>
+    <string name="open_settings">Settings</string>
+
+    <!-- Launcher shortcuts (10.4) -->
+    <string name="shortcut_check_in">Check in</string>
+    <string name="shortcut_check_in_long">Check in on today</string>
+    <string name="shortcut_ask_studio">Ask Studio</string>
+    <string name="shortcut_ask_studio_long">Ask SuperFlow Studio</string>
+    <string name="shortcut_review">Review</string>
+    <string name="shortcut_review_long">This week in review</string>
 
     <!-- Common -->
     <string name="search">Search</string>
@@ -52,14 +62,11 @@
     <string name="minimum_mode">Minimum Mode</string>
     <string name="checkpoints">Checkpoints</string>
     <string name="energy_now">Energy right now</string>
-    <string name="search">Search</string>
     <string name="search_hint">Search habits, goals, identities…</string>
     <string name="complete_all_tiny">Mark open as Tiny</string>
     <string name="undo_today">Undo all today</string>
     <string name="duplicate">Duplicate</string>
     <string name="reorder">Reorder</string>
-    <string name="unlock">Unlock</string>
-    <string name="app_lock">App lock</string>
     <string name="app_lock_desc">Require a PIN to open SuperFlow</string>
     <string name="set_pin">Set PIN</string>
     <string name="change_pin">Change PIN</string>
@@ -115,6 +122,15 @@
     <string name="listening">Listening…</string>
     <string name="send">Send</string>
     <string name="message_hint">Tell SuperFlow what to do</string>
+    <string name="clear_conversation">Clear conversation</string>
+    <string name="clear_conversation_body">This removes the transcript only. Everything Studio
+        changed stays, and every change is still in Activity.</string>
+    <string name="explain_title">What this did</string>
+    <string name="voice_unavailable">Voice input is not available on this device</string>
+    <string name="conversation_cleared">Conversation cleared</string>
+    <string name="copied">Copied</string>
+    <string name="undone">Change undone</string>
+    <string name="mic_permission_needed">Microphone permission is required</string>
 
     <!-- Settings -->
     <string name="reminders">Reminders</string>
@@ -123,6 +139,44 @@
     <string name="theme_system">Follow system</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
+
+    <!-- Appearance and Experience (design system v2) -->
+    <string name="appearance_experience">Appearance &amp; Experience</string>
+    <string name="palette">Colour palette</string>
+    <string name="dark_style">Dark style</string>
+    <string name="density">Density</string>
+    <string name="motion">Motion</string>
+    <string name="haptics">Haptics</string>
+    <string name="typography">Typography</string>
+    <string name="start_screen">Opening screen</string>
+    <string name="dynamic_color">Match my wallpaper</string>
+    <string name="dynamic_color_sub">Use Android\'s colours instead of a palette.</string>
+    <string name="dynamic_color_overridden">Turn off to choose a palette below.</string>
+    <string name="high_contrast">Higher contrast</string>
+    <string name="high_contrast_sub">Stronger text and visible borders.</string>
+    <string name="serif_accents">Serif for reflection</string>
+    <string name="serif_accents_sub">Identity statements and journal entries in a serif face.</string>
+    <string name="app_icon">App icon</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="gestures">Gestures</string>
+    <string name="gesture_has_equivalent">There is a button for this too.</string>
+    <string name="gesture_needs_confirm_off">Unavailable while &#8220;Confirm completion&#8221; is on.</string>
+    <string name="tab_journey_identities">Identities</string>
+    <string name="tab_journey_goals">Goals</string>
+    <string name="tab_journey_systems">Systems</string>
+    <string name="tab_journey_habits">Habits</string>
+    <string name="mono_figures">Aligned numbers</string>
+    <string name="mono_figures_sub">Monospaced figures in stats and charts.</string>
+    <string name="sound_enabled">Sound</string>
+    <string name="sound_enabled_sub">A quiet tone on completion. Off by default.</string>
+    <string name="confirm_completion">Confirm completions</string>
+    <string name="confirm_completion_sub">Ask before marking something done.</string>
+    <string name="show_history_strip">Show history strip</string>
+    <string name="show_history_strip_sub">The last two weeks under each habit.</string>
+    <string name="swipe_actions">Swipe actions</string>
+    <string name="swipe_actions_sub">Swipe a habit to complete or skip it.</string>
+    <string name="preview">Preview</string>
+    <string name="reset_appearance">Reset to defaults</string>
     <string name="your_data">Your data</string>
     <string name="export_data">Export</string>
     <string name="import_data">Import</string>

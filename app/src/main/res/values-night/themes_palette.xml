@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Night mapping for the palette overlays (§6.2 / §6.3).
+
+  Same overlay names as values/themes_palette.xml so the caller applies a
+  palette without ever branching on light/dark; the resource system picks
+  this file in night mode.
+
+  Tone roles invert: the accent moves from tone 40/50 to tone 80 so it stays
+  legible against a dark surface, containers drop from tone 90 to tone 30,
+  and "on" roles swap ends of the ramp accordingly. The habit ladder is
+  reversed as well, so Stretch remains the most prominent step.
+
+  Generated from the light file by tone remapping; regenerate rather than
+  hand-editing so the two stay structurally identical.
+-->
+<resources>
+
+    <style name="ThemeOverlay.SuperFlow.Palette.Forest" parent="">
+        <item name="colorPrimary">@color/sf_forest_green_80</item>
+        <item name="colorOnPrimary">@color/sf_neutral_10</item>
+        <item name="colorPrimaryContainer">@color/sf_forest_green_30</item>
+        <item name="colorOnPrimaryContainer">@color/sf_forest_green_90</item>
+        <item name="colorPrimaryInverse">@color/sf_forest_green_50</item>
+
+        <item name="colorSecondary">@color/sf_forest_olive_80</item>
+        <item name="colorOnSecondary">@color/sf_neutral_10</item>
+        <item name="colorSecondaryContainer">@color/sf_forest_olive_30</item>
+        <item name="colorOnSecondaryContainer">@color/sf_forest_olive_90</item>
+
+        <item name="sfLevelTiny">@color/sf_forest_green_40</item>
+        <item name="sfLevelMinimum">@color/sf_forest_green_50</item>
+        <item name="sfLevelStandard">@color/sf_forest_green_70</item>
+        <item name="sfLevelStretch">@color/sf_forest_green_80</item>
+        <item name="sfSuccess">@color/sf_forest_green_80</item>
+        <item name="sfSuccessContainer">@color/sf_forest_green_30</item>
+    </style>
+    <style name="ThemeOverlay.SuperFlow.Palette.Ocean" parent="">
+        <item name="colorPrimary">@color/sf_ocean_teal_80</item>
+        <item name="colorOnPrimary">@color/sf_neutral_10</item>
+        <item name="colorPrimaryContainer">@color/sf_ocean_teal_30</item>
+        <item name="colorOnPrimaryContainer">@color/sf_ocean_teal_90</item>
+        <item name="colorPrimaryInverse">@color/sf_ocean_teal_50</item>
+
+        <item name="colorSecondary">@color/sf_ocean_coral_80</item>
+        <item name="colorOnSecondary">@color/sf_neutral_10</item>
+        <item name="colorSecondaryContainer">@color/sf_ocean_coral_30</item>
+        <item name="colorOnSecondaryContainer">@color/sf_ocean_coral_90</item>
+
+        <item name="sfLevelTiny">@color/sf_ocean_teal_40</item>
+        <item name="sfLevelMinimum">@color/sf_ocean_teal_50</item>
+        <item name="sfLevelStandard">@color/sf_ocean_teal_70</item>
+        <item name="sfLevelStretch">@color/sf_ocean_teal_80</item>
+        <item name="sfSuccess">@color/sf_ocean_teal_80</item>
+        <item name="sfSuccessContainer">@color/sf_ocean_teal_30</item>
+        <item name="sfStateMissed">@color/sf_ocean_coral_30</item>
+    </style>
+    <style name="ThemeOverlay.SuperFlow.Palette.Dusk" parent="">
+        <item name="colorPrimary">@color/sf_dusk_violet_80</item>
+        <item name="colorOnPrimary">@color/sf_neutral_10</item>
+        <item name="colorPrimaryContainer">@color/sf_dusk_violet_30</item>
+        <item name="colorOnPrimaryContainer">@color/sf_dusk_violet_90</item>
+        <item name="colorPrimaryInverse">@color/sf_dusk_violet_50</item>
+
+        <item name="colorSecondary">@color/sf_dusk_rose_80</item>
+        <item name="colorOnSecondary">@color/sf_neutral_10</item>
+        <item name="colorSecondaryContainer">@color/sf_dusk_rose_30</item>
+        <item name="colorOnSecondaryContainer">@color/sf_dusk_rose_90</item>
+
+        <item name="sfLevelTiny">@color/sf_dusk_violet_40</item>
+        <item name="sfLevelMinimum">@color/sf_dusk_violet_50</item>
+        <item name="sfLevelStandard">@color/sf_dusk_violet_70</item>
+        <item name="sfLevelStretch">@color/sf_dusk_violet_80</item>
+        <item name="sfSuccess">@color/sf_dusk_violet_80</item>
+        <item name="sfSuccessContainer">@color/sf_dusk_violet_30</item>
+        <item name="sfStateMissed">@color/sf_dusk_rose_30</item>
+    </style>
+    <style name="ThemeOverlay.SuperFlow.Palette.Mono" parent="">
+        <item name="colorPrimary">@color/sf_mono_stone_80</item>
+        <item name="colorOnPrimary">@color/sf_neutral_10</item>
+        <item name="colorPrimaryContainer">@color/sf_mono_stone_30</item>
+        <item name="colorOnPrimaryContainer">@color/sf_mono_stone_90</item>
+        <item name="colorPrimaryInverse">@color/sf_mono_stone_50</item>
+
+        <item name="colorSecondary">@color/sf_mono_stone_80</item>
+        <item name="colorOnSecondary">@color/sf_neutral_10</item>
+        <item name="colorSecondaryContainer">@color/sf_mono_stone_30</item>
+        <item name="colorOnSecondaryContainer">@color/sf_mono_stone_90</item>
+
+        <item name="colorTertiary">@color/sf_mono_stone_80</item>
+        <item name="colorTertiaryContainer">@color/sf_mono_stone_30</item>
+        <item name="colorOnTertiaryContainer">@color/sf_mono_stone_90</item>
+
+        <item name="sfLevelTiny">@color/sf_mono_stone_40</item>
+        <item name="sfLevelMinimum">@color/sf_mono_stone_60</item>
+        <item name="sfLevelStandard">@color/sf_mono_stone_70</item>
+        <item name="sfLevelStretch">@color/sf_mono_stone_90</item>
+        <item name="sfSuccess">@color/sf_mono_stone_80</item>
+        <item name="sfSuccessContainer">@color/sf_mono_stone_30</item>
+        <item name="sfCelebration">@color/sf_mono_stone_80</item>
+        <item name="sfCelebrationContainer">@color/sf_mono_stone_30</item>
+    </style>
+</resources>

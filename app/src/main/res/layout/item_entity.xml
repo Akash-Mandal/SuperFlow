@@ -26,6 +26,7 @@
             app:cardBackgroundColor="?attr/colorSurfaceVariant">
             <ImageView
                 android:id="@+id/entity_icon"
+            android:importantForAccessibility="no"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:padding="10dp"

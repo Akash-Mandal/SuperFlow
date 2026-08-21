@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Studio's overflow.
+
+    Blueprint and the AI Engine were whole tabs before the merge; they are
+    now tools reachable from the one conversation that uses them. They stay
+    as real screens rather than becoming sheets, because both are long,
+    stateful editing surfaces that people work in for minutes at a time.
+-->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item android:id="@+id/action_blueprint" android:title="@string/blueprint_studio"
+        android:icon="@drawable/ic_blueprint" app:showAsAction="ifRoom" />
+    <item android:id="@+id/action_engine" android:title="@string/ai_engine"
+        app:showAsAction="never" />
+    <item android:id="@+id/action_activity" android:title="@string/activity_trail"
+        app:showAsAction="never" />
+    <item android:id="@+id/action_clear" android:title="@string/clear_conversation"
+        app:showAsAction="never" />
+</menu>

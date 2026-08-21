@@ -1,18 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Launcher long-press shortcuts (plan 10.4).
+
+    Mirrors com.superflow.design.Navigation.shortcuts, and the shortcutIds
+    match its Shortcut.id so the two cannot silently diverge. Four, not five:
+    Android allows five but most launchers show four, and a shortcut that
+    only appears on some devices is worse than one that never does.
+
+    The `tab` extra goes through Navigation.destinationOf, which still
+    accepts the pre-merge "coach" key — shortcuts pinned to a home screen
+    outlive several versions of the app that created them.
+-->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
-        android:shortcutId="coach"
+        android:shortcutId="check_in"
         android:enabled="true"
-        android:icon="@drawable/ic_sparkle"
-        android:shortcutShortLabel="@string/ask_superflow"
-        android:shortcutLongLabel="@string/ask_superflow">
+        android:icon="@drawable/ic_check"
+        android:shortcutShortLabel="@string/shortcut_check_in"
+        android:shortcutLongLabel="@string/shortcut_check_in_long">
         <intent android:action="android.intent.action.VIEW"
             android:targetPackage="com.superflow"
-            android:targetClass="com.superflow.ui.MainActivity" />
-        <categories android:name="android.shortcut.conversation" />
+            android:targetClass="com.superflow.ui.MainActivity">
+            <extra android:name="tab" android:value="today" />
+        </intent>
     </shortcut>
     <shortcut
-        android:shortcutId="designer"
+        android:shortcutId="add_habit"
         android:enabled="true"
         android:icon="@drawable/ic_add"
         android:shortcutShortLabel="@string/new_habit"
@@ -20,5 +33,30 @@
         <intent android:action="android.intent.action.VIEW"
             android:targetPackage="com.superflow"
             android:targetClass="com.superflow.ui.designer.HabitDesignerActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="ask_studio"
+        android:enabled="true"
+        android:icon="@drawable/ic_sparkle"
+        android:shortcutShortLabel="@string/shortcut_ask_studio"
+        android:shortcutLongLabel="@string/shortcut_ask_studio_long">
+        <intent android:action="android.intent.action.VIEW"
+            android:targetPackage="com.superflow"
+            android:targetClass="com.superflow.ui.MainActivity">
+            <extra android:name="tab" android:value="studio" />
+        </intent>
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="review"
+        android:enabled="true"
+        android:icon="@drawable/ic_insights"
+        android:shortcutShortLabel="@string/shortcut_review"
+        android:shortcutLongLabel="@string/shortcut_review_long">
+        <intent android:action="android.intent.action.VIEW"
+            android:targetPackage="com.superflow"
+            android:targetClass="com.superflow.ui.MainActivity">
+            <extra android:name="tab" android:value="insights" />
+        </intent>
     </shortcut>
 </shortcuts>

@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
@@ -26,11 +27,15 @@ import com.superflow.data.model.Habit
 import com.superflow.data.model.Level
 import com.superflow.core.time.Greeting
 import com.superflow.core.time.SfTime
+import com.superflow.design.Navigation
 import com.superflow.ui.MainActivity
+import com.superflow.data.Prefs
 import com.superflow.ui.common.snack
+import com.superflow.ui.common.wireRefresh
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.detail.HabitDetailActivity
 import com.superflow.ui.search.SearchActivity
+import com.superflow.ui.settings.SettingsActivity
 import com.superflow.ui.sheets.TextInputSheet
 import com.superflow.util.Dates
 import kotlinx.coroutines.launch
@@ -46,6 +51,9 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
     private lateinit var adapter: TodayAdapter
     private lateinit var list: RecyclerView
 
+    /** Dismisses the refresh spinner once the new rows are on screen. */
+    private var pendingRefresh: (() -> Unit)? = null
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -58,6 +66,14 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
         val toolbar = view.findViewById<MaterialToolbar>(R.id.toolbar)
         val fab = view.findViewById<ExtendedFloatingActionButton>(R.id.fab)
         list = view.findViewById(R.id.list)
+        // Pull to refresh. The completion callback fires on the next state
+        // emission rather than on a timer, so the spinner is honest about
+        // when the data actually changed.
+        val refresh = view.findViewById<SwipeRefreshLayout>(R.id.refresh)
+        refresh.wireRefresh(Prefs.get(requireContext())) { done ->
+            pendingRefresh = done
+            model.refresh()
+        }
 
         adapter = TodayAdapter(this)
         list.layoutManager = LinearLayoutManager(requireContext())
@@ -108,6 +124,13 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
                     startActivity(Intent(requireContext(), PlanTomorrowActivity::class.java))
                     true
                 }
+                // Settings is reached from here rather than the tab bar
+                // since 10.1 — see Navigation.Tab, which has no entry for it.
+                R.id.action_settings -> {
+                    startActivity(Intent(requireContext(), SettingsActivity::class.java))
+                    true
+                }
+                R.id.action_refresh -> { model.refresh(); true }
                 R.id.action_minimum_mode -> { model.minimumMode(); true }
                 R.id.action_complete_all_tiny -> {
                     MaterialAlertDialogBuilder(requireContext())
@@ -138,7 +161,7 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
         }
 
         fab.setOnClickListener {
-            (activity as? MainActivity)?.goToTab(3)
+            (activity as? MainActivity)?.select(Navigation.Tab.STUDIO)
         }
         list.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
@@ -156,7 +179,13 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
                             Greeting.EVENING -> getString(R.string.good_evening)
                         }
                         dateTitle.text = SfTime.humanDay(state.date)
-                        adapter.submitList(state.rows)
+                        adapter.submitList(state.rows) {
+                            // submitList's callback runs after the diff has
+                            // been applied, which is the first moment the
+                            // user can see the new data.
+                            pendingRefresh?.invoke()
+                            pendingRefresh = null
+                        }
                     }
                 }
                 launch {

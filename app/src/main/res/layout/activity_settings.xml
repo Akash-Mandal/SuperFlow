@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Host for Settings, which is a route rather than a tab since 10.1.
+
+    A bare container: the fragments it hosts (Settings, Appearance & Experience,
+    Data Management) each bring their own collapsing header, so a second app
+    bar here would stack two titles on top of each other.
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/settings_host"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorSurface"
+    android:fitsSystemWindows="false" />

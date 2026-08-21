@@ -49,6 +49,16 @@ class BlueprintActivity : ScrollActivity() {
         ActivityResultContracts.OpenDocument()
     ) { uri -> if (uri != null) importFile(uri) }
 
+    companion object {
+        /**
+         * Which project to open. Studio's transcript cards deep-link into
+         * a specific mission; without this the screen would always open on
+         * whatever happens to be newest, which is rarely the one that was
+         * tapped.
+         */
+        const val EXTRA_PROJECT = "project"
+    }
+
     override fun titleText() = getString(R.string.blueprint_studio)
 
     override fun onResume() {
@@ -60,6 +70,12 @@ class BlueprintActivity : ScrollActivity() {
     }
 
     override fun buildContent() {
+        // A deep link from Studio wins over "most recent", but only if the
+        // project still exists — a card can outlive the thing it points at.
+        if (projectId == null) {
+            projectId = intent?.getStringExtra(EXTRA_PROJECT)
+                ?.takeIf { repo.project(it) != null }
+        }
         if (projectId == null) projectId = repo.projects().firstOrNull()?.id
         val project = repo.project(projectId)
 

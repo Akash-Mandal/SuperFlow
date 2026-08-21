@@ -11,6 +11,7 @@ import com.superflow.data.Prefs
 import com.superflow.notify.Reminders
 import com.superflow.security.AppLock
 import com.superflow.security.LockActivity
+import com.superflow.ui.settings.AppIcons
 import com.superflow.util.Dates
 import com.superflow.work.BackgroundWork
 
@@ -31,7 +32,6 @@ class SuperFlowApp : Application() {
         super.onCreate()
         val prefs = Prefs.get(this)
         applyTheme(prefs.themeMode)
-
         // Channel creation is a system-service call and WorkManager's first
         // getInstance() opens its internal database; neither belongs on the
         // launch path. They are idempotent and cheap to run late.
@@ -40,6 +40,10 @@ class SuperFlowApp : Application() {
             BackgroundWork.schedule(this@SuperFlowApp)
         }
         scheduleDarkMode()
+
+        // An update resets runtime component states to their manifest
+        // defaults, so a non-default launcher icon has to be re-asserted.
+        AppIcons.reassert(this)
 
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {

@@ -1,11 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  One resizable provider covers all four sizes from plan 16.1.
+
+  Declaring four separate providers would put four entries in the launcher's
+  widget picker for what is one widget, and the size a user picks there is
+  not binding anyway - they can drag it to any shape afterwards. The layout
+  is chosen at render time from the measured cell (TodayWidget.sizeOf), so
+  one provider that resizes freely is both fewer entries and more correct.
+
+  minWidth/minHeight are the Small size's floor. minResizeWidth is a hair
+  under it: launchers measure a 2x2 cell at slightly under 110dp on dense
+  small screens, and a resize floor equal to the minimum makes the widget
+  refuse to shrink back after being enlarged.
+
+  initialLayout is the Medium layout, matching TodayWidget's fallback for a
+  launcher that has not yet reported a size.
+-->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="250dp"
+    android:minWidth="110dp"
     android:minHeight="110dp"
+    android:minResizeWidth="100dp"
+    android:minResizeHeight="100dp"
+    android:maxResizeWidth="500dp"
+    android:maxResizeHeight="400dp"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="1800000"
-    android:initialLayout="@layout/widget_today"
+    android:initialLayout="@layout/widget_medium"
+    android:previewLayout="@layout/widget_medium"
     android:previewImage="@drawable/ic_launcher_fg"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"

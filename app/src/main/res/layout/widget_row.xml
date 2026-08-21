@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One habit or focus row inside a Wide or Large widget.
+
+  The whole row is the touch target, not just the box: 48dp minimum, per
+  plan 17.3, and a widget row that only responds on a 24dp checkbox is the
+  single most common motor-accessibility failure in home-screen widgets.
+
+  The state box is an ImageView so it can carry a tinted bitmap-free vector
+  in the checked case and stay empty in the unchecked case; the outline is
+  supplied by the background shape.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/row_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="48dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
+
+    <ImageView
+        android:id="@+id/row_box"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:layout_marginEnd="10dp"
+        android:padding="2dp"
+        android:importantForAccessibility="no" />
+
+    <TextView
+        android:id="@+id/row_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="14sp" />
+</LinearLayout>

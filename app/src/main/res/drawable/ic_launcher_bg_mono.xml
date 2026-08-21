@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monochrome variant background: paper, not ink.
+
+  The mono variant inverts the other two - dark mark on a light field - so
+  that it sits quietly on a wallpaper-heavy home screen. It is a separate
+  drawable from the themed-icon monochrome layer, which the system tints
+  itself and which every variant shares.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFEDE8DC" android:pathData="M0,0h108v108h-108z" />
+</vector>
