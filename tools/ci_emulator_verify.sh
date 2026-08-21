@@ -86,9 +86,11 @@ fi
 
 STAGE="instrumented tests"
 echo "==> 3/3 instrumented tests"
+AT_LOG="$ROOT/app/build/ci-connected-test.log"
+mkdir -p "$(dirname "$AT_LOG")"
 set +e
-./gradlew --no-daemon connectedDebugAndroidTest
-GRADLE_RC=$?
+./gradlew --no-daemon connectedDebugAndroidTest 2>&1 | tee "$AT_LOG"
+GRADLE_RC=${PIPESTATUS[0]}
 set -e
 
 # AGP writes JUnit XML per connected device. Surface each failure as an
@@ -117,7 +119,13 @@ if not found:
 PYEOF
 
 if [ "$GRADLE_RC" -ne 0 ]; then
-  annotate "instrumented tests failed" "connectedDebugAndroidTest exit=$GRADLE_RC"
+  # If the XML held no failures the run died before any test executed (a
+  # compile error in androidTest, or the instrumentation failing to start).
+  # Put the compiler/Gradle diagnostics themselves into an annotation.
+  DIAG="$(grep -E '^e: |error:|FAILURE:|Caused by:|Execution failed|Installation failed|INSTRUMENTATION_|No tests found|Process crashed' "$AT_LOG" \
+            | head -25 | cut -c1-300 | tr '\n' '~' | sed 's/~/%0A/g')"
+  [ -n "$DIAG" ] || DIAG="$(tail -25 "$AT_LOG" | cut -c1-300 | tr '\n' '~' | sed 's/~/%0A/g')"
+  annotate "instrumented tests failed (exit=$GRADLE_RC)" "$DIAG"
   exit "$GRADLE_RC"
 fi
 
