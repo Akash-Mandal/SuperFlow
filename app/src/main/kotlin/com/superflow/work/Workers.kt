@@ -46,8 +46,11 @@ class DailyRolloverWorker(
     override suspend fun doWork(): Result {
         return try {
             val repo = Repository.get(applicationContext)
+            val prefs = Prefs.get(applicationContext)
             val today = repo.clock.today()
             closeOut(repo, today.minusDays(1))
+            // Evaluate growth plans daily.
+            com.superflow.domain.GrowthEngine.evaluate(repo, prefs)
             // rescheduleAllNow runs on the serialized background lane and
             // completes before this worker reports done.
             Reminders.rescheduleAllNow(applicationContext)
@@ -165,6 +168,16 @@ object BackgroundWork {
         } catch (e: Exception) {
             Log.w(TAG, "Could not schedule reminder refresh", e)
         }
+
+        val proactive = PeriodicWorkRequestBuilder<ProactiveAiWorker>(6, TimeUnit.HOURS)
+            .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(false).build())
+            .setInitialDelay(java.time.Duration.ofMinutes(30))
+            .build()
+        runCatching {
+            manager.enqueueUniquePeriodicWork(
+                ProactiveAiWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, proactive
+            )
+        }
     }
 
     fun cancel(context: Context) {
@@ -172,6 +185,7 @@ object BackgroundWork {
             WorkManager.getInstance(context).apply {
                 cancelUniqueWork(DailyRolloverWorker.NAME)
                 cancelUniqueWork(ReminderRefreshWorker.NAME)
+                cancelUniqueWork(ProactiveAiWorker.NAME)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Could not cancel periodic work", e)

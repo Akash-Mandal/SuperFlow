@@ -17,7 +17,7 @@ import org.json.JSONObject
  */
 object Capabilities {
 
-    const val CATALOG_VERSION = 2
+    const val CATALOG_VERSION = 4  // Phase 1-5: growth engine, templates, journal, routines, memory, what-if, accountability, milestones, sprints, settings, analysis, coaching, blueprint V2, environment, simulation, notification
 
     fun all(): List<Capability> = buildList {
         addAll(identityCaps())
@@ -29,6 +29,22 @@ object Capabilities {
         addAll(reviewCaps())
         addAll(queryCaps())
         addAll(dataCaps())
+        addAll(growthCaps())
+        addAll(templateCaps())
+        addAll(journalCaps())
+        addAll(routineCaps())
+        addAll(memoryCaps())
+        addAll(whatIfCaps())
+        addAll(accountabilityCaps())
+        addAll(milestoneCaps())
+        addAll(sprintCaps())
+        addAll(settingCaps())
+        addAll(analysisCaps())
+        addAll(coachingCaps())
+        addAll(blueprintCaps())
+        addAll(environmentCaps())
+        addAll(simulationCaps())
+        addAll(notificationCaps())
     }
 
     /* -------------------------------------------------------- identity layer */
@@ -1424,7 +1440,642 @@ object Capabilities {
         }
     )
 
+
+    /* ---------------------------------------------------- growth caps */
+
+    private fun growthCaps() = listOf(
+        Capability("create_growth_plan", "Create a progressive growth plan for a habit",
+            listOf("habit" to "id or title", "weeks" to "int"), Risk.LOW) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val weeks = c.int("weeks", 8).coerceIn(4, 52)
+            val existing = c.repo.growthPlansForHabit(h.id)
+            if (existing.isNotEmpty()) return@Capability CommandResult.fail("A growth plan already exists for this habit")
+            val plan = GrowthEngine.generateGrowthPlan(h, weeks)
+            c.repo.saveGrowthPlan(plan)
+            val id = c.bus.record(c.actor, "create_growth_plan",
+                "Created growth plan for \"${h.title}\" (${weeks} weeks)",
+                null, null, c.groupId)
+            okResult("Growth plan created for \"${h.title}\". It will auto-evaluate weekly.", jsonOf("id" to plan.id), id)
+        },
+
+        Capability("list_growth_plans", "Show all active growth plans with status",
+            listOf(), Risk.LOW) { c ->
+            val plans = c.repo.growthPlans().filter { it.isActive() }
+            if (plans.isEmpty()) return@Capability okResult("No active growth plans.")
+            val text = plans.joinToString("\n") { p ->
+                val habit = c.repo.habit(p.habitId)
+                val phase = p.phases.getOrNull(p.currentPhaseIndex)
+                "\u2022 ${habit?.title ?: "Unknown"}: Phase ${p.currentPhaseIndex + 1}/${p.phases.size} " +
+                        "\u2014 ${phase?.label ?: ""} (${p.weeksSinceStart()} weeks)"
+            }
+            okResult(text)
+        },
+
+        Capability("upgrade_phase", "Manually advance to next growth phase",
+            listOf("habit" to "id or title"), Risk.LOW) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val plan = c.repo.growthPlansForHabit(h.id).firstOrNull { it.isActive() }
+                ?: return@Capability CommandResult.fail("No active growth plan for this habit")
+            if (plan.currentPhaseIndex >= plan.phases.lastIndex)
+                return@Capability CommandResult.fail("Already at the highest phase")
+            GrowthEngine.applyUpgrade(plan, c.repo)
+            val id = c.bus.record(c.actor, "upgrade_phase",
+                "Upgraded \"${h.title}\" to phase ${plan.currentPhaseIndex + 2}",
+                null, null, c.groupId)
+            okResult("Upgraded to phase ${plan.currentPhaseIndex + 2}", null, id)
+        },
+
+        Capability("downgrade_phase", "Manually step back a growth phase",
+            listOf("habit" to "id or title"), Risk.LOW) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val plan = c.repo.growthPlansForHabit(h.id).firstOrNull { it.isActive() }
+                ?: return@Capability CommandResult.fail("No active growth plan for this habit")
+            if (plan.currentPhaseIndex <= 0) return@Capability CommandResult.fail("Already at the first phase")
+            GrowthEngine.applyDowngrade(plan, c.repo)
+            val id = c.bus.record(c.actor, "downgrade_phase",
+                "Downgraded \"${h.title}\" to phase ${plan.currentPhaseIndex}",
+                null, null, c.groupId)
+            okResult("Downgraded to phase ${plan.currentPhaseIndex}", null, id)
+        },
+
+        Capability("difficulty_assessment", "Rate a habit\'s difficulty based on its design",
+            listOf("habit" to "id or title"), Risk.LOW) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val rating = GrowthEngine.estimateDifficulty(h)
+            okResult("${h.title}: ${rating.level.name} (score ${rating.score}/5)\n${rating.advice}")
+        }
+    )
+
+    /* ---------------------------------------------------- template caps */
+
+    private fun templateCaps() = listOf(
+        Capability("suggest_templates", "Get habit templates for a goal",
+            listOf("goal" to "string", "area" to "string"), Risk.LOW) { c ->
+            val goal = c.str("goal")
+            val area = c.str("area")
+            val templates = if (area.isNotBlank())
+                HabitTemplates.forArea(com.superflow.data.model.LifeArea.from(area))
+            else HabitTemplates.suggestForGoal(goal)
+            if (templates.isEmpty()) return@Capability okResult("No templates found for that goal.")
+            val text = templates.joinToString("\n") { t ->
+                "\u2022 ${t.title}: ${t.standardVersion} (${t.recurrenceLabel})"
+            }
+            okResult("Found ${templates.size} templates:\n$text")
+        },
+
+        Capability("apply_template", "Create a habit from a template",
+            listOf("templateId" to "string", "title" to "string"), Risk.LOW) { c ->
+            val title = c.str("title").lowercase()
+            val template = HabitTemplates.allTemplates().firstOrNull {
+                it.title.lowercase().contains(title) || it.id == c.str("templateId")
+            } ?: return@Capability CommandResult.fail("Template not found")
+            val habit = Habit(
+                title = template.title,
+                tinyStart = template.tinyStart,
+                minimumVersion = template.minimumVersion,
+                standardVersion = template.standardVersion,
+                stretchVersion = template.stretchVersion,
+                cueTime = template.cueTime,
+                anchorText = template.anchorHint,
+                benefit = template.benefit,
+                recurrenceRule = com.superflow.core.schedule.Recurrence.parse(template.recurrenceLabel).encode()
+            )
+            c.repo.saveHabit(habit)
+            val id = c.bus.record(c.actor, "apply_template",
+                "Created \"${habit.title}\" from template",
+                null, undoDelete("habit", habit.id), c.groupId)
+            okResult("\"${habit.title}\" created from template", jsonOf("id" to habit.id), id)
+        },
+
+        Capability("list_templates", "Browse all habit templates by area",
+            listOf("area" to "string"), Risk.LOW) { c ->
+            val area = com.superflow.data.model.LifeArea.from(c.str("area"))
+            val templates = HabitTemplates.forArea(area)
+            if (templates.isEmpty()) return@Capability okResult("No templates in that area.")
+            val text = templates.joinToString("\n") { t ->
+                "\u2022 ${t.title}: ${t.standardVersion}"
+            }
+            okResult("${area.label} templates (${templates.size}):\n$text")
+        }
+    )
+
+    /* ---------------------------------------------------- journal caps */
+
+    private fun journalCaps() = listOf(
+        Capability("create_journal_entry", "Write a journal entry",
+            listOf("content" to "string", "date" to "yyyy-MM-dd", "mood" to "1-5",
+                "prompt" to "string", "tags" to "string"), Risk.LOW) { c ->
+            val content = c.str("content").trim()
+            if (content.isBlank()) return@Capability CommandResult.fail("Journal content is required")
+            val date = c.date()
+            val entry = JournalEntry(
+                date = date, prompt = c.str("prompt"), content = content,
+                mood = c.int("mood", 0).let { if (it == 0) null else it.coerceIn(1, 5) },
+                tags = c.str("tags").split(",").map { it.trim() }.filter { it.isNotBlank() }
+            )
+            c.repo.saveJournalEntry(entry)
+            val id = c.bus.record(c.actor, "create_journal_entry",
+                "Journal entry for ${SfTime.shortDay(c.localDate())}",
+                null, undoDelete("journal_entry", entry.id), c.groupId)
+            okResult("Journal entry saved", jsonOf("id" to entry.id), id)
+        },
+
+        Capability("suggest_journal_prompt", "Get a guided journal prompt",
+            listOf(), Risk.LOW) { c ->
+            val prompts = listOf(
+                "What worked today that you want to remember?",
+                "What would you tell your past self about today?",
+                "What evidence did you collect about who you are becoming?",
+                "What was the best moment today and why?",
+                "If tomorrow were perfect, what would it look like?",
+                "What is one thing you are grateful for right now?",
+                "What did you learn about yourself this week?",
+                "Describe a challenge you faced and how you handled it."
+            )
+            val prompt = prompts.random()
+            okResult(prompt, jsonOf("prompt" to prompt))
+        }
+    )
+
+    /* ---------------------------------------------------- routine caps (upgrade from flows) */
+
+    private fun routineCaps() = listOf(
+        Capability("create_routine", "Create a habit stacking routine",
+            listOf("title" to "string", "trigger" to "string", "estimatedMinutes" to "int"),
+            Risk.LOW) { c ->
+            val title = c.str("title").trim()
+            if (title.isBlank()) return@Capability CommandResult.fail("A routine title is required")
+            val r = Routine(title = title, trigger = c.str("trigger"),
+                estimatedMinutes = c.int("estimatedMinutes", 30))
+            c.repo.saveRoutine(r)
+            val id = c.bus.record(c.actor, "create_routine", "Created routine \"$title\"",
+                null, undoDelete("routine", r.id), c.groupId)
+            okResult("Routine created", jsonOf("id" to r.id), id)
+        },
+
+        Capability("add_routine_step", "Add a step to a routine",
+            listOf("routineId" to "string", "title" to "string", "durationMinutes" to "int",
+                "habit" to "id or title"), Risk.LOW) { c ->
+            val rId = c.str("routineId")
+            val routine = c.repo.routine(rId)
+                ?: return@Capability CommandResult.fail("Routine not found")
+            val title = c.str("title").trim()
+            if (title.isBlank()) return@Capability CommandResult.fail("A step title is required")
+            val habitId = resolveHabit(c)?.id
+            val steps = c.repo.routineSteps(routine.id)
+            val step = RoutineStep(routineId = routine.id, habitId = habitId, title = title,
+                durationMinutes = c.int("durationMinutes", 5), orderIndex = steps.size)
+            c.repo.saveRoutineStep(step)
+            val id = c.bus.record(c.actor, "add_routine_step",
+                "Added \"$title\" to \"${routine.title}\"",
+                null, undoDelete("routine_step", step.id), c.groupId)
+            okResult("Step added", jsonOf("id" to step.id), id)
+        },
+
+        Capability("delete_routine", "Delete a routine and its steps",
+            listOf("routineId" to "string"), Risk.MEDIUM, destructive = true) { c ->
+            val r = c.repo.routine(c.str("routineId"))
+                ?: return@Capability CommandResult.fail("Routine not found")
+            c.repo.deleteRoutine(r.id)
+            val id = c.bus.record(c.actor, "delete_routine", "Deleted routine \"${r.title}\"",
+                null, null, c.groupId)
+            okResult("Routine deleted", null, id)
+        }
+    )
+
+    /* ---------------------------------------------------- memory caps */
+
+    private fun memoryCaps() = listOf(
+        Capability("remember", "Store a structured memory for the AI",
+            listOf("content" to "string", "category" to "string", "importance" to "1-10"),
+            Risk.LOW) { c ->
+            val content = c.str("content").trim()
+            if (content.isBlank()) return@Capability CommandResult.fail("What should I remember?")
+            val category = runCatching {
+                MemoryCategory.valueOf(c.str("category").uppercase())
+            }.getOrDefault(MemoryCategory.USER_PREFERENCE)
+            val mem = AiMemory(category = category, content = content,
+                importance = c.int("importance", 5).coerceIn(1, 10))
+            c.repo.saveMemory(mem)
+            val id = c.bus.record(c.actor, "remember", "Remembered: ${content.take(100)}",
+                null, undoDelete("ai_memory", mem.id), c.groupId)
+            okResult("I will remember that.", jsonOf("id" to mem.id), id)
+        },
+
+        Capability("forget", "Remove a stored memory",
+            listOf("id" to "string"), Risk.MEDIUM, destructive = true) { c ->
+            val old = c.repo.memories().firstOrNull { it.id == c.str("id") }
+                ?: return@Capability CommandResult.fail("Memory not found")
+            c.repo.deleteMemory(old.id)
+            val id = c.bus.record(c.actor, "forget", "Forgot: ${old.content.take(60)}...",
+                null, null, c.groupId)
+            okResult("Memory removed", null, id)
+        },
+
+        Capability("list_memories", "Show what the AI remembers about you",
+            listOf(), Risk.LOW) { c ->
+            val memories = c.repo.memories()
+            if (memories.isEmpty()) return@Capability okResult("Nothing stored for me to remember.")
+            val text = memories.sortedByDescending { it.importance }.joinToString("\n") { m ->
+                "\u2022 [${m.category.name}] ${m.content} (importance ${m.importance})"
+            }
+            okResult("I remember:\n$text")
+        }
+    )
+
+    /* ---------------------------------------------------- what-if caps */
+
+    private fun whatIfCaps() = listOf(
+        Capability("simulate_add_habit", "Preview the impact of adding a new habit",
+            listOf("title" to "string", "standardVersion" to "string", "tinyStart" to "string"),
+            Risk.LOW) { c ->
+            val mock = Habit(
+                title = c.str("title").ifBlank { "Mock habit" },
+                standardVersion = c.str("standardVersion"),
+                tinyStart = c.str("tinyStart"),
+                cueTime = c.str("cueTime"),
+                recurrenceRule = com.superflow.core.schedule.Recurrence.parse(c.str("days")).encode()
+            )
+            val sim = GrowthEngine.simulateAddition(c.repo, mock)
+            okResult("Current: ${sim.currentHabits} habits, ~${sim.currentMinutes} min/day. " +
+                    "With new habit: ${sim.newHabits} habits, ~${sim.newMinutes} min/day. " +
+                    "Risk: ${sim.riskLevel.name}.\n${sim.advice}")
+        },
+
+        Capability("simulate_remove_habit", "Preview the impact of removing a habit",
+            listOf("habit" to "id or title"), Risk.LOW) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val currentDaily = c.repo.habitsForDay(c.repo.clock.today()).size
+            okResult("Removing \"${h.title}\" would leave you with ${currentDaily - 1} habits scheduled today.")
+        }
+    )
+
+    /* ---------------------------------------------------- accountability caps */
+
+    private fun accountabilityCaps() = listOf(
+        Capability("generate_report", "Create a shareable progress report",
+            listOf("days" to "int"), Risk.LOW) { c ->
+            val report = AutoReview.accountabilityReport(c.repo, c.int("days", 7))
+            okResult(report)
+        },
+
+        Capability("export_weekly_summary", "Export the week\'s data as text",
+            listOf(), Risk.LOW) { c ->
+            val summary = Insights.summaryText(c.repo, 7)
+            okResult(summary)
+        }
+    )
+
+    /* ---------------------------------------------------- milestone caps */
+
+    private fun milestoneCaps() = listOf(
+        Capability("list_milestones", "Show all achieved milestones",
+            listOf("habit" to "id or title"), Risk.LOW) { c ->
+            val milestones = if (c.str("habit").isNotBlank()) {
+                val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+                c.repo.milestonesForHabit(h.id)
+            } else c.repo.milestones()
+            if (milestones.isEmpty()) return@Capability okResult("No milestones achieved yet.")
+            val text = milestones.joinToString("\n") { m ->
+                "\u2022 ${m.label} (${m.type.name})"
+            }
+            okResult("Milestones:\n$text")
+        }
+    )
+
+    /* ---------------------------------------------------- sprint caps */
+
+    private fun sprintCaps() = listOf(
+        Capability("create_sprint", "Create a time-boxed commitment sprint",
+            listOf("title" to "string", "startDate" to "yyyy-MM-dd", "endDate" to "yyyy-MM-dd",
+                "focusHabits" to "string", "goals" to "string"), Risk.LOW) { c ->
+            val title = c.str("title").trim()
+            if (title.isBlank()) return@Capability CommandResult.fail("A sprint title is required")
+            val startDate = SfTime.parseDate(c.str("startDate")) ?: c.repo.clock.today()
+            val endDate = SfTime.parseDate(c.str("endDate")) ?: startDate.plusDays(14)
+            if (endDate.isBefore(startDate)) return@Capability CommandResult.fail("End date is before start date")
+            val sprint = Sprint(
+                title = title, startDate = SfTime.format(startDate),
+                endDate = SfTime.format(endDate),
+                focusHabits = c.str("focusHabits").split(",").map { it.trim() }.filter { it.isNotBlank() },
+                goals = c.str("goals").split(",").map { it.trim() }.filter { it.isNotBlank() }
+            )
+            c.repo.saveSprint(sprint)
+            val id = c.bus.record(c.actor, "create_sprint", "Created sprint \"$title\"",
+                null, undoDelete("sprint", sprint.id), c.groupId)
+            okResult("Sprint created: ${SfTime.shortDay(startDate)} to ${SfTime.shortDay(endDate)}",
+                jsonOf("id" to sprint.id), id)
+        },
+
+        Capability("complete_sprint", "Mark a sprint as complete with review",
+            listOf("id" to "string", "reviewNotes" to "string"), Risk.LOW) { c ->
+            val sprint = c.repo.sprint(c.str("id"))
+                ?: return@Capability CommandResult.fail("Sprint not found")
+            c.repo.saveSprint(sprint.copy(status = SprintStatus.COMPLETED,
+                reviewNotes = c.str("reviewNotes")))
+            val id = c.bus.record(c.actor, "complete_sprint",
+                "Completed sprint \"${sprint.title}\"",
+                null, null, c.groupId)
+            okResult("Sprint \"${sprint.title}\" completed!", null, id)
+        },
+
+        Capability("abandon_sprint", "End a sprint early with a compassionate note",
+            listOf("id" to "string", "note" to "string"), Risk.LOW) { c ->
+            val sprint = c.repo.sprint(c.str("id"))
+                ?: return@Capability CommandResult.fail("Sprint not found")
+            c.repo.saveSprint(sprint.copy(status = SprintStatus.ABANDONED,
+                reviewNotes = c.str("note")))
+            val id = c.bus.record(c.actor, "abandon_sprint",
+                "Abandoned sprint \"${sprint.title}\"",
+                null, null, c.groupId)
+            okResult("Sprint ended. Some experiments don't work out — that's data, not failure.", null, id)
+        }
+    )
+
+    /* ---------------------------------------------------- setting caps */
+
+    private fun settingCaps() = listOf(
+        Capability("set_theme", "Change the app theme",
+            listOf("theme" to "system|light|dark"), Risk.LOW) { c ->
+            val theme = c.str("theme", "system").lowercase()
+            val mode = when (theme) {
+                "light" -> com.superflow.data.Prefs.THEME_LIGHT
+                "dark" -> com.superflow.data.Prefs.THEME_DARK
+                else -> com.superflow.data.Prefs.THEME_SYSTEM
+            }
+            val prefs = com.superflow.data.Prefs.get(c.bus.context())
+            prefs.themeMode = mode
+            val id = c.bus.record(c.actor, "set_theme", "Changed theme to $theme",
+                null, null, c.groupId)
+            okResult("Theme changed to $theme", null, id)
+        },
+
+        Capability("set_quiet_hours", "Update quiet hours for notifications",
+            listOf("from" to "HH:mm", "to" to "HH:mm"), Risk.LOW) { c ->
+            val prefs = com.superflow.data.Prefs.get(c.bus.context())
+            val from = c.str("from").ifBlank { prefs.quietFrom }
+            val to = c.str("to").ifBlank { prefs.quietTo }
+            prefs.quietFrom = from
+            prefs.quietTo = to
+            val id = c.bus.record(c.actor, "set_quiet_hours",
+                "Quiet hours: $from to $to", null, null, c.groupId)
+            okResult("Quiet hours set to $from - $to", null, id)
+        },
+
+        Capability("set_haptics", "Configure haptic feedback",
+            listOf("enabled" to "bool"), Risk.LOW) { c ->
+            val prefs = com.superflow.data.Prefs.get(c.bus.context())
+            prefs.hapticsEnabled = c.bool("enabled", false)
+            val id = c.bus.record(c.actor, "set_haptics", "Haptics ${if (prefs.hapticsEnabled) "enabled" else "disabled"}",
+                null, null, c.groupId)
+            okResult("Haptics updated", null, id)
+        }
+    )
+
+
+    /* ---------------------------------------------------- analysis caps */
+
+    private fun analysisCaps() = listOf(
+        Capability("analyze_patterns", "Detect time-of-day and day-of-week patterns",
+            listOf(), Risk.LOW) { c ->
+            okResult(Insights.analyzePatterns(c.repo))
+        },
+
+        Capability("analyze_correlations", "Find habit-to-habit correlations",
+            listOf(), Risk.LOW) { c ->
+            okResult(Insights.analyzeCorrelations(c.repo))
+        },
+
+        Capability("predict_consistency", "Predict next week's consistency per habit",
+            listOf(), Risk.LOW) { c ->
+            okResult(Insights.predictConsistency(c.repo))
+        },
+
+        Capability("time_audit", "Estimate daily time commitment",
+            listOf(), Risk.LOW) { c ->
+            val habits = c.repo.habits()
+            val total = habits.sumOf { GrowthEngine.estimateMinutes(it.standardVersion) }
+            val byHabit = habits.joinToString("\n") { h ->
+                "  ${h.title}: ~${GrowthEngine.estimateMinutes(h.standardVersion)} min/day"
+            }
+            okResult("Total daily time: ~$total min\n$byHabit")
+        },
+
+        Capability("obstacle_plan_progress", "Surface obstacle plans for a struggling habit",
+            listOf("habit" to "id or title"), Risk.LOW) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val obstacles = c.repo.obstacles(h.id)
+            if (obstacles.isEmpty()) return@Capability okResult("No obstacle plans set for \"${h.title}\" yet.")
+            val stats = Insights.forHabit(c.repo, h)
+            if (stats.missesInARow < 2) {
+                okResult("Your obstacle plans are ready when you need them:\n" +
+                        obstacles.joinToString("\n") { "  If ${it.ifText}, then ${it.thenText}" })
+            } else {
+                okResult("\"${h.title}\" has missed ${stats.missesInARow} times. Your plans:\n" +
+                        obstacles.joinToString("\n") { "  → If ${it.ifText}, then ${it.thenText}" })
+            }
+        }
+    )
+
+    /* ---------------------------------------------------- coaching caps */
+
+    private fun coachingCaps() = listOf(
+        Capability("weekly_coaching_report", "Generate a comprehensive weekly report",
+            listOf(), Risk.LOW) { c ->
+            okResult(com.superflow.domain.AutoReview.generate(c.repo).review.run {
+                "${periodLabel}\n\nWhat worked: $whatWorked\nWhat didn\'t: $whatDidnt\nSystem change: $systemChange"
+            })
+        },
+
+        Capability("morning_briefing", "Today\'s plan with energy-aware ordering",
+            listOf("energy" to "1-5"), Risk.LOW) { c ->
+            val today = c.repo.clock.today()
+            val habits = c.repo.habitsForDay(today)
+            if (habits.isEmpty()) return@Capability okResult("Nothing scheduled today. A quiet day is allowed.")
+            val energy = c.int("energy", 3).coerceIn(1, 5)
+            val ordered = habits.sortedByDescending { habitScore(it, energy) }
+            val text = ordered.joinToString("\n") { h ->
+                val cue = if (h.cueTime.isNotBlank()) " at ${h.cueTime}" else ""
+                "  • ${h.title}${cue}"
+            }
+            okResult("Today\'s plan (energy: $energy/5):\n$text\n\nFocus on the first 3; tiny versions for the rest.")
+        },
+
+        Capability("evening_reflection", "End-of-day summary with prompt",
+            listOf(), Risk.LOW) { c ->
+            val today = c.repo.clock.today()
+            val (done, total) = Insights.dayProgress(c.repo, today)
+            val summary = Insights.todaySummary(c.repo, today)
+            val prompts = listOf(
+                "What worked today that you want to remember?",
+                "What would you tell your past self about today?",
+                "What evidence did you collect about who you are becoming?"
+            )
+            okResult("$summary\n\n$done of $total done.\n\nEvening prompt: ${prompts.random()}")
+        },
+
+        Capability("diagnose_struggle", "Analyze why a habit is struggling and suggest fixes",
+            listOf("habit" to "id or title"), Risk.LOW) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val stats = Insights.forHabit(c.repo, h)
+            val rating = GrowthEngine.estimateDifficulty(h)
+            val sb = StringBuilder()
+            sb.append("\"${h.title}\" diagnosis:\n\n")
+            sb.append("Consistency: ${stats.consistency30}%, Misses in a row: ${stats.missesInARow}\n")
+            sb.append("Difficulty: ${rating.level.name} (${rating.score}/5)\n")
+            sb.append("Factors:\n")
+            rating.factors.forEach { sb.append("  • $it\n") }
+            sb.append("\nSuggestions:\n")
+            when {
+                stats.missesInARow >= 3 -> sb.append("  → Shrink to tiny version for a week. Recovery is the real skill.\n")
+                rating.score >= 4 -> sb.append("  → Make the tiny version genuinely tiny (2 min).\n")
+                stats.consistency30 < 50 -> sb.append("  → Reduce target days.\n")
+                else -> sb.append("  → Keep going. The variance is normal.\n")
+            }
+            okResult(sb.toString())
+        },
+
+        Capability("reflect", "Start a guided journaling reflection",
+            listOf(), Risk.LOW) { c ->
+            val prompts = listOf(
+                "What evidence did you collect today about who you are becoming?",
+                "What is one thing you are grateful for?",
+                "What was the best moment today and why?"
+            )
+            okResult(prompts.random(), jsonOf("prompt" to prompts.random()))
+        }
+    )
+
+    /* ---------------------------------------------------- blueprint V2 caps */
+
+    private fun blueprintCaps() = listOf(
+        Capability("create_progressive_blueprint", "Compile a Blueprint with phased execution",
+            listOf("projectId" to "string", "goal" to "string", "durationWeeks" to "int",
+                "dailyTimeMinutes" to "int"), Risk.LOW) { c ->
+            val project = c.repo.project(c.str("projectId"))
+                ?: return@Capability CommandResult.fail("Project not found")
+            val sources = c.repo.sources(project.id)
+            val intent = com.superflow.blueprint.CompilerV2.captureIntent(
+                goal = c.str("goal", project.name),
+                dailyTimeMinutes = c.int("dailyTimeMinutes", 30),
+                durationWeeks = c.int("durationWeeks", 8)
+            )
+            val plan = com.superflow.blueprint.CompilerV2.compileForBlueprint(project, sources, intent)
+            val text = "Progressive plan: ${plan.phases.size} phases over ${plan.totalWeeks} weeks (~${plan.estimatedDailyTimeMinutes} min/day)\n\n" +
+                    plan.phases.joinToString("\n") { p ->
+                        "Phase ${p.weekStart}-${p.weekEnd} (${p.label}): ${p.newHabits.size} new habits in ${p.focusArea}"
+                    }
+            okResult(text)
+        },
+
+        Capability("evaluate_blueprint_phase", "Check if current phase is complete",
+            listOf("projectId" to "string"), Risk.LOW) { c ->
+            val project = c.repo.project(c.str("projectId"))
+                ?: return@Capability CommandResult.fail("Project not found")
+            val reqs = c.repo.requirements(project.id)
+            val implemented = reqs.count { it.status == RequirementStatus.IMPLEMENTED }
+            val total = reqs.size
+            if (total == 0) return@Capability okResult("No requirements in this blueprint yet.")
+            val pct = (implemented * 100) / total
+            okResult("Blueprint phase: $implemented / $total implemented (${pct}%).")
+        },
+
+        Capability("advance_blueprint_phase", "Move to the next blueprint phase",
+            listOf("projectId" to "string"), Risk.LOW) { c ->
+            val project = c.repo.project(c.str("projectId"))
+                ?: return@Capability CommandResult.fail("Project not found")
+            // Save current state, then increment version
+            val newProject = project.copy(version = project.version + 1)
+            c.repo.saveProject(newProject)
+            val id = c.bus.record(c.actor, "advance_blueprint_phase",
+                "Advanced to blueprint v${newProject.version}",
+                null, null, c.groupId)
+            okResult("Advanced to blueprint v${newProject.version}", null, id)
+        }
+    )
+
+    /* ---------------------------------------------------- environment caps */
+
+    private fun environmentCaps() = listOf(
+        Capability("set_environment_design", "Set environment design for a habit",
+            listOf("habit" to "id or title", "makeObvious" to "string", "makeAttractive" to "string",
+                "makeEasy" to "string", "makeSatisfying" to "string"), Risk.LOW) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val existing = c.repo.environmentDesign(h.id) ?: EnvironmentDesign(habitId = h.id)
+            val updated = existing.copy(
+                makeObvious = c.str("makeObvious").split("|").map { it.trim() }.filter { it.isNotBlank() }
+                    .ifEmpty { existing.makeObvious },
+                makeAttractive = c.str("makeAttractive").split("|").map { it.trim() }.filter { it.isNotBlank() }
+                    .ifEmpty { existing.makeAttractive },
+                makeEasy = c.str("makeEasy").split("|").map { it.trim() }.filter { it.isNotBlank() }
+                    .ifEmpty { existing.makeEasy },
+                makeSatisfying = c.str("makeSatisfying").split("|").map { it.trim() }.filter { it.isNotBlank() }
+                    .ifEmpty { existing.makeSatisfying }
+            )
+            c.repo.saveEnvironmentDesign(updated)
+            val id = c.bus.record(c.actor, "set_environment_design",
+                "Environment design set for \"${h.title}\"", null, null, c.groupId)
+            okResult("Environment set for \"${h.title}\".", jsonOf("habitId" to h.id), id)
+        },
+
+        Capability("suggest_environment", "Suggest environment changes for a habit",
+            listOf("habit" to "id or title"), Risk.LOW) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val suggestions = buildList {
+                add("Make obvious: Put ${h.title.lowercase()} cues where you can see them")
+                add("Make attractive: Pair ${h.title} with something you enjoy")
+                add("Make easy: Reduce friction to start in 30 seconds")
+                add("Make satisfying: Track on a visible streak counter")
+            }
+            okResult("Environment suggestions for \"${h.title}\":\n" +
+                    suggestions.joinToString("\n") { "  • $it" })
+        }
+    )
+
+    /* ---------------------------------------------------- simulation caps */
+
+    private fun simulationCaps() = listOf(
+        Capability("simulate_reschedule", "Preview the impact of changing a schedule",
+            listOf("habit" to "id or title", "cueTime" to "HH:mm", "days" to "string"),
+            Risk.LOW) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val newTime = c.str("cueTime").ifBlank { h.cueTime }
+            val newDays = c.str("days").ifBlank { "daily" }
+            okResult("Changing \"${h.title}\" to $newTime on $newDays. " +
+                    "This will only affect new check-ins; history is preserved.")
+        }
+    )
+
+    /* ---------------------------------------------------- notification caps */
+
+    private fun notificationCaps() = listOf(
+        Capability("set_reminders_enabled", "Toggle habit reminders on or off",
+            listOf("enabled" to "bool"), Risk.LOW) { c ->
+            val prefs = com.superflow.data.Prefs.get(c.bus.context())
+            prefs.remindersEnabled = c.bool("enabled", true)
+            com.superflow.notify.Reminders.rescheduleAll(c.bus.context())
+            val id = c.bus.record(c.actor, "set_reminders_enabled",
+                "Reminders ${if (prefs.remindersEnabled) "enabled" else "disabled"}",
+                null, null, c.groupId)
+            okResult("Reminders ${if (prefs.remindersEnabled) "on" else "off"}", null, id)
+        },
+
+        Capability("set_growth_plans_enabled", "Toggle the growth plan system",
+            listOf("enabled" to "bool"), Risk.LOW) { c ->
+            val prefs = com.superflow.data.Prefs.get(c.bus.context())
+            prefs.growthPlansEnabled = c.bool("enabled", true)
+            val id = c.bus.record(c.actor, "set_growth_plans_enabled",
+                "Growth plans ${if (prefs.growthPlansEnabled) "enabled" else "disabled"}",
+                null, null, c.groupId)
+            okResult("Growth plans ${if (prefs.growthPlansEnabled) "on" else "off"}", null, id)
+        }
+    )
+
     /* ---------------------------------------------------------------- helpers */
+
+    /** Energy-aware ordering: high energy → harder habits first; low energy → easier first. */
+    private fun habitScore(h: Habit, energy: Int): Int =
+        if (energy >= 4) h.difficultyRating else 6 - h.difficultyRating
 
     private val habitFields: List<Pair<String, String>> = listOf(
         "title" to "", "tinyStart" to "", "minimumVersion" to "", "standardVersion" to "",

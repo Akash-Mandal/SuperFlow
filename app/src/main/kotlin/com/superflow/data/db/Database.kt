@@ -193,6 +193,86 @@ object Schema {
                 id TEXT PRIMARY KEY, identityId TEXT, text TEXT, sourceHabitId TEXT,
                 date TEXT, createdAt INTEGER)"""
         )
+
+        // ── Functional Plan (PR #8) new tables ──────────────────────────
+        db.execSQL(
+            """CREATE TABLE growth_plan(
+                id TEXT PRIMARY KEY, habit_id TEXT NOT NULL, user_id TEXT DEFAULT 'local',
+                phases_json TEXT NOT NULL, current_phase_index INTEGER DEFAULT 0,
+                upgrade_policy_json TEXT NOT NULL, weekly_snapshots_json TEXT DEFAULT '[]',
+                last_upgrade_date TEXT DEFAULT '', next_review_date TEXT DEFAULT '',
+                created_at INTEGER NOT NULL)"""
+        )
+        db.execSQL("CREATE INDEX idx_growth_plan_habit ON growth_plan(habit_id)")
+
+        db.execSQL(
+            """CREATE TABLE milestone(
+                id TEXT PRIMARY KEY, habit_id TEXT, type TEXT NOT NULL,
+                value INTEGER NOT NULL, label TEXT NOT NULL,
+                acknowledged INTEGER DEFAULT 0, achieved_at INTEGER NOT NULL)"""
+        )
+        db.execSQL("CREATE INDEX idx_milestone_habit ON milestone(habit_id)")
+
+        db.execSQL(
+            """CREATE TABLE sprint(
+                id TEXT PRIMARY KEY, title TEXT NOT NULL, start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL, focus_habits_json TEXT DEFAULT '[]',
+                goals_json TEXT DEFAULT '[]', status TEXT DEFAULT 'PLANNED',
+                review_notes TEXT DEFAULT '', created_at INTEGER NOT NULL)"""
+        )
+
+        db.execSQL(
+            """CREATE TABLE journal_entry(
+                id TEXT PRIMARY KEY, date TEXT NOT NULL, prompt TEXT DEFAULT '',
+                content TEXT NOT NULL, mood INTEGER,
+                tags_json TEXT DEFAULT '[]', created_at INTEGER NOT NULL)"""
+        )
+        db.execSQL("CREATE INDEX idx_journal_date ON journal_entry(date)")
+
+        db.execSQL(
+            """CREATE TABLE routine(
+                id TEXT PRIMARY KEY, title TEXT NOT NULL, trigger_text TEXT DEFAULT '',
+                estimated_minutes INTEGER DEFAULT 0, status TEXT DEFAULT 'ACTIVE',
+                created_at INTEGER NOT NULL)"""
+        )
+        db.execSQL(
+            """CREATE TABLE routine_step(
+                id TEXT PRIMARY KEY, routine_id TEXT NOT NULL, habit_id TEXT,
+                title TEXT NOT NULL, duration_minutes INTEGER DEFAULT 5,
+                order_index INTEGER DEFAULT 0, transition_note TEXT DEFAULT '')"""
+        )
+
+        db.execSQL(
+            """CREATE TABLE environment_design(
+                habit_id TEXT PRIMARY KEY, make_obvious_json TEXT DEFAULT '[]',
+                make_attractive_json TEXT DEFAULT '[]', make_easy_json TEXT DEFAULT '[]',
+                make_satisfying_json TEXT DEFAULT '[]', make_invisible_json TEXT DEFAULT '[]',
+                make_unattractive_json TEXT DEFAULT '[]', make_difficult_json TEXT DEFAULT '[]',
+                make_unsatisfying_json TEXT DEFAULT '[]')"""
+        )
+
+        db.execSQL(
+            """CREATE TABLE ai_memory(
+                id TEXT PRIMARY KEY, category TEXT NOT NULL, content TEXT NOT NULL,
+                importance INTEGER DEFAULT 5, last_accessed INTEGER NOT NULL,
+                access_count INTEGER DEFAULT 0, created_at INTEGER NOT NULL)"""
+        )
+        db.execSQL("CREATE INDEX idx_memory_category ON ai_memory(category)")
+
+        db.execSQL(
+            """CREATE TABLE proactive_suggestion(
+                id TEXT PRIMARY KEY, type TEXT NOT NULL, text TEXT NOT NULL,
+                priority TEXT DEFAULT 'MEDIUM', auto_action_json TEXT DEFAULT '',
+                habit_id TEXT, dismissed INTEGER DEFAULT 0, applied INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL)"""
+        )
+
+        db.execSQL(
+            """CREATE TABLE growth_phase_history(
+                id TEXT PRIMARY KEY, growth_plan_id TEXT NOT NULL,
+                phase_index INTEGER NOT NULL, action TEXT NOT NULL,
+                consistency INTEGER DEFAULT 0, date TEXT NOT NULL, notes TEXT DEFAULT '')"""
+        )
     }
 
     /**
@@ -334,6 +414,75 @@ object Schema {
             db.execSQL("""CREATE TABLE IF NOT EXISTS evidence(
                 id TEXT PRIMARY KEY, identityId TEXT, text TEXT, sourceHabitId TEXT,
                 date TEXT, createdAt INTEGER)""")
+        }
+        // ── Functional Plan (PR #8) new tables (idempotent) ─────────────
+        runCatching {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS growth_plan(
+                id TEXT PRIMARY KEY, habit_id TEXT NOT NULL, user_id TEXT DEFAULT 'local',
+                phases_json TEXT NOT NULL, current_phase_index INTEGER DEFAULT 0,
+                upgrade_policy_json TEXT NOT NULL, weekly_snapshots_json TEXT DEFAULT '[]',
+                last_upgrade_date TEXT DEFAULT '', next_review_date TEXT DEFAULT '',
+                created_at INTEGER NOT NULL)""")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_growth_plan_habit ON growth_plan(habit_id)")
+        }
+        runCatching {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS milestone(
+                id TEXT PRIMARY KEY, habit_id TEXT, type TEXT NOT NULL,
+                value INTEGER NOT NULL, label TEXT NOT NULL,
+                acknowledged INTEGER DEFAULT 0, achieved_at INTEGER NOT NULL)""")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_milestone_habit ON milestone(habit_id)")
+        }
+        runCatching {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS sprint(
+                id TEXT PRIMARY KEY, title TEXT NOT NULL, start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL, focus_habits_json TEXT DEFAULT '[]',
+                goals_json TEXT DEFAULT '[]', status TEXT DEFAULT 'PLANNED',
+                review_notes TEXT DEFAULT '', created_at INTEGER NOT NULL)""")
+        }
+        runCatching {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS journal_entry(
+                id TEXT PRIMARY KEY, date TEXT NOT NULL, prompt TEXT DEFAULT '',
+                content TEXT NOT NULL, mood INTEGER,
+                tags_json TEXT DEFAULT '[]', created_at INTEGER NOT NULL)""")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_journal_date ON journal_entry(date)")
+        }
+        runCatching {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS routine(
+                id TEXT PRIMARY KEY, title TEXT NOT NULL, trigger_text TEXT DEFAULT '',
+                estimated_minutes INTEGER DEFAULT 0, status TEXT DEFAULT 'ACTIVE',
+                created_at INTEGER NOT NULL)""")
+            db.execSQL("""CREATE TABLE IF NOT EXISTS routine_step(
+                id TEXT PRIMARY KEY, routine_id TEXT NOT NULL, habit_id TEXT,
+                title TEXT NOT NULL, duration_minutes INTEGER DEFAULT 5,
+                order_index INTEGER DEFAULT 0, transition_note TEXT DEFAULT '')""")
+        }
+        runCatching {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS environment_design(
+                habit_id TEXT PRIMARY KEY, make_obvious_json TEXT DEFAULT '[]',
+                make_attractive_json TEXT DEFAULT '[]', make_easy_json TEXT DEFAULT '[]',
+                make_satisfying_json TEXT DEFAULT '[]', make_invisible_json TEXT DEFAULT '[]',
+                make_unattractive_json TEXT DEFAULT '[]', make_difficult_json TEXT DEFAULT '[]',
+                make_unsatisfying_json TEXT DEFAULT '[]')""")
+        }
+        runCatching {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS ai_memory(
+                id TEXT PRIMARY KEY, category TEXT NOT NULL, content TEXT NOT NULL,
+                importance INTEGER DEFAULT 5, last_accessed INTEGER NOT NULL,
+                access_count INTEGER DEFAULT 0, created_at INTEGER NOT NULL)""")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_memory_category ON ai_memory(category)")
+        }
+        runCatching {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS proactive_suggestion(
+                id TEXT PRIMARY KEY, type TEXT NOT NULL, text TEXT NOT NULL,
+                priority TEXT DEFAULT 'MEDIUM', auto_action_json TEXT DEFAULT '',
+                habit_id TEXT, dismissed INTEGER DEFAULT 0, applied INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL)""")
+        }
+        runCatching {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS growth_phase_history(
+                id TEXT PRIMARY KEY, growth_plan_id TEXT NOT NULL,
+                phase_index INTEGER NOT NULL, action TEXT NOT NULL,
+                consistency INTEGER DEFAULT 0, date TEXT NOT NULL, notes TEXT DEFAULT '')""")
         }
     }
 }

@@ -119,6 +119,9 @@
     <string name="channel_habits_desc">Gentle nudges for the habits you scheduled</string>
     <string name="channel_checkpoints">Checkpoints</string>
     <string name="channel_checkpoints_desc">Morning, midday and evening check-ins</string>
+    <string name="channel_proactive">AI suggestions</string>
+    <string name="channel_proactive_desc">Proactive insights and suggestions from your AI coach</string>
+
 
     <!-- Content descriptions -->
     <string name="cd_back">Navigate up</string>

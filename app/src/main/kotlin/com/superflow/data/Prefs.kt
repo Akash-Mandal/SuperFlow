@@ -357,6 +357,14 @@ class Prefs private constructor(context: Context) {
         get() = str("sttProvider", "platform")
         set(v) = setStr("sttProvider", v)
 
+    var preferredSttProvider: String
+        get() = str("preferredSttProvider", "")
+        set(v) = setStr("preferredSttProvider", v)
+
+    var whisperApiKey: String
+        get() = secrets.getString("whisperApiKey", "") ?: ""
+        set(v) { secrets.edit().putString("whisperApiKey", v).apply(); bump() }
+
     var proactiveAi: Boolean
         get() = bool("proactiveAi", true)
         set(v) = setBool("proactiveAi", v)
@@ -364,6 +372,10 @@ class Prefs private constructor(context: Context) {
     var proactiveNotifications: Boolean
         get() = bool("proactiveNotif", true)
         set(v) = setBool("proactiveNotif", v)
+
+    var growthPlansEnabled: Boolean
+        get() = bool("growthPlans", true)
+        set(v) = setBool("growthPlans", v)
 
     /* ---- Data management ---- */
 

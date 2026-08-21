@@ -5,6 +5,7 @@ import com.superflow.data.model.*
 import com.superflow.util.objects
 import com.superflow.util.string
 import org.json.JSONArray
+import org.json.JSONObject
 
 /** Cursor read helpers plus row mappers, kept in one place. */
 
@@ -203,6 +204,153 @@ object Rows {
         c.str("id"), c.str("projectId"), c.int("version"), c.str("label"),
         c.str("ledgerJson"), c.lng("createdAt")
     )
+
+    /* ───────────────────────────────────────────────────── Phase 1 mappers */
+
+    fun growthPlan(c: Cursor): GrowthPlan {
+        val phases = parseJsonArray(c.str("phases_json"))?.let { arr ->
+            (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONObject(i)?.let { obj -> growthPhaseFromJson(obj) }
+            }
+        } ?: emptyList()
+        val snapshots = parseJsonArray(c.str("weekly_snapshots_json"))?.let { arr ->
+            (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONObject(i)?.let { obj -> weeklySnapshotFromJson(obj) }
+            }
+        } ?: emptyList()
+        return GrowthPlan(
+            id = c.str("id"), habitId = c.str("habit_id"), userId = c.str("user_id"),
+            createdAt = c.lng("created_at"), phases = phases,
+            currentPhaseIndex = c.int("current_phase_index"),
+            upgradePolicy = upgradePolicyFromJson(c.str("upgrade_policy_json")) ?: UpgradePolicy(),
+            weeklySnapshots = snapshots,
+            lastUpgradeDate = c.str("last_upgrade_date"),
+            nextReviewDate = c.str("next_review_date")
+        )
+    }
+
+    private fun growthPhaseFromJson(obj: JSONObject) = GrowthPhase(
+        weekNumber = obj.optInt("weekNumber"), label = obj.optString("label"),
+        tinyStart = obj.optString("tinyStart"), minimumVersion = obj.optString("minimumVersion"),
+        standardVersion = obj.optString("standardVersion"), stretchVersion = obj.optString("stretchVersion"),
+        targetDays = obj.optInt("targetDays"), notes = obj.optString("notes"),
+        metrics = obj.optJSONObject("metrics")?.let { phaseMetricsFromJson(it) } ?: PhaseMetrics()
+    )
+
+    private fun phaseMetricsFromJson(obj: JSONObject) = PhaseMetrics(
+        minConsistency = obj.optInt("minConsistency", 60),
+        minRecoveries = obj.optInt("minRecoveries", 0),
+        maxMissesInARow = obj.optInt("maxMissesInARow", 2),
+        minEnergy = obj.optInt("minEnergy", 0)
+    )
+
+    private fun upgradePolicyFromJson(json: String): UpgradePolicy? {
+        val obj = parseObject(json) ?: return null
+        return UpgradePolicy(
+            autoUpgrade = obj.optBoolean("autoUpgrade", true),
+            upgradeDay = obj.optInt("upgradeDay", 1),
+            minWeeksInPhase = obj.optInt("minWeeksInPhase", 1),
+            maxWeeksInPhase = obj.optInt("maxWeeksInPhase", 4),
+            downgradeOnStruggle = obj.optBoolean("downgradeOnStruggle", true),
+            struggleThreshold = obj.optInt("struggleThreshold", 3)
+        )
+    }
+
+    private fun weeklySnapshotFromJson(obj: JSONObject) = WeeklySnapshot(
+        weekNumber = obj.optInt("weekNumber"), phaseIndex = obj.optInt("phaseIndex"),
+        consistency = obj.optInt("consistency"), repetitions = obj.optInt("repetitions"),
+        misses = obj.optInt("misses"), recoveries = obj.optInt("recoveries"),
+        averageEnergy = if (obj.has("averageEnergy") && !obj.isNull("averageEnergy"))
+            obj.optDouble("averageEnergy") else null,
+        decision = UpgradeDecision.valueOf(obj.optString("decision", "HOLD")),
+        date = obj.optString("date")
+    )
+
+    private fun parseObject(text: String): JSONObject? = try {
+        JSONObject(text)
+    } catch (e: Exception) { null }
+
+    private fun parseJsonArray(text: String): JSONArray? = try {
+        JSONArray(text)
+    } catch (e: Exception) { null }
+
+    fun milestone(c: Cursor) = Milestone(
+        c.str("id"), c.strOrNull("habit_id"),
+        MilestoneType.valueOf(c.str("type").ifBlank { "FIRST_CHECKIN" }),
+        c.int("value"), c.str("label"), c.lng("achieved_at"), c.bool("acknowledged")
+    )
+
+    fun sprint(c: Cursor): Sprint {
+        val focusHabits = parseJsonArray(c.str("focus_habits_json"))?.strings() ?: emptyList()
+        val goals = parseJsonArray(c.str("goals_json"))?.strings() ?: emptyList()
+        return Sprint(
+            id = c.str("id"), title = c.str("title"),
+            startDate = c.str("start_date"), endDate = c.str("end_date"),
+            focusHabits = focusHabits, goals = goals,
+            status = SprintStatus.valueOf(c.str("status").ifBlank { "PLANNED" }),
+            reviewNotes = c.str("review_notes"), createdAt = c.lng("created_at")
+        )
+    }
+
+    fun journalEntry(c: Cursor): JournalEntry {
+        val tags = parseJsonArray(c.str("tags_json"))?.strings() ?: emptyList()
+        return JournalEntry(
+            id = c.str("id"), date = c.str("date"), prompt = c.str("prompt"),
+            content = c.str("content"), mood = c.int("mood").let { if (it == 0) null else it },
+            tags = tags, createdAt = c.lng("created_at")
+        )
+    }
+
+    fun routine(c: Cursor) = Routine(
+        id = c.str("id"), title = c.str("title"), trigger = c.str("trigger_text"),
+        estimatedMinutes = c.int("estimated_minutes"),
+        status = Status.valueOf(c.str("status").ifBlank { "ACTIVE" }),
+        createdAt = c.lng("created_at")
+    )
+
+    fun routineStep(c: Cursor) = RoutineStep(
+        id = c.str("id"), routineId = c.str("routine_id"), habitId = c.strOrNull("habit_id"),
+        title = c.str("title"), durationMinutes = c.int("duration_minutes"),
+        orderIndex = c.int("order_index"), transitionNote = c.str("transition_note")
+    )
+
+    fun environmentDesign(c: Cursor) = EnvironmentDesign(
+        habitId = c.str("habit_id"),
+        makeObvious = parseJsonArray(c.str("make_obvious_json"))?.strings() ?: emptyList(),
+        makeAttractive = parseJsonArray(c.str("make_attractive_json"))?.strings() ?: emptyList(),
+        makeEasy = parseJsonArray(c.str("make_easy_json"))?.strings() ?: emptyList(),
+        makeSatisfying = parseJsonArray(c.str("make_satisfying_json"))?.strings() ?: emptyList(),
+        makeInvisible = parseJsonArray(c.str("make_invisible_json"))?.strings() ?: emptyList(),
+        makeUnattractive = parseJsonArray(c.str("make_unattractive_json"))?.strings() ?: emptyList(),
+        makeDifficult = parseJsonArray(c.str("make_difficult_json"))?.strings() ?: emptyList(),
+        makeUnsatisfying = parseJsonArray(c.str("make_unsatisfying_json"))?.strings() ?: emptyList()
+    )
+
+    fun aiMemory(c: Cursor) = AiMemory(
+        id = c.str("id"),
+        category = MemoryCategory.valueOf(c.str("category").ifBlank { "USER_PREFERENCE" }),
+        content = c.str("content"), importance = c.int("importance"),
+        lastAccessed = c.lng("last_accessed"), accessCount = c.int("access_count"),
+        createdAt = c.lng("created_at")
+    )
+
+    fun proactiveSuggestion(c: Cursor) = ProactiveSuggestion(
+        id = c.str("id"),
+        type = SuggestionType.valueOf(c.str("type").ifBlank { "FOCUS" }),
+        text = c.str("text"),
+        priority = Priority.valueOf(c.str("priority").ifBlank { "MEDIUM" }),
+        autoActionJson = c.str("auto_action_json"),
+        habitId = c.strOrNull("habit_id"),
+        createdAt = c.lng("created_at"),
+        dismissed = c.bool("dismissed"),
+        applied = c.bool("applied")
+    )
+
+    fun growthPhaseHistory(c: Cursor) = GrowthPhaseHistory(
+        id = c.str("id"), growthPlanId = c.str("growth_plan_id"),
+        phaseIndex = c.int("phase_index"), action = c.str("action"),
+        consistency = c.int("consistency"), date = c.str("date"), notes = c.str("notes")
+    )
 }
 
 /* --------------------------------------------------------------- JSON parsers */
@@ -285,3 +433,6 @@ private fun parseReviewActionItems(raw: String): List<ReviewActionItem> {
         }
     } catch (_: Exception) { emptyList() }
 }
+
+private fun JSONArray.strings(): List<String> =
+    (0 until length()).map { optString(it, "") }.filter { it.isNotBlank() }

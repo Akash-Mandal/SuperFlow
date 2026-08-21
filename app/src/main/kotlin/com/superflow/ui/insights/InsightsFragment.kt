@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.superflow.R
+import com.superflow.data.Prefs
 import com.superflow.data.Repository
 import com.superflow.data.model.CheckInResult
 import com.superflow.domain.Insights
@@ -68,11 +69,27 @@ sealed class InsightRow {
     data class Text(val title: String, val body: String) : InsightRow() {
         override val stableId = ("t$title").hashCode().toLong()
     }
+
+    data class GrowthTrajectory(
+        val title: String,
+        val phasesCount: Int,
+        val currentPhase: Int,
+        val consistencies: List<Int>
+    ) : InsightRow() { override val stableId = 100L }
+
+    data class Correlation(val text: String) : InsightRow() {
+        override val stableId = 101L
+    }
+
+    data class RecoveryStats(val title: String, val text: String) : InsightRow() {
+        override val stableId = 102L
+    }
 }
 
 class InsightsViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = Repository.get(app)
+    val prefs: Prefs = Prefs.get(app)
     private val _rows = MutableStateFlow<List<InsightRow>>(emptyList())
     val rows: StateFlow<List<InsightRow>> = _rows.asStateFlow()
 
@@ -215,6 +232,43 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
 
+        // Growth trajectory
+        val growthPlans = repo.growthPlans().filter { it.isActive() }
+        if (growthPlans.isNotEmpty()) {
+            rows.add(InsightRow.Section("GROWTH TRAJECTORY"))
+            for (plan in growthPlans) {
+                val habit = repo.habit(plan.habitId)
+                val consistencies = plan.weeklySnapshots.map { it.consistency }
+                if (consistencies.isNotEmpty()) {
+                    rows.add(InsightRow.GrowthTrajectory(
+                        title = "${habit?.title ?: "Habit"} (Phase ${plan.currentPhaseIndex + 1}/${plan.phases.size})",
+                        phasesCount = plan.phases.size,
+                        currentPhase = plan.currentPhaseIndex,
+                        consistencies = consistencies
+                    ))
+                }
+            }
+        }
+
+        // Pattern analysis
+        if (stats.size >= 2 && checkIns.size >= 20) {
+            rows.add(InsightRow.Section("PATTERNS"))
+            rows.add(InsightRow.Correlation(Insights.analyzePatterns(repo)))
+            rows.add(InsightRow.Correlation(Insights.analyzeCorrelations(repo)))
+        }
+
+        // Recovery speed
+        if (stats.any { it.recoveries > 0 }) {
+            rows.add(InsightRow.Section("RECOVERY SPEED"))
+            rows.add(InsightRow.RecoveryStats("Recovery trend", Insights.recoverySpeed(repo)))
+        }
+
+        // Energy-aware schedule
+        if (prefs.energyTracking) {
+            rows.add(InsightRow.Section("ENERGY & SCHEDULE"))
+            rows.add(InsightRow.Text("Energy-aware advice", Insights.energyAwareSchedule(repo)))
+        }
+
         return rows
     }
 }
@@ -283,6 +337,9 @@ class InsightsAdapter : ListAdapter<InsightRow, RecyclerView.ViewHolder>(DIFF) {
         is InsightRow.Section -> T_SECTION
         is InsightRow.HabitStat -> T_HABIT
         is InsightRow.Text -> T_TEXT
+        is InsightRow.GrowthTrajectory -> T_CHART
+        is InsightRow.Correlation -> T_TEXT
+        is InsightRow.RecoveryStats -> T_TEXT
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {

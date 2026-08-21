@@ -40,6 +40,7 @@ object Reminders {
 
     const val CHANNEL_HABITS = "superflow_habits"
     const val CHANNEL_CHECKPOINTS = "superflow_checkpoints"
+    const val CHANNEL_PROACTIVE = "superflow_proactive"
 
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < 26) return
@@ -49,6 +50,14 @@ object Reminders {
                 context.getString(R.string.channel_habits),
                 NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = context.getString(R.string.channel_habits_desc)
+                setShowBadge(false)
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_PROACTIVE,
+                context.getString(R.string.channel_proactive),
+                NotificationManager.IMPORTANCE_LOW).apply {
+                description = context.getString(R.string.channel_proactive_desc)
                 setShowBadge(false)
             }
         )
@@ -263,6 +272,28 @@ object Reminders {
             // reminders simply will not surface. Log for supportability.
             Log.w(TAG, "Not permitted to show notification $id", e)
         }
+    }
+
+    
+    fun showProactiveNotification(
+        context: Context,
+        suggestion: com.superflow.data.model.ProactiveSuggestion
+    ) {
+        if (!Prefs.get(context).proactiveNotifications) return
+        val id = suggestion.id.hashCode() and 0xFFFF
+        notify(
+            context, id + 10000, CHANNEL_CHECKPOINTS,
+            suggestion.type.name.lowercase().replaceFirstChar { it.uppercase() },
+            suggestion.text,
+            listOf(
+                action(context, R.drawable.ic_check, "View",
+                    mapOf("kind" to "action", "action" to "open_proactive", "suggestionId" to suggestion.id),
+                    id * 3),
+                action(context, R.drawable.ic_close, "Dismiss",
+                    mapOf("kind" to "action", "action" to "dismiss_proactive", "suggestionId" to suggestion.id),
+                    id * 3 + 1)
+            )
+        )
     }
 
     fun action(

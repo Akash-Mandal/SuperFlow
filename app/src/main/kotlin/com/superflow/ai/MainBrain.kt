@@ -108,8 +108,17 @@ object MainBrain {
                 }
             }
         }
-        if (prefs.contextIncludeMemory && prefs.memoryNotes.isNotBlank()) {
-            sb.append("\nUser notes to remember:\n").append(prefs.memoryNotes).append('\n')
+        if (prefs.contextIncludeMemory) {
+            val memories = repo.memories()
+                .sortedByDescending { it.importance * it.accessCount }
+                .take(10)
+            if (memories.isNotEmpty()) {
+                sb.append("\nThings you've told me to remember:\n")
+                memories.forEach { sb.append("- [${it.category}] ${it.content}\n") }
+            }
+            if (prefs.memoryNotes.isNotBlank()) {
+                sb.append("\nUser notes to remember:\n").append(prefs.memoryNotes).append('\n')
+            }
         }
         // Explicit instructions (always included when set)
         if (prefs.aiInstructions.isNotBlank()) {
