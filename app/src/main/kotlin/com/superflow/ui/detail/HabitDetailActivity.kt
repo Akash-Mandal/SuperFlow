@@ -169,6 +169,34 @@ class HabitDetailActivity : ScrollActivity() {
         content.addView(section("THE LADDER"))
         content.addView(textCard("Every kind of day",
             Level.values().joinToString("\n") { "${it.label}: ${h.levelText(it)}" }))
+        content.addView(textCard("Ladder advice", Insights.ladderAdvice(repo, h)))
+
+        // Four Laws health (§4)
+        content.addView(section("FOUR LAWS HEALTH"))
+        val laws = buildString {
+            append("Reward: ").append(
+                if (h.rewardSatisfaction == null) "not rated yet"
+                else "${h.rewardSatisfaction}/5 (rated ${h.rewardLastRated ?: "recently"})")
+            append('\n')
+            append("Reframe: ").append(
+                when (h.reframeHelpful) {
+                    null -> "not tested yet"
+                    true -> "helped on a hard day"
+                    false -> "did not help — consider a new one"
+                })
+            append('\n')
+            append("Temptation bundle: ").append(
+                if (h.bundleEffectiveness == null) "not rated yet"
+                else "${h.bundleEffectiveness}/5")
+            append('\n')
+            append("Friction plan: ").append(
+                if (h.frictionPlanActive) "active" else "written but not activated")
+            if (h.temptationBundle.isNotBlank() || h.reward.isNotBlank()) {
+                append('\n')
+                append("Capacity: ~${h.estimatedMinutes} min/day, difficulty ${h.difficultyRating}/5")
+            }
+        }
+        content.addView(textCard("Which laws are working?", laws))
 
         // Design
         content.addView(section("THE DESIGN"))

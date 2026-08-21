@@ -170,9 +170,41 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
             ))
         }
 
+        // System health (§3)
+        val systems = Insights.systemHealthAll(repo)
+        if (systems.isNotEmpty()) {
+            rows.add(InsightRow.Section("SYSTEMS"))
+            for ((title, health, habits) in systems) {
+                rows.add(InsightRow.Text(
+                    title,
+                    if (habits == 0) "No habits under this system yet."
+                    else "$health% healthy · $habits habits" +
+                            if (health < 40) " · Consider shrinking or rescheduling."
+                            else if (health >= 80) " · Working well."
+                            else ""
+                ))
+            }
+        }
+
+        // Miss reasons (§8)
+        val reasons = Insights.missReasons(repo, 30)
+        if (reasons.isNotEmpty()) {
+            rows.add(InsightRow.Section("MISS REASONS"))
+            val total = reasons.sumOf { it.second }
+            rows.add(InsightRow.Text("What got in the way",
+                reasons.joinToString("\n") { (r, n) ->
+                    "· $r — $n (${(n * 100) / total}%)"
+                } + "\n\nPatterns point to the fix: time → time-blocking, energy → " +
+                        "schedule at your best hours, forgot → a stronger cue."))
+        }
+
         // Energy
         rows.add(InsightRow.Section("ENERGY"))
         rows.add(InsightRow.Text("Energy pattern", Insights.energyPattern(repo)))
+        val corr = Insights.energyCorrelation(repo, 30)
+        if (repo.energyLogs().size >= 6) {
+            rows.add(InsightRow.Text("Energy and completion", corr))
+        }
 
         // Reduce mode
         val reduce = Insights.reduceModeProgress(snap)

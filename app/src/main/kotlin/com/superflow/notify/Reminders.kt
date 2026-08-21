@@ -143,6 +143,26 @@ object Reminders {
                 budget--
             }
 
+            // Environment prep reminders (§4): "Prep for [habit]: [environmentPrep]"
+            // fires the evening before a morning habit, or a few hours before otherwise.
+            val prepHabits = repo.habits()
+                .filter { it.environmentPrep.isNotBlank() && Dates.isValidTime(it.cueTime) }
+            for (h in prepHabits) {
+                if (budget <= 0) break
+                val prepTime = h.environmentPrepReminderTime
+                    ?.takeIf { Dates.isValidTime(it) }
+                    ?: defaultPrepTime(h.cueTime)
+                if (inQuietHours(prefs, prepTime)) continue
+                val intent = Intent(context, ReminderReceiver::class.java).apply {
+                    putExtra("kind", "prep")
+                    putExtra("habitId", h.id)
+                    putExtra("title", h.title)
+                    putExtra("prep", h.environmentPrep)
+                }
+                schedule(context, am, slot++, prepTime, intent)
+                budget--
+            }
+
             if (prefs.checkpointsEnabled) {
                 val cps = listOf(
                     Checkpoint.MORNING to prefs.morningCheckpoint,
@@ -163,6 +183,19 @@ object Reminders {
             // the app down, but it is not silent either.
             Log.w(TAG, "Reminder reschedule failed", e)
         }
+    }
+
+    /**
+     * Default prep time (§4): the evening before (21:00) when the cue is before
+     * noon, otherwise two hours before the cue.
+     */
+    fun defaultPrepTime(cueTime: String): String {
+        val minutes = Dates.minutesOfDay(cueTime)
+        if (minutes < 0) return "21:00"
+        val prep = if (minutes < 12 * 60) 21 * 60 else (minutes - 120).coerceAtLeast(0)
+        val hh = (prep / 60).toString().padStart(2, '0')
+        val mm = (prep % 60).toString().padStart(2, '0')
+        return "$hh:$mm"
     }
 
     private fun schedule(context: Context, am: AlarmManager, slot: Int, hhmm: String, intent: Intent) {
@@ -300,6 +333,19 @@ class ReminderReceiver : BroadcastReceiver() {
                             id * 3 + 2)
                     )
                 )
+            }
+
+            "prep" -> {
+                val habitId = intent.getStringExtra("habitId") ?: return
+                val title = intent.getStringExtra("title") ?: "Your habit"
+                val prep = intent.getStringExtra("prep").orEmpty()
+                if (!prefs.remindersEnabled || Reminders.inQuietHours(prefs, SfTime.formatTime(java.time.LocalTime.now()))) return
+                val repo = Repository.get(context)
+                if (repo.checkIn(habitId, SfTime.format(repo.clock.today())) != null) return
+                val id = (habitId.hashCode() and 0xFFFF) + 4096
+                Reminders.notify(context, id, Reminders.CHANNEL_HABITS,
+                    "Prep for $title",
+                    prep.ifBlank { "A little preparation now saves friction later." })
             }
 
             "checkpoint" -> {

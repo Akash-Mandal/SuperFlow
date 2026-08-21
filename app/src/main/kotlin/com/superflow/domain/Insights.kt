@@ -12,6 +12,8 @@ import com.superflow.data.model.CheckInResult
 import com.superflow.data.model.Habit
 import com.superflow.data.model.HabitMode
 import com.superflow.data.model.HabitStats
+import com.superflow.data.model.Level
+import com.superflow.data.model.Sys
 import java.time.LocalDate
 
 /**
@@ -139,6 +141,21 @@ object Insights {
         if (returning.isNotEmpty()) {
             sb.append(" Return today: ").append(returning.joinToString(", ") { it.title }).append('.')
         }
+
+        // Recovery celebration (§8): a check-in today after a miss is a comeback.
+        val recoveries = repo.habitsForDay(date).filter { isRecovery(repo, it, date) }
+        if (recoveries.isNotEmpty()) {
+            sb.append(" You came back after a miss: ").append(recoveries.joinToString(", ") { it.title })
+                .append(". That is the skill that matters most.")
+        }
+
+        // Identity evolution prompt (§1): ~30 days of living an identity.
+        val due = identityReviewDue(repo)
+        if (due.isNotEmpty()) {
+            sb.append(" Review due: ")
+            sb.append(due.joinToString(", ") { "\"${it.statement}\"" })
+            sb.append(" — is it still who you are becoming?")
+        }
         return sb.toString()
     }
 
@@ -182,6 +199,32 @@ object Insights {
             val votes = stats.filter { it.habit.identityId == i.id }.sumOf { it.repetitions }
             sb.append("· ${i.statement}: $votes votes\n")
         }
+
+        val reasons = missReasons(repo, days)
+        if (reasons.isNotEmpty()) {
+            sb.append("\nTop miss reasons:\n")
+            val totalMisses = reasons.sumOf { it.second }
+            reasons.take(3).forEach { (reason, count) ->
+                val pct = (count * 100) / totalMisses
+                sb.append("· $reason ($pct%)\n")
+            }
+            val top = reasons.firstOrNull()
+            if (top != null) {
+                sb.append("Consider: ${when (top.first) {
+                    "time" -> "time-blocking or pairing the habit with an existing routine."
+                    "energy" -> "scheduling the habit at your naturally higher-energy time."
+                    "forgot" -> "a stronger cue — time, place, or a visual trigger."
+                    "motivation" -> "shrinking the habit until it feels almost too easy."
+                    else -> "a specific obstacle plan for this pattern."
+                }}\n")
+            }
+        }
+
+        val corr = energyCorrelation(repo, days)
+        if (corr.isNotBlank() && repo.energyLogs().size >= 6) {
+            sb.append("\n").append(corr).append('\n')
+        }
+
         return sb.toString().trim()
     }
 
@@ -295,5 +338,201 @@ object Insights {
                 )
                 Opportunities.needsReturn(series, date)
             }
+
+    /* ------------------------------------------- Core Growth Systems analytics */
+
+    /**
+     * System health score (§3): average 30-day consistency of the habits under
+     * a system, weighted by how many opportunities each habit had.
+     */
+    fun systemHealth(repo: Repository, system: Sys): Int {
+        val habits = repo.habits().filter { it.systemId == system.id }
+        if (habits.isEmpty()) return 0
+        var weighted = 0
+        var totalOpp = 0
+        for (h in habits) {
+            val stats = forHabit(repo, h)
+            weighted += stats.consistency30 * stats.opportunities30
+            totalOpp += stats.opportunities30
+        }
+        return if (totalOpp == 0) 0 else (weighted / totalOpp).coerceIn(0, 100)
+    }
+
+    /** All systems with their derived health, sorted best first. */
+    fun systemHealthAll(repo: Repository): List<Triple<String, Int, Int>> =
+        repo.systems().map { s ->
+            Triple(s.title, systemHealth(repo, s), repo.habits().count { it.systemId == s.id })
+        }
+
+    /** Daily load (§15): count, estimated minutes, average difficulty, score. */
+    fun dailyLoad(repo: Repository, date: LocalDate = repo.clock.today()):
+            Triple<Int, Int, Double> {
+        val habits = repo.habitsForDay(date)
+        if (habits.isEmpty()) return Triple(0, 0, 0.0)
+        val minutes = habits.sumOf { it.estimatedMinutes }
+        val score = habits.size * habits.map { it.difficultyRating }.average()
+        return Triple(habits.size, minutes, score)
+    }
+
+    /** Miss reason distribution (§8): reason -> count, for the Insights tab. */
+    fun missReasons(repo: Repository, days: Int = 30): List<Pair<String, Int>> {
+        val window = SfTime.lastDays(days, repo.clock.today()).map { SfTime.format(it) }.toSet()
+        return repo.checkIns().filter { it.date in window && it.isMiss }
+            .mapNotNull { it.missReason }
+            .groupingBy { it }.eachCount()
+            .entries.sortedByDescending { it.value }
+            .map { it.key to it.value }
+    }
+
+    /**
+     * Day-of-week miss pattern (§8): for a habit, which weekdays have a miss
+     * rate above the habit's own average. Returns "MON" -> (misses, opportunities).
+     */
+    fun weekdayPattern(repo: Repository, habit: Habit, today: LocalDate = repo.clock.today()):
+            List<Pair<String, Pair<Int, Int>>> {
+        val series = seriesFor(repo, habit, 84, today)  // ~12 weeks
+        val byDow = series.groupBy { it.date.dayOfWeek.value }
+        return byDow.map { (dow, opps) ->
+            val misses = opps.count { it.status == OpportunityStatus.MISSED }
+            val total = opps.size
+            val label = java.time.DayOfWeek.of(dow).toString().take(3)
+            label to (misses to total)
+        }.sortedBy { it.first }
+    }
+
+    /**
+     * Energy-habit correlation (§14): completion % on high-energy days vs
+     * low-energy days, using the day's earliest logged energy.
+     */
+    fun energyCorrelation(repo: Repository, days: Int = 30): String {
+        val today = repo.clock.today()
+        val window = SfTime.lastDays(days, today).map { SfTime.format(it) }.toSet()
+        val energyByDay = repo.energyLogs().filter { it.date in window }
+            .groupBy { it.date }.mapValues { (_, logs) -> logs.minOf { it.energy } }
+        if (energyByDay.size < 6) {
+            return "Log energy at checkpoints for a few days and a correlation will appear here. " +
+                    "(${energyByDay.size} days logged so far.)"
+        }
+        var highDays = 0; var highDone = 0; var highTotal = 0
+        var lowDays = 0; var lowDone = 0; var lowTotal = 0
+        for ((date, energy) in energyByDay) {
+            val day = runCatching { LocalDate.parse(date) }.getOrNull() ?: continue
+            val (done, total) = dayProgress(repo, day)
+            if (energy >= 4) { highDays++; highDone += done; highTotal += total }
+            else if (energy <= 2) { lowDays++; lowDone += done; lowTotal += total }
+        }
+        val highPct = if (highTotal == 0) null else (highDone * 100) / highTotal
+        val lowPct = if (lowTotal == 0) null else (lowDone * 100) / lowTotal
+        return buildString {
+            append("Energy-habit correlation ($days days, ${energyByDay.size} with energy logged):\n")
+            if (highPct != null) append("· High-energy days (>=4): $highPct% of habits done\n")
+            if (lowPct != null) append("· Low-energy days (<=2): $lowPct% of habits done\n")
+            if (highPct != null && lowPct != null && highPct > lowPct + 10) {
+                append("Harder habits may fit better on high-energy days.")
+            }
+        }
+    }
+
+    /**
+     * Data-driven review pre-fill (§9): real stats for the period, ready to
+     * paste into a review so the user reflects on evidence, not memory.
+     */
+    fun reviewData(repo: Repository, kind: com.superflow.data.model.ReviewKind): String {
+        val today = repo.clock.today()
+        val days = when (kind) {
+            com.superflow.data.model.ReviewKind.WEEKLY -> 7
+            com.superflow.data.model.ReviewKind.MONTHLY -> 30
+            com.superflow.data.model.ReviewKind.QUARTERLY -> 90
+        }
+        val stats = allStats(repo, today)
+        if (stats.isEmpty()) return "No habits yet — the first review is just an intention."
+        val window = SfTime.lastDays(days, today).map { SfTime.format(it) }.toSet()
+        val checkIns = repo.checkIns().filter { it.date in window }
+        val successes = checkIns.count { it.isSuccess }
+        val misses = checkIns.count { it.isMiss }
+        val skips = checkIns.count { it.result == CheckInResult.SKIPPED }
+        val recoveries = stats.sumOf { it.recoveries }
+        val reasons = missReasons(repo, days)
+        val strongest = stats.maxByOrNull { it.consistency30 }
+        val struggling = stats.filter { it.hasEnoughData }.minByOrNull { it.consistency30 }
+        val sb = StringBuilder()
+        sb.append("This period: $successes completions, $skips intentional skips, $misses misses.\n")
+        if (stats.isNotEmpty()) {
+            val avg = (successes * 100) / (successes + misses + skips).coerceAtLeast(1)
+            sb.append("Consistency: $avg% across ${stats.size} habits.\n")
+        }
+        strongest?.let { sb.append("Strongest: ${it.habit.title} (${it.consistency30}% of ${it.opportunities30}).\n") }
+        struggling?.let { sb.append("Struggling: ${it.habit.title} (${it.consistency30}%).\n") }
+        if (recoveries > 0) sb.append("Recoveries after a miss: $recoveries.\n")
+        if (reasons.isNotEmpty()) {
+            sb.append("Miss reasons: ")
+            sb.append(reasons.joinToString(", ") { "${it.first} (${it.second})" })
+            sb.append(".\n")
+        }
+        // Previous review's open action items, if any
+        val previous = repo.reviews().firstOrNull()
+        val openActions = previous?.actionItems?.filter { !it.completed }
+        if (openActions != null && openActions.isNotEmpty()) {
+            sb.append("Last time you decided to: ")
+            sb.append(openActions.joinToString("; ") { it.text })
+            sb.append(". How did that go?\n")
+        }
+        return sb.toString().trim()
+    }
+
+    /**
+     * Recovery celebration (§8): true if this habit's most recent real
+     * opportunity before [date] was a miss — a check-in today is a comeback.
+     */
+    fun isRecovery(repo: Repository, habit: Habit, date: LocalDate = repo.clock.today()): Boolean {
+        val series = seriesFor(repo, habit, 30, date)
+        val todayOpp = series.lastOrNull { !it.date.isAfter(date) }
+        val prior = series.filter { it.date.isBefore(date) }.lastOrNull()
+        return todayOpp?.status == OpportunityStatus.COMPLETED && prior?.status == OpportunityStatus.MISSED
+    }
+
+    /** Identities due for their ~30-day evolution check (§1). */
+    fun identityReviewDue(repo: Repository): List<Identity> {
+        val today = repo.clock.today()
+        val cutoff = today.minusDays(30)
+        return repo.identities().filter { i ->
+            val created = runCatching {
+                java.time.Instant.ofEpochMilli(i.createdAt).atZone(repo.clock.zone()).toLocalDate()
+            }.getOrNull() ?: return@filter false
+            created.isBefore(cutoff)
+        }
+    }
+
+    /** Preventive nudge (§8): does tomorrow's weekday have a >40% miss history? */
+    fun preventiveNudge(repo: Repository, habit: Habit, date: LocalDate = repo.clock.today().plusDays(1)): String? {
+        if (!repo.scheduleOf(habit).activeOn(date)) return null
+        val pattern = weekdayPattern(repo, habit)
+        val dow = date.dayOfWeek.toString().take(3)
+        val (misses, total) = pattern.firstOrNull { it.first == dow } ?: return null
+        if (total < 3) return null
+        val rate = (misses * 100) / total
+        if (rate <= 40) return null
+        val plan = habit.recoveryPlan.ifBlank {
+            repo.obstacles(habit.id).joinToString("; ") { "If ${it.ifText}, then ${it.thenText}" }
+        }.ifBlank { habit.tinyStart.ifBlank { habit.title } }
+        return "$dow has been hard for ${habit.title} ($rate% of past $total). " +
+                "Your plan: $plan"
+    }
+
+    /** Ladder suggestion (§5): is this habit due for an upgrade or a shrink? */
+    fun ladderAdvice(repo: Repository, habit: Habit): String {
+        val stats = forHabit(repo, habit)
+        val series = seriesFor(repo, habit, 30, repo.clock.today())
+        val consecutive = series.takeLast(14).takeWhile { it.status == OpportunityStatus.COMPLETED }.size
+        return when {
+            stats.missesInARow >= 3 ->
+                "Standard might be too much right now. Shrink it to ${habit.levelText(Level.MINIMUM)} for a week?"
+            consecutive >= 14 ->
+                "You have done Standard $consecutive days in a row. Ready to upgrade ${habit.levelText(Level.STANDARD)}?"
+            habit.stretchCount > 0 && consecutive >= 7 ->
+                "Stretch version is waiting: ${habit.levelText(Level.STRETCH)}. Try it once this week?"
+            else ->
+                "Your ladder is holding. Keep the Standard steady and let the tiny version stay tiny."
+        }
     }
 }

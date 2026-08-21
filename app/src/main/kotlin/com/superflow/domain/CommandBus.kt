@@ -202,6 +202,7 @@ class CommandBus private constructor(context: Context) {
             "flowstep" -> repo.deleteFlowStep(id)
             "pause" -> repo.deletePause(id)
             "review" -> repo.deleteReview(id)
+            "evidence" -> repo.deleteEvidence(id)
             "bp_project" -> repo.deleteProject(id)
             "bp_source" -> repo.deleteSource(id)
         }
@@ -221,6 +222,7 @@ class CommandBus private constructor(context: Context) {
             "flowstep" -> repo.saveFlowStep(Serial.flowStep(row))
             "review" -> repo.saveReview(Serial.review(row))
             "pause" -> repo.savePause(Serial.pause(row))
+            "evidence" -> repo.saveEvidence(Serial.evidence(row))
             "bp_project" -> repo.saveProject(Serial.project(row))
             "bp_source" -> repo.saveSource(Serial.source(row))
         }

@@ -65,6 +65,55 @@ object Capabilities {
         },
 
         Capability(
+            "evolve_identity", "Record an identity evolution with reason",
+            listOf("id" to "string", "newStatement" to "string", "reason" to "string"), Risk.LOW
+        ) { c ->
+            val old = c.repo.identity(c.str("id")) ?: return@Capability CommandResult.fail("Identity not found")
+            val newStatement = c.str("newStatement").trim()
+            if (newStatement.isBlank()) return@Capability CommandResult.fail("A new statement is required")
+            val allCheckIns = c.repo.checkIns()
+            val votes = allCheckIns.count { it.isSuccess }
+            val evo = IdentityEvolution(
+                previousStatement = old.statement,
+                newStatement = newStatement,
+                reason = c.str("reason"),
+                votesAtEvolution = votes,
+                date = c.date()
+            )
+            val updated = old.copy(
+                statement = newStatement,
+                evolutionHistory = old.evolutionHistory + evo
+            )
+            c.repo.saveIdentity(updated)
+            val id = c.bus.record(c.actor, "evolve_identity",
+                "Evolved identity: " + old.statement + " -> " + newStatement,
+                jsonOf("previousStatement" to old.statement, "newStatement" to newStatement),
+                undoRestore("identity", Serial.of(old)), c.groupId)
+            okResult("Identity evolved. " + newStatement, null, id)
+        },
+
+        Capability(
+            "add_identity_evidence", "Add qualitative evidence to an identity",
+            listOf("identityId" to "string", "text" to "string", "sourceHabitId" to "string"), Risk.LOW
+        ) { c ->
+            val identityId = c.str("identityId")
+            if (c.repo.identity(identityId) == null) return@Capability CommandResult.fail("Identity not found")
+            val text = c.str("text").trim()
+            if (text.isBlank()) return@Capability CommandResult.fail("Evidence text is required")
+            val evidence = IdentityEvidence(
+                identityId = identityId,
+                text = text,
+                sourceHabitId = c.strOrNull("sourceHabitId"),
+                date = c.date()
+            )
+            c.repo.saveEvidence(evidence)
+            val id = c.bus.record(c.actor, "add_identity_evidence",
+                "Added evidence to identity: $text", Serial.of(evidence),
+                undoDelete("evidence", evidence.id), c.groupId)
+            okResult("Evidence recorded. $text", jsonOf("id" to evidence.id), id)
+        },
+
+        Capability(
             "delete_identity", "Delete an identity", listOf("id" to "string"),
             Risk.HIGH, destructive = true
         ) { c ->
@@ -120,14 +169,68 @@ object Capabilities {
         },
 
         Capability(
+            "add_goal_milestone", "Add a measurable milestone to a goal",
+            listOf("goalId" to "string", "title" to "string"), Risk.LOW
+        ) { c ->
+            val goal = c.repo.goal(c.str("goalId")) ?: return@Capability CommandResult.fail("Goal not found")
+            val title = c.str("title").trim()
+            if (title.isBlank()) return@Capability CommandResult.fail("Milestone title is required")
+            val milestone = GoalMilestone(title = title)
+            val updated = goal.copy(milestones = goal.milestones + milestone)
+            c.repo.saveGoal(updated)
+            val id = c.bus.record(c.actor, "add_goal_milestone",
+                "Added milestone $title to goal ${goal.title}",
+                jsonOf("goalId" to goal.id, "milestoneId" to milestone.id),
+                undoRestore("goal", Serial.of(goal)), c.groupId)
+            okResult("Milestone added to " + goal.title, jsonOf("milestoneId" to milestone.id), id)
+        },
+
+        Capability(
+            "complete_goal_milestone", "Mark a milestone as achieved",
+            listOf("goalId" to "string", "milestoneId" to "string"), Risk.LOW
+        ) { c ->
+            val goal = c.repo.goal(c.str("goalId")) ?: return@Capability CommandResult.fail("Goal not found")
+            val milestoneId = c.str("milestoneId")
+            val idx = goal.milestones.indexOfFirst { it.id == milestoneId }
+            if (idx < 0) return@Capability CommandResult.fail("Milestone not found")
+            val milestones = goal.milestones.toMutableList()
+            milestones[idx] = milestones[idx].copy(achieved = true, achievedDate = c.date())
+            val updated = goal.copy(milestones = milestones)
+            c.repo.saveGoal(updated)
+            val id = c.bus.record(c.actor, "complete_goal_milestone",
+                "Completed milestone: " + milestones[idx].title,
+                null, undoRestore("goal", Serial.of(goal)), c.groupId)
+            okResult("Milestone achieved! " + milestones[idx].title, null, id)
+        },
+
+        Capability(
+            "update_goal_metric", "Update the current metric value for a goal",
+            listOf("goalId" to "string", "value" to "double", "unit" to "string"), Risk.LOW
+        ) { c ->
+            val goal = c.repo.goal(c.str("goalId")) ?: return@Capability CommandResult.fail("Goal not found")
+            val value = c.dbl("value", 0.0)
+            val unit = c.str("unit", goal.metricUnit)
+            val updated = goal.copy(currentMetricValue = value, metricUnit = unit)
+            c.repo.saveGoal(updated)
+            val id = c.bus.record(c.actor, "update_goal_metric",
+                "Updated metric for " + goal.title + ": $value $unit",
+                null, undoRestore("goal", Serial.of(goal)), c.groupId)
+            okResult("Goal metric updated: $value $unit", null, id)
+        },
+
+        Capability(
             "create_system", "Create a repeatable system for a goal",
-            listOf("title" to "string", "goalId" to "string", "description" to "string"), Risk.LOW
+            listOf("title" to "string", "goalId" to "string", "description" to "string",
+                "templateId" to "string"), Risk.LOW
         ) { c ->
             val title = c.str("title").trim()
             if (title.isBlank()) return@Capability CommandResult.fail("A system title is required")
+            val templateId = c.strOrNull("templateId")
             val s = Sys(
                 goalId = c.strOrNull("goalId") ?: c.repo.goals().firstOrNull()?.id,
-                title = title, description = c.str("description")
+                title = title, description = c.str("description"),
+                templateId = templateId,
+                reviewFrequency = if (templateId != null) "weekly" else "monthly"
             )
             c.repo.saveSystem(s)
             val id = c.bus.record(c.actor, "create_system", "Created system \"$title\"",
@@ -159,6 +262,15 @@ object Capabilities {
                 Serial.of(old), undoRestore("sys", Serial.of(old)), c.groupId)
             okResult("System deleted", null, id)
         }
+    )
+
+    /** Pre-built system templates (§3) the designer can offer. */
+    fun systemTemplates(): List<Pair<String, String>> = listOf(
+        "morning_routine" to "Morning Routine",
+        "evening_wind_down" to "Evening Wind-Down",
+        "movement_practice" to "Movement Practice",
+        "creative_practice" to "Creative Practice",
+        "learning_block" to "Learning Block"
     )
 
     /* ----------------------------------------------------------- habit layer */
@@ -323,6 +435,179 @@ object Capabilities {
             val id = c.bus.record(c.actor, "delete_obstacle_plan", "Removed an obstacle plan",
                 Serial.of(old), undoRestore("obstacle", Serial.of(old)), c.groupId)
             okResult("Obstacle plan removed", null, id)
+        },
+
+        /* ---------------------------------------------- obstacle surfacing (§10) */
+
+        Capability(
+            "activate_obstacle_plan", "Record that an obstacle plan was used",
+            listOf("id" to "string", "worked" to "bool"), Risk.LOW
+        ) { c ->
+            val old = c.repo.obstacles().firstOrNull { it.id == c.str("id") }
+                ?: return@Capability CommandResult.fail("Obstacle plan not found")
+            val today = c.date()
+            val updated = old.copy(timesUsed = old.timesUsed + 1, lastUsed = today,
+                effectiveness = if (c.args.isNull("worked")) old.effectiveness
+                else c.bool("worked", true).let { if (it) 4 else 2 })
+            c.repo.saveObstacle(updated)
+            val id = c.bus.record(c.actor, "activate_obstacle_plan",
+                "Used obstacle plan: If ${old.ifText}, then ${old.thenText}",
+                Serial.of(updated), undoRestore("obstacle", Serial.of(old)), c.groupId)
+            okResult("Obstacle plan used (${updated.timesUsed}x total)", null, id)
+        },
+
+        Capability(
+            "rate_obstacle_plan", "Rate whether an obstacle plan worked (1-5)",
+            listOf("id" to "string", "rating" to "1-5"), Risk.LOW
+        ) { c ->
+            val old = c.repo.obstacles().firstOrNull { it.id == c.str("id") }
+                ?: return@Capability CommandResult.fail("Obstacle plan not found")
+            val rating = c.int("rating", 3).coerceIn(1, 5)
+            val updated = old.copy(effectiveness = rating)
+            c.repo.saveObstacle(updated)
+            val id = c.bus.record(c.actor, "rate_obstacle_plan",
+                "Obstacle plan rated: $rating/5", Serial.of(updated),
+                undoRestore("obstacle", Serial.of(old)), c.groupId)
+            okResult("Obstacle plan rated: $rating/5", null, id)
+        },
+
+        /* -------------------------------------------------- Four Laws living */
+
+        Capability(
+            "rate_reward", "Rate a habit reward satisfaction (1-5)",
+            listOf("habit" to "id or title", "rating" to "1-5"), Risk.LOW
+        ) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val rating = c.int("rating", 3).coerceIn(1, 5)
+            val updated = h.copy(rewardSatisfaction = rating, rewardLastRated = c.date())
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "rate_reward",
+                "Rated reward for habit: $rating/5",
+                null, undoRestore("habit", Serial.of(h)), c.groupId)
+            okResult("Reward satisfaction recorded: $rating/5", null, id)
+        },
+
+        Capability(
+            "rate_reframe", "Rate whether a reframe helped",
+            listOf("habit" to "id or title", "helpful" to "bool"), Risk.LOW
+        ) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val helpful = c.bool("helpful", true)
+            val updated = h.copy(reframeHelpful = helpful)
+            c.repo.saveHabit(updated)
+            val tag = if (helpful) "helpful" else "not helpful"
+            val id = c.bus.record(c.actor, "rate_reframe",
+                "Reframe rated as $tag", null,
+                undoRestore("habit", Serial.of(h)), c.groupId)
+            okResult("Reframe rated as $tag", null, id)
+        },
+
+        Capability(
+            "rate_bundle", "Rate temptation bundle effectiveness (1-5)",
+            listOf("habit" to "id or title", "rating" to "1-5"), Risk.LOW
+        ) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val rating = c.int("rating", 3).coerceIn(1, 5)
+            val updated = h.copy(bundleEffectiveness = rating)
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "rate_bundle",
+                "Rated bundle: $rating/5", null,
+                undoRestore("habit", Serial.of(h)), c.groupId)
+            okResult("Bundle effectiveness recorded: $rating/5", null, id)
+        },
+
+        Capability(
+            "update_four_laws", "Update any four-laws field post-design",
+            listOf("habit" to "id or title", "field" to "string", "value" to "string"), Risk.LOW
+        ) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val field = c.str("field").trim()
+            val value = c.str("value")
+            val updated = when (field.lowercase()) {
+                "benefit" -> old.copy(benefit = value)
+                "temptationbundle", "bundle" -> old.copy(temptationBundle = value)
+                "reframe" -> old.copy(reframe = value)
+                "frictionplan", "friction" -> old.copy(frictionPlan = value)
+                "environmentprep", "environment", "prep" -> old.copy(environmentPrep = value)
+                "reward" -> old.copy(reward = value)
+                "rewardSatisfaction" -> old.copy(rewardSatisfaction = value.toIntOrNull()?.coerceIn(1, 5))
+                "reframeHelpful" -> old.copy(reframeHelpful = value.equalsTrue())
+                "bundleEffectiveness" -> old.copy(bundleEffectiveness = value.toIntOrNull()?.coerceIn(1, 5))
+                "frictionplanactive" -> old.copy(frictionPlanActive = value.equalsTrue())
+                "environmentprepremindertime" -> old.copy(environmentPrepReminderTime = value)
+                else -> return@Capability CommandResult.fail("Unknown four-laws field: $field")
+            }
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "update_four_laws",
+                "Updated $field for habit", null,
+                undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("Four Laws field updated: $field", null, id)
+        },
+
+        /* ----------------------------------------------- Adaptive Ladder */
+
+        Capability(
+            "evolve_ladder", "Record a ladder level change with reason",
+            listOf("habit" to "id or title", "level" to "TINY|MINIMUM|STANDARD|STRETCH",
+                "newText" to "string", "reason" to "string"), Risk.LOW
+        ) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val level = Level.from(c.str("level", "STANDARD"))
+            val newText = c.str("newText").trim()
+            val reason = c.str("reason").trim()
+            if (newText.isBlank()) return@Capability CommandResult.fail("New ladder text is required")
+            val previousText = old.levelText(level)
+            val evo = LadderEvolution(level = level, previousText = previousText,
+                newText = newText, reason = reason, date = c.date())
+            val updated = old.copy(ladderHistory = old.ladderHistory + evo)
+            val finalUpdated = when (level) {
+                Level.TINY -> updated.copy(tinyStart = newText)
+                Level.MINIMUM -> updated.copy(minimumVersion = newText)
+                Level.STANDARD -> updated.copy(standardVersion = newText)
+                Level.STRETCH -> updated.copy(stretchVersion = newText)
+            }
+            c.repo.saveHabit(finalUpdated)
+            val id = c.bus.record(c.actor, "evolve_ladder",
+                "Evolved ladder for habit: $level $previousText -> $newText",
+                jsonOf("level" to level.name, "previousText" to previousText, "newText" to newText),
+                undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("Ladder evolved: $level now $newText", null, id)
+        },
+
+        /* ------------------------------------------------ Capacity management */
+
+        Capability(
+            "set_habit_capacity", "Set estimated minutes and difficulty for a habit",
+            listOf("habit" to "id or title", "estimatedMinutes" to "int", "difficulty" to "1-5"),
+            Risk.LOW
+        ) { c ->
+            val old = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val mins = c.int("estimatedMinutes", old.estimatedMinutes).coerceAtLeast(1)
+            val diff = c.int("difficulty", old.difficultyRating).coerceIn(1, 5)
+            val updated = old.copy(estimatedMinutes = mins, difficultyRating = diff)
+            c.repo.saveHabit(updated)
+            val id = c.bus.record(c.actor, "set_habit_capacity",
+                "Set capacity for habit: ${mins}min, difficulty $diff",
+                null, undoRestore("habit", Serial.of(old)), c.groupId)
+            okResult("Capacity set: ${mins}min, difficulty $diff", null, id)
+        },
+
+        Capability(
+            "get_daily_load", "Calculate total cognitive load for a day",
+            listOf("date" to "yyyy-MM-dd"), Risk.LOW
+        ) { c ->
+            val date = c.localDate()
+            val habits = c.repo.habitsForDay(date)
+            if (habits.isEmpty()) return@Capability okResult("No habits scheduled. Load: 0.")
+            val totalMinutes = habits.sumOf { it.estimatedMinutes }
+            val avgDiff = habits.map { it.difficultyRating }.average()
+            val loadScore = habits.size * avgDiff
+            val color = when {
+                loadScore < 15 -> "green"
+                loadScore < 30 -> "amber"
+                else -> "coral"
+            }
+            okResult("Load: ${habits.size} habits, ~${totalMinutes}min, avg diff %.1f/5 (${color})".format(avgDiff))
         }
     )
 
@@ -331,15 +616,28 @@ object Capabilities {
     private fun checkInCaps() = listOf(
         Capability("check_in", "Record a completion at Tiny, Minimum, Standard or Stretch",
             listOf("habit" to "id or title", "level" to "TINY|MINIMUM|STANDARD|STRETCH",
-                "amount" to "number", "date" to "yyyy-MM-dd", "note" to "string"), Risk.LOW) { c ->
+                "amount" to "number", "date" to "yyyy-MM-dd", "note" to "string",
+                "contextTags" to "array of strings", "quality" to "1-3",
+                "difficulty" to "1-5"), Risk.LOW) { c ->
             val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
             val date = c.date()
             val prev = c.repo.checkIn(h.id, date)
             val level = Level.from(c.str("level", "STANDARD"))
+            val tags = c.args.optJSONArray("contextTags")?.let { arr ->
+                (0 until arr.length()).mapNotNull { arr.optString(it, "").trim().ifBlank { null } }
+            } ?: emptyList()
+            val quality = if (c.args.isNull("quality")) null else c.int("quality", 0).coerceIn(1, 3)
+            val difficulty = if (c.args.isNull("difficulty")) null else c.int("difficulty", 0).coerceIn(1, 5)
+            val amount = c.dbl("amount", 0.0)
             val ci = CheckIn(
                 habitId = h.id, date = date,
                 result = if (h.mode == HabitMode.REDUCE) CheckInResult.RESISTED else CheckInResult.DONE,
-                level = level, amount = c.dbl("amount", 0.0), note = c.str("note")
+                level = level, amount = amount, note = c.str("note"),
+                contextTags = tags,
+                actualAmount = if (amount > 0 || !c.args.isNull("amount")) amount else null,
+                actualDurationMinutes = if (c.args.isNull("duration")) null else c.int("duration", 0),
+                qualityRating = quality,
+                difficultyRating = difficulty
             )
             c.repo.saveCheckIn(ci)
             val undo = if (prev == null) jsonOf("kind" to "clearCheckIn", "habitId" to h.id, "date" to date)
@@ -366,12 +664,17 @@ object Capabilities {
         },
 
         Capability("mark_missed", "Record that an opportunity passed",
-            listOf("habit" to "id or title", "date" to "yyyy-MM-dd"), Risk.LOW) { c ->
+            listOf("habit" to "id or title", "date" to "yyyy-MM-dd", "reason" to "string",
+                "detail" to "string"), Risk.LOW) { c ->
             val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
             val date = c.date()
             val prev = c.repo.checkIn(h.id, date)
             val result = if (h.mode == HabitMode.REDUCE) CheckInResult.SLIPPED else CheckInResult.MISSED
-            val ci = CheckIn(habitId = h.id, date = date, result = result, note = c.str("note"))
+            val reason = c.str("reason").trim()
+            val detail = c.str("detail").trim()
+            val ci = CheckIn(habitId = h.id, date = date, result = result, note = c.str("note"),
+                missReason = reason.ifBlank { null },
+                missReasonDetail = detail.ifBlank { null })
             c.repo.saveCheckIn(ci)
             val undo = if (prev == null) jsonOf("kind" to "clearCheckIn", "habitId" to h.id, "date" to date)
             else undoRestore("checkin", Serial.of(prev))
@@ -402,7 +705,12 @@ object Capabilities {
             c.repo.saveEnergy(e)
             val id = c.bus.record(c.actor, "log_energy", "${cp.label} energy: $level/5",
                 Serial.of(e), null, c.groupId)
-            okResult("Energy logged", null, id)
+            val suggestion = when {
+                level <= 2 -> " Low energy — consider Minimum Mode; every habit drops to its minimum version."
+                level >= 4 -> " High energy — a good day for a Stretch version on something you want to push."
+                else -> ""
+            }
+            okResult("Energy logged$suggestion", null, id)
         },
 
         Capability("start_recovery", "Create a compassionate return plan after a miss",
@@ -415,6 +723,60 @@ object Capabilities {
             val id = c.bus.record(c.actor, "start_recovery", "Recovery plan for \"${h.title}\"",
                 Serial.of(updated), undoRestore("habit", Serial.of(h)), c.groupId)
             okResult(plan, jsonOf("plan" to plan), id)
+        },
+
+        /* ------------------------------------------- rich check-in data (§7) */
+
+        Capability(
+            "rate_checkin_difficulty", "Rate how hard a check-in was (1-5)",
+            listOf("habit" to "id or title", "rating" to "1-5", "date" to "yyyy-MM-dd"), Risk.LOW
+        ) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val date = c.date()
+            val ci = c.repo.checkIn(h.id, date)
+                ?: return@Capability CommandResult.fail("No check-in found for this habit on $date")
+            val rating = c.int("rating", 3).coerceIn(1, 5)
+            val updated = ci.copy(difficultyRating = rating)
+            c.repo.saveCheckIn(updated)
+            val id = c.bus.record(c.actor, "rate_checkin_difficulty",
+                "Difficulty rated: $rating/5", Serial.of(updated), null, c.groupId)
+            okResult("Difficulty recorded: $rating/5", null, id)
+        },
+
+        Capability(
+            "rate_checkin_quality", "Rate session quality (1-3 stars)",
+            listOf("habit" to "id or title", "rating" to "1-3", "date" to "yyyy-MM-dd"), Risk.LOW
+        ) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val date = c.date()
+            val ci = c.repo.checkIn(h.id, date)
+                ?: return@Capability CommandResult.fail("No check-in found for this habit on $date")
+            val rating = c.int("rating", 2).coerceIn(1, 3)
+            val updated = ci.copy(qualityRating = rating)
+            c.repo.saveCheckIn(updated)
+            val id = c.bus.record(c.actor, "rate_checkin_quality",
+                "Quality rated: $rating/3", Serial.of(updated), null, c.groupId)
+            okResult("Quality recorded: $rating/3", null, id)
+        },
+
+        Capability(
+            "record_miss_reason", "Record why a habit was missed",
+            listOf("habit" to "id or title", "reason" to "time|energy|forgot|motivation|circumstance|other",
+                "date" to "yyyy-MM-dd", "detail" to "string"), Risk.LOW
+        ) { c ->
+            val h = resolveHabit(c) ?: return@Capability CommandResult.fail("Habit not found")
+            val date = c.date()
+            val ci = c.repo.checkIn(h.id, date)
+                ?: return@Capability CommandResult.fail("No miss recorded for this habit on $date")
+            val reason = c.str("reason").trim()
+            if (reason.isBlank()) return@Capability CommandResult.fail("A miss reason is required")
+            val detail = c.str("detail").trim()
+            val updated = ci.copy(missReason = reason,
+                missReasonDetail = detail.ifBlank { null })
+            c.repo.saveCheckIn(updated)
+            val id = c.bus.record(c.actor, "record_miss_reason",
+                "Miss reason recorded: $reason", Serial.of(updated), null, c.groupId)
+            okResult("Miss reason recorded: $reason", null, id)
         }
     )
 
@@ -527,6 +889,51 @@ object Capabilities {
                 "Planned tomorrow: ${candidates.joinToString("; ") { it.title }}", null,
                 jsonOf("kind" to "restoreRows", "table" to "focus", "rows" to rows), c.groupId)
             okResult("Tomorrow is planned: ${candidates.joinToString(", ") { it.title }}", null, id)
+        },
+
+        /* ------------------------------------------------- linked focus (§6) */
+
+        Capability(
+            "set_focus_priority", "Mark a focus item as today's number-one priority",
+            listOf("id" to "string", "priority" to "bool"), Risk.LOW
+        ) { c ->
+            val date = c.date()
+            val items = c.repo.focusFor(date)
+            val target = items.firstOrNull { it.id == c.str("id") }
+                ?: return@Capability CommandResult.fail("Focus action not found")
+            val priority = c.bool("priority", true)
+            val updated = target.copy(isPriority = priority)
+            c.repo.saveFocus(updated)
+            val id = c.bus.record(c.actor, "set_focus_priority",
+                if (priority) "Starred focus: ${target.title}" else "Unstarred focus: ${target.title}",
+                Serial.of(updated), undoRestore("focus", Serial.of(target)), c.groupId)
+            okResult(if (priority) "Today's #1: ${target.title}" else "Priority removed", null, id)
+        },
+
+        Capability(
+            "carry_over_focus", "Move an undone focus item to tomorrow",
+            listOf("id" to "string"), Risk.LOW
+        ) { c ->
+            val today = c.repo.clock.today()
+            val iso = SfTime.format(today)
+            val target = c.repo.focusFor(iso).firstOrNull { it.id == c.str("id") }
+                ?: return@Capability CommandResult.fail("Focus action not found for today")
+            if (target.done) return@Capability CommandResult.fail("It is already done — no need to carry it over")
+            val tomorrow = SfTime.format(today.plusDays(1))
+            val tomorrowItems = c.repo.focusFor(tomorrow)
+            if (tomorrowItems.size >= 3) return@Capability CommandResult.fail("Tomorrow's focus is already full")
+            val carried = target.copy(
+                id = newId(),
+                date = tomorrow,
+                done = false,
+                isPriority = false,
+                carryOverCount = target.carryOverCount + 1
+            )
+            c.repo.saveFocus(carried)
+            val id = c.bus.record(c.actor, "carry_over_focus",
+                "Carried \"${target.title}\" to tomorrow (skipped ${carried.carryOverCount}x total)",
+                Serial.of(carried), undoDelete("focus", carried.id), c.groupId)
+            okResult("Carried \"${target.title}\" to tomorrow", null, id)
         }
     )
 
@@ -553,6 +960,114 @@ object Capabilities {
             val id = c.bus.record(c.actor, "delete_scorecard_entry", "Removed \"${old.routine}\"",
                 Serial.of(old), undoRestore("scorecard", Serial.of(old)), c.groupId)
             okResult("Removed", null, id)
+        },
+
+        /* ------------------------------------------- scorecard pipeline (§12) */
+
+        Capability(
+            "rescore_scorecard", "Re-evaluate a scorecard entry verdict",
+            listOf("id" to "string", "verdict" to "-1|0|1", "note" to "string"), Risk.LOW
+        ) { c ->
+            val old = c.repo.scorecard().firstOrNull { it.id == c.str("id") }
+                ?: return@Capability CommandResult.fail("Entry not found")
+            val verdict = c.int("verdict", old.verdict).coerceIn(-1, 1)
+            val updated = old.copy(verdict = verdict, note = c.str("note", old.note))
+            c.repo.saveScorecard(updated)
+            val id = c.bus.record(c.actor, "rescore_scorecard",
+                "Re-scored \"${old.routine}\": $verdict", Serial.of(updated),
+                undoRestore("scorecard", Serial.of(old)), c.groupId)
+            okResult("Scorecard updated", null, id)
+        },
+
+        Capability(
+            "convert_scorecard_to_habit", "Turn a scorecard entry into a REDUCE or BUILD habit",
+            listOf("id" to "string", "mode" to "BUILD|REDUCE", "systemId" to "string"), Risk.LOW
+        ) { c ->
+            val entry = c.repo.scorecard().firstOrNull { it.id == c.str("id") }
+                ?: return@Capability CommandResult.fail("Entry not found")
+            val mode = runCatching { HabitMode.valueOf(c.str("mode", "REDUCE").uppercase()) }
+                .getOrDefault(HabitMode.REDUCE)
+            val existing = c.repo.habits(true)
+            val h = Habit(
+                systemId = c.strOrNull("systemId") ?: c.repo.systems().firstOrNull()?.id,
+                title = entry.routine,
+                mode = mode,
+                tinyStart = if (mode == HabitMode.BUILD) entry.routine else "",
+                standardVersion = entry.routine,
+                recurrenceRule = "WEEKLY:1,2,3,4,5,6,7",
+                startDate = SfTime.format(c.repo.clock.today()),
+                colorSeed = existing.size % 6,
+                orderIndex = existing.size
+            )
+            c.repo.saveHabit(h)
+            val id = c.bus.record(c.actor, "convert_scorecard_to_habit",
+                "Scorecard \"${entry.routine}\" became a ${mode.name} habit",
+                Serial.of(h), undoDelete("habit", h.id), c.groupId)
+            okResult("Created ${mode.name.lowercase()} habit: ${entry.routine}",
+                jsonOf("id" to h.id), id)
+        },
+
+        /* ---------------------------------------------------- flows runnable */
+
+        Capability(
+            "run_flow", "Start guided flow execution for today",
+            listOf("flowId" to "string"), Risk.LOW
+        ) { c ->
+            val flow = c.repo.flows().firstOrNull { it.id == c.str("flowId") }
+                ?: c.repo.flows().firstOrNull { it.title.equals(c.str("flow"), true) }
+                ?: return@Capability CommandResult.fail("Flow not found")
+            val steps = c.repo.flowSteps(flow.id)
+            if (steps.isEmpty()) return@Capability CommandResult.fail("This flow has no steps yet")
+            val date = c.date()
+            val done = steps.count { s ->
+                s.habitId?.let { c.repo.checkIn(it, date)?.isSuccess == true } == true
+            }
+            val totalMin = flow.estimatedMinutes
+            val stepList = steps.joinToString(" -> ") { it.title }
+            val id = c.bus.record(c.actor, "run_flow",
+                "Started flow \"${flow.title}\" (${steps.size} steps)", null, null, c.groupId)
+            val msg = buildString {
+                append("Flow: ").append(flow.title).append(" (").append(steps.size).append(" steps")
+                if (totalMin > 0) append(", ~").append(totalMin).append(" min")
+                append(")\n").append(stepList)
+                if (done > 0) append("\n$done of ").append(steps.size).append(" already done today")
+            }
+            okResult(msg, jsonOf("flowId" to flow.id, "steps" to steps.size), id)
+        },
+
+        Capability(
+            "complete_flow", "Mark a full flow as completed",
+            listOf("flowId" to "string"), Risk.LOW
+        ) { c ->
+            val flow = c.repo.flows().firstOrNull { it.id == c.str("flowId") }
+                ?: c.repo.flows().firstOrNull { it.title.equals(c.str("flow"), true) }
+                ?: return@Capability CommandResult.fail("Flow not found")
+            val steps = c.repo.flowSteps(flow.id)
+            val date = c.date()
+            var completed = 0
+            val group = c.groupId ?: newId()
+            for (s in steps) {
+                val habitId = s.habitId ?: continue
+                val prev = c.repo.checkIn(habitId, date)
+                c.repo.saveCheckIn(CheckIn(
+                    habitId = habitId, date = date, result = CheckInResult.DONE,
+                    level = Level.STANDARD, note = "Flow: ${flow.title}"
+                ))
+                val undo = if (prev == null) jsonOf("kind" to "clearCheckIn", "habitId" to habitId, "date" to date)
+                else undoRestore("checkin", Serial.of(prev))
+                c.bus.record(c.actor, "complete_flow", "Flow step: ${s.title}", null, undo, group)
+                completed++
+            }
+            val updated = flow.copy(
+                completionCount = flow.completionCount + 1,
+                estimatedMinutes = if (flow.estimatedMinutes == 0) {
+                    steps.sumOf { it.durationMinutes }
+                } else flow.estimatedMinutes
+            )
+            c.repo.saveFlow(updated)
+            val id = c.bus.record(c.actor, "complete_flow",
+                "Completed flow \"${flow.title}\" ($completed steps)", null, null, group)
+            okResult("Flow \"${flow.title}\" complete. $completed steps done.", null, id)
         },
 
         Capability("create_flow", "Create a chain of anchored habits",
@@ -708,7 +1223,7 @@ object Capabilities {
         Capability("create_review", "Save a weekly, monthly or quarterly review",
             listOf("kind" to "WEEKLY|MONTHLY|QUARTERLY", "whatWorked" to "string",
                 "whatDidnt" to "string", "systemChange" to "string",
-                "identityEvidence" to "string"), Risk.LOW) { c ->
+                "identityEvidence" to "string", "data" to "string"), Risk.LOW) { c ->
             val kind = runCatching { ReviewKind.valueOf(c.str("kind", "WEEKLY").uppercase()) }
                 .getOrDefault(ReviewKind.WEEKLY)
             val label = when (kind) {
@@ -718,9 +1233,12 @@ object Capabilities {
                 ReviewKind.QUARTERLY ->
                     "Quarter ending ${SfTime.shortDay(c.repo.clock.today())}"
             }
+            val previous = c.repo.reviews().firstOrNull()
+            val data = c.str("data").ifBlank { Insights.reviewData(c.repo, kind) }
             val r = Review(kind = kind, periodLabel = label, whatWorked = c.str("whatWorked"),
                 whatDidnt = c.str("whatDidnt"), systemChange = c.str("systemChange"),
-                identityEvidence = c.str("identityEvidence"))
+                identityEvidence = c.str("identityEvidence"),
+                autoGeneratedData = data, previousReviewId = previous?.id)
             c.repo.saveReview(r)
             val id = c.bus.record(c.actor, "create_review",
                 "${kind.name.lowercase().replaceFirstChar { it.uppercase() }} review saved",
@@ -736,6 +1254,49 @@ object Capabilities {
             val id = c.bus.record(c.actor, "delete_review", "Deleted ${old.periodLabel} review",
                 Serial.of(old), undoRestore("review", Serial.of(old)), c.groupId)
             okResult("Review deleted", null, id)
+        },
+
+        /* ------------------------------------------- review actions pipeline (§9) */
+
+        Capability(
+            "add_review_action_item", "Add a structured action item to a review",
+            listOf("reviewId" to "string", "text" to "string", "linkedCommand" to "string"),
+            Risk.LOW
+        ) { c ->
+            val review = c.repo.reviews().firstOrNull { it.id == c.str("reviewId") }
+                ?: return@Capability CommandResult.fail("Review not found")
+            val text = c.str("text").trim()
+            if (text.isBlank()) return@Capability CommandResult.fail("Action text is required")
+            val item = ReviewActionItem(text = text,
+                linkedCommand = c.strOrNull("linkedCommand"))
+            val updated = review.copy(actionItems = review.actionItems + item)
+            c.repo.saveReview(updated)
+            val id = c.bus.record(c.actor, "add_review_action_item",
+                "Review action added: $text",
+                jsonOf("reviewId" to review.id, "itemId" to item.id),
+                undoRestore("review", Serial.of(review)), c.groupId)
+            okResult("Action item added", jsonOf("itemId" to item.id), id)
+        },
+
+        Capability(
+            "complete_review_action", "Mark a review action item as done",
+            listOf("reviewId" to "string", "itemId" to "string", "outcome" to "string"),
+            Risk.LOW
+        ) { c ->
+            val review = c.repo.reviews().firstOrNull { it.id == c.str("reviewId") }
+                ?: return@Capability CommandResult.fail("Review not found")
+            val itemId = c.str("itemId")
+            val idx = review.actionItems.indexOfFirst { it.id == itemId }
+            if (idx < 0) return@Capability CommandResult.fail("Action item not found")
+            val items = review.actionItems.toMutableList()
+            items[idx] = items[idx].copy(completed = true, completedDate = c.date(),
+                outcome = c.strOrNull("outcome"))
+            val updated = review.copy(actionItems = items)
+            c.repo.saveReview(updated)
+            val id = c.bus.record(c.actor, "complete_review_action",
+                "Review action done: ${items[idx].text}", Serial.of(updated),
+                undoRestore("review", Serial.of(review)), c.groupId)
+            okResult("Action item completed", null, id)
         }
     )
 
@@ -769,6 +1330,41 @@ object Capabilities {
         Capability("get_insights", "Repetitions, consistency, recovery and identity evidence",
             listOf("days" to "int"), Risk.LOW) { c ->
             okResult(Insights.summaryText(c.repo, c.int("days", 30)))
+        },
+
+        Capability("get_system_health", "System health scores from habit consistency",
+            listOf(), Risk.LOW) { c ->
+            val systems = Insights.systemHealthAll(c.repo)
+            if (systems.isEmpty()) return@Capability okResult("No systems yet. Create one under a goal.")
+            val text = systems.joinToString("\n") { (title, health, habits) ->
+                val label = if (habits == 0) "no habits yet" else "$health% healthy ($habits habits)"
+                "· $title — $label"
+            }
+            okResult(text)
+        },
+
+        Capability("get_energy_correlation", "How energy levels relate to habit completion",
+            listOf("days" to "int"), Risk.LOW) { c ->
+            okResult(Insights.energyCorrelation(c.repo, c.int("days", 30)))
+        },
+
+        Capability("get_miss_patterns", "Weekday miss patterns and preventive nudges",
+            listOf(), Risk.LOW) { c ->
+            val habits = c.repo.habits()
+            if (habits.isEmpty()) return@Capability okResult("No habits to analyse.")
+            val sb = StringBuilder()
+            for (h in habits.take(5)) {
+                val pattern = Insights.weekdayPattern(c.repo, h)
+                val risky = pattern.filter { it.second.first >= 2 && it.second.second >= 3 &&
+                        (it.second.first * 100 / it.second.second) > 40 }
+                if (risky.isNotEmpty()) {
+                    sb.append(h.title).append(": risky on ")
+                    sb.append(risky.joinToString(", ") { it.first })
+                    sb.append('\n')
+                }
+            }
+            okResult(if (sb.isEmpty()) "No strong weekday miss patterns found."
+            else sb.toString().trim())
         },
 
         Capability("habit_detail", "Show one habit's full design",

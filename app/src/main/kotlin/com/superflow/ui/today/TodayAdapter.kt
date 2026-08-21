@@ -62,6 +62,7 @@ class TodayAdapter(
         private const val T_SECTION = 5
         private const val T_HABIT = 6
         private const val T_EMPTY = 7
+        private const val T_LOAD = 8
 
         private val DIFF = object : DiffUtil.ItemCallback<TodayRow>() {
             override fun areItemsTheSame(a: TodayRow, b: TodayRow) = a.stableId == b.stableId
@@ -77,6 +78,7 @@ class TodayAdapter(
 
     override fun getItemViewType(position: Int): Int = when (getItem(position)) {
         is TodayRow.Progress -> T_PROGRESS
+        is TodayRow.Load -> T_LOAD
         is TodayRow.IdentityCard -> T_IDENTITY
         is TodayRow.Returning -> T_RETURN
         is TodayRow.Focus -> T_FOCUS
@@ -90,6 +92,7 @@ class TodayAdapter(
         val inflater = LayoutInflater.from(parent.context)
         return when (viewType) {
             T_PROGRESS -> ProgressVH(inflater.inflate(R.layout.item_progress, parent, false))
+            T_LOAD -> LoadVH(inflater.inflate(R.layout.item_text_card, parent, false))
             T_IDENTITY -> IdentityVH(inflater.inflate(R.layout.item_identity, parent, false))
             T_RETURN -> ReturnVH(inflater.inflate(R.layout.item_return, parent, false))
             T_FOCUS -> FocusVH(inflater.inflate(R.layout.item_focus, parent, false))
@@ -103,6 +106,7 @@ class TodayAdapter(
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         when (val row = getItem(position)) {
             is TodayRow.Progress -> (holder as ProgressVH).bind(row)
+            is TodayRow.Load -> (holder as LoadVH).bind(row)
             is TodayRow.IdentityCard -> (holder as IdentityVH).bind(row)
             is TodayRow.Returning -> (holder as ReturnVH).bind(row)
             is TodayRow.Focus -> (holder as FocusVH).bind(row)
@@ -128,6 +132,27 @@ class TodayAdapter(
             title.text = if (row.total == 0) itemView.context.getString(R.string.nothing_scheduled)
             else "${row.done} of ${row.total} actions"
             sub.text = row.message
+        }
+    }
+
+    inner class LoadVH(v: View) : RecyclerView.ViewHolder(v) {
+        private val title: TextView = v.findViewById(R.id.text_title)
+        private val body: TextView = v.findViewById(R.id.text_body)
+
+        fun bind(row: TodayRow.Load) {
+            val color = when (row.color) {
+                "amber" -> itemView.context.getColor(com.superflow.R.color.sf_amber_50)
+                "coral" -> itemView.context.getColor(com.superflow.R.color.sf_error_40)
+                else -> itemView.context.getColor(com.superflow.R.color.sf_green_50)
+            }
+            title.setTextColor(color)
+            title.text = "Today's load: ${row.habits} habits · ~${row.minutes} min"
+            body.text = when (row.color) {
+                "green" -> "Light day. Room to add a stretch if you want one."
+                "amber" -> "Moderate day. If it feels heavy, Minimum Mode shrinks everything."
+                else -> "Heavy day. Research says 3-5 new behaviours is the practical max. " +
+                        "Consider pausing one or using Minimum Mode."
+            }
         }
     }
 

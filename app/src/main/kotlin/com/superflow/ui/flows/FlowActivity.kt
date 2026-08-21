@@ -60,14 +60,39 @@ class FlowActivity : ScrollActivity() {
                 steps.forEachIndexed { i, s ->
                     append("${i + 1}. ${s.title}")
                     if (s.existingBehaviour) append("  (existing)")
+                    if (s.durationMinutes > 0) append("  (~${s.durationMinutes} min)")
                     append('\n')
                 }
+                if (f.estimatedMinutes > 0) append("\nTotal: ~${f.estimatedMinutes} min")
+                if (f.completionCount > 0) append(" · completed ${f.completionCount} times")
                 if (newLinks > 3) {
                     append("\n$newLinks new behaviours in one flow. Adding more than about three " +
                             "at once usually weakens all of them.")
                 }
             }.trim()
             val holder = card.findViewById<TextView>(R.id.text_title).parent as LinearLayout
+            if (steps.isNotEmpty()) {
+                holder.addView(MaterialButton(this, null,
+                    com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                    text = "Run flow"
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).also { it.topMargin = dpi(12) }
+                    setOnClickListener {
+                        exec("run_flow", jsonOf("flowId" to f.id))
+                        com.google.android.material.dialog.MaterialAlertDialogBuilder(this@FlowActivity)
+                            .setTitle("Running: ${f.title}")
+                            .setMessage(repo.flowSteps(f.id).joinToString("\n") { s ->
+                                "${if (s.durationMinutes > 0) "⏱ ${s.durationMinutes} min — " else ""}${s.title}"
+                            })
+                            .setPositiveButton("Mark all done") { _, _ ->
+                                exec("complete_flow", jsonOf("flowId" to f.id))
+                            }
+                            .setNegativeButton(R.string.cancel, null)
+                            .show()
+                    }
+                })
+            }
             holder.addView(MaterialButton(this, null,
                 com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
                 text = "Add step"

@@ -2,6 +2,9 @@ package com.superflow.data.db
 
 import android.database.Cursor
 import com.superflow.data.model.*
+import com.superflow.util.objects
+import com.superflow.util.string
+import org.json.JSONArray
 
 /** Cursor read helpers plus row mappers, kept in one place. */
 
@@ -13,6 +16,12 @@ fun Cursor.strOrNull(name: String): String? =
 
 fun Cursor.int(name: String): Int =
     getColumnIndex(name).let { if (it < 0 || isNull(it)) 0 else getInt(it) }
+
+fun Cursor.intOrNull(name: String): Int? =
+    getColumnIndex(name).let { if (it < 0 || isNull(it)) null else getInt(it) }
+
+fun Cursor.boolOrNull(name: String): Boolean? =
+    getColumnIndex(name).let { if (it < 0 || isNull(it)) null else getInt(it) == 1 }
 
 fun Cursor.lng(name: String): Long =
     getColumnIndex(name).let { if (it < 0 || isNull(it)) 0L else getLong(it) }
@@ -40,18 +49,26 @@ object Rows {
 
     fun identity(c: Cursor) = Identity(
         c.str("id"), c.str("statement"), LifeArea.from(c.str("lifeArea")),
-        Status.valueOf(c.str("status").ifBlank { "ACTIVE" }), c.lng("createdAt")
+        Status.valueOf(c.str("status").ifBlank { "ACTIVE" }),
+        c.bool("isPrimary"),
+        parseEvolutionHistory(c.str("evolutionHistory")),
+        c.lng("createdAt")
     )
 
     fun goal(c: Cursor) = Goal(
         c.str("id"), c.strOrNull("identityId"), c.str("title"), c.str("why"),
         c.str("outcomeMetric"), c.dblOrNull("targetValue"), c.lngOrNull("targetDate"),
-        GoalStatus.valueOf(c.str("status").ifBlank { "ACTIVE" }), c.lng("createdAt")
+        c.dblOrNull("currentMetricValue"), c.str("metricUnit"),
+        GoalStatus.valueOf(c.str("status").ifBlank { "ACTIVE" }),
+        parseGoalMilestones(c.str("milestones")),
+        c.lng("createdAt")
     )
 
     fun system(c: Cursor) = Sys(
         c.str("id"), c.strOrNull("goalId"), c.str("title"), c.str("description"),
-        Status.valueOf(c.str("status").ifBlank { "ACTIVE" }), c.lng("createdAt")
+        Status.valueOf(c.str("status").ifBlank { "ACTIVE" }),
+        c.strOrNull("templateId"), c.str("reviewFrequency").ifBlank { "monthly" },
+        c.lng("createdAt")
     )
 
     fun habit(c: Cursor) = Habit(
@@ -71,6 +88,17 @@ object Rows {
         scheduleVersion = c.int("scheduleVersion").coerceAtLeast(1),
         startDate = c.str("startDate"), endDate = c.strOrNull("endDate"),
         reminderEnabled = c.bool("reminderEnabled"), protectedRoutine = c.bool("protectedRoutine"),
+        rewardSatisfaction = c.intOrNull("rewardSatisfaction"),
+        rewardLastRated = c.strOrNull("rewardLastRated"),
+        reframeHelpful = c.boolOrNull("reframeHelpful"),
+        bundleEffectiveness = c.intOrNull("bundleEffectiveness"),
+        frictionPlanActive = c.bool("frictionPlanActive"),
+        environmentPrepReminderTime = c.strOrNull("environmentPrepReminderTime"),
+        ladderHistory = parseLadderEvolution(c.str("ladderHistory")),
+        lastDifficultyRating = c.intOrNull("lastDifficultyRating"),
+        stretchCount = c.int("stretchCount"), consecutiveStandards = c.int("consecutiveStandards"),
+        estimatedMinutes = c.int("estimatedMinutes").coerceAtLeast(1),
+        difficultyRating = c.int("difficultyRating").coerceIn(1, 5),
         colorSeed = c.int("colorSeed"), orderIndex = c.int("orderIndex"),
         status = Status.valueOf(c.str("status").ifBlank { "ACTIVE" }), createdAt = c.lng("createdAt")
     )
@@ -78,33 +106,52 @@ object Rows {
     fun checkIn(c: Cursor) = CheckIn(
         c.str("id"), c.str("habitId"), c.str("date"),
         CheckInResult.valueOf(c.str("result").ifBlank { "DONE" }),
-        Level.from(c.str("level")), c.dbl("amount"), c.str("note"), c.lng("createdAt")
+        Level.from(c.str("level")), c.dbl("amount"), c.str("note"),
+        parseContextTags(c.str("contextTags")),
+        c.dblOrNull("actualAmount"),
+        c.intOrNull("actualDurationMinutes"),
+        c.intOrNull("qualityRating"),
+        c.intOrNull("difficultyRating"),
+        c.strOrNull("missReason"), c.strOrNull("missReasonDetail"),
+        c.lng("createdAt")
     )
 
     fun focus(c: Cursor) = FocusItem(
         c.str("id"), c.str("date"), c.strOrNull("habitId"), c.str("title"),
-        c.bool("done"), c.int("orderIndex")
+        c.bool("done"), c.bool("isPriority"), c.strOrNull("goalId"),
+        c.intOrNull("estimatedMinutes"),
+        c.int("carryOverCount"), c.int("orderIndex")
     )
 
     fun obstacle(c: Cursor) = ObstaclePlan(
-        c.str("id"), c.str("habitId"), c.str("ifText"), c.str("thenText"), c.lng("createdAt")
+        c.str("id"), c.str("habitId"), c.str("ifText"), c.str("thenText"),
+        c.strOrNull("category"), c.int("timesUsed"), c.strOrNull("lastUsed"),
+        c.intOrNull("effectiveness"),
+        c.lng("createdAt")
     )
 
     fun scorecard(c: Cursor) = ScorecardEntry(
         c.str("id"), c.str("routine"), c.int("verdict"), c.str("note"), c.lng("createdAt")
     )
 
-    fun flow(c: Cursor) = Flow(c.str("id"), c.str("title"), c.str("anchor"), c.lng("createdAt"))
+    fun flow(c: Cursor) = Flow(
+        c.str("id"), c.str("title"), c.str("anchor"),
+        c.int("estimatedMinutes"), c.int("completionCount"), c.int("partialCount"),
+        c.lng("createdAt")
+    )
 
     fun flowStep(c: Cursor) = FlowStep(
         c.str("id"), c.str("flowId"), c.strOrNull("habitId"), c.str("title"),
-        c.bool("existingBehaviour"), c.int("orderIndex")
+        c.bool("existingBehaviour"), c.int("durationMinutes"), c.bool("isBreakpoint"),
+        c.int("orderIndex")
     )
 
     fun review(c: Cursor) = Review(
         c.str("id"), ReviewKind.valueOf(c.str("kind").ifBlank { "WEEKLY" }), c.str("periodLabel"),
         c.str("whatWorked"), c.str("whatDidnt"), c.str("systemChange"),
-        c.str("identityEvidence"), c.lng("createdAt")
+        c.str("identityEvidence"), c.str("autoGeneratedData"),
+        parseReviewActionItems(c.str("actionItems")), c.strOrNull("previousReviewId"),
+        c.lng("createdAt")
     )
 
     fun energy(c: Cursor) = EnergyLog(
@@ -142,6 +189,11 @@ object Rows {
         c.str("reason"), c.lng("createdAt")
     )
 
+    fun evidence(c: Cursor) = IdentityEvidence(
+        c.str("id"), c.str("identityId"), c.str("text"), c.strOrNull("sourceHabitId"),
+        c.str("date"), c.lng("createdAt")
+    )
+
     fun profile(c: Cursor) = UserProfile(
         c.str("id"), c.str("displayName"), c.str("locale"), c.str("zoneId"),
         c.int("weekStart").let { if (it in 1..7) it else 1 }, c.lng("createdAt"), c.lng("updatedAt")
@@ -151,4 +203,80 @@ object Rows {
         c.str("id"), c.str("projectId"), c.int("version"), c.str("label"),
         c.str("ledgerJson"), c.lng("createdAt")
     )
+}
+
+/* --------------------------------------------------------------- JSON parsers */
+
+private fun parseEvolutionHistory(raw: String): List<IdentityEvolution> {
+    if (raw.isBlank()) return emptyList()
+    return try {
+        JSONArray(raw).objects().map { o ->
+            IdentityEvolution(
+                previousStatement = o.string("previousStatement"),
+                newStatement = o.string("newStatement"),
+                reason = o.string("reason"),
+                votesAtEvolution = o.optInt("votesAtEvolution", 0),
+                date = o.string("date")
+            )
+        }
+    } catch (_: Exception) { emptyList() }
+}
+
+private fun parseGoalMilestones(raw: String): List<GoalMilestone> {
+    if (raw.isBlank()) return emptyList()
+    return try {
+        JSONArray(raw).objects().map { o ->
+            val linkedHabitIds = o.optJSONArray("linkedHabitIds")?.let { arr ->
+                (0 until arr.length()).map { arr.optString(it, "") }.filter { it.isNotBlank() }
+            } ?: emptyList()
+            GoalMilestone(
+                id = o.string("id"),
+                title = o.string("title"),
+                achieved = o.optBoolean("achieved", false),
+                achievedDate = o.optString("achievedDate", null),
+                linkedHabitIds = linkedHabitIds
+            )
+        }
+    } catch (_: Exception) { emptyList() }
+}
+
+private fun parseLadderEvolution(raw: String): List<LadderEvolution> {
+    if (raw.isBlank()) return emptyList()
+    return try {
+        JSONArray(raw).objects().map { o ->
+            LadderEvolution(
+                level = Level.from(o.optString("level")),
+                previousText = o.string("previousText"),
+                newText = o.string("newText"),
+                reason = o.string("reason"),
+                date = o.string("date")
+            )
+        }
+    } catch (_: Exception) { emptyList() }
+}
+
+private fun parseContextTags(raw: String): List<String> {
+    if (raw.isBlank()) return emptyList()
+    return try {
+        JSONArray(raw).objects().map { it.optString("tag", "") }.filter { it.isNotBlank() }
+    } catch (_: Exception) {
+        // Fallback: comma-separated
+        raw.split(",").map { it.trim() }.filter { it.isNotBlank() }
+    }
+}
+
+private fun parseReviewActionItems(raw: String): List<ReviewActionItem> {
+    if (raw.isBlank()) return emptyList()
+    return try {
+        JSONArray(raw).objects().map { o ->
+            ReviewActionItem(
+                id = o.string("id"),
+                text = o.string("text"),
+                completed = o.optBoolean("completed", false),
+                completedDate = o.optString("completedDate", null),
+                linkedCommand = o.optString("linkedCommand", null),
+                outcome = o.optString("outcome", null)
+            )
+        }
+    } catch (_: Exception) { emptyList() }
 }
