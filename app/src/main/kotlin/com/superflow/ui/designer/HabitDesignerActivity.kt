@@ -116,6 +116,12 @@ class HabitDesignerActivity : AppCompatActivity() {
                     resources.getDimensionPixelSize(R.dimen.space_m))
             insets
         }
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.scroll)) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            v.updatePadding(bottom = maxOf(bars.bottom, ime.bottom) + (24 * resources.displayMetrics.density).toInt())
+            insets
+        }
 
         render()
     }

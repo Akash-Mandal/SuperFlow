@@ -3,6 +3,7 @@ package com.superflow.ui.journal
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -13,6 +14,7 @@ import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.TextInputEditText
 import com.superflow.R
 import com.superflow.data.Repository
+import com.superflow.ui.common.SfTheme
 import com.superflow.data.model.JournalEntry
 import com.superflow.ui.common.snack
 import com.superflow.core.time.SfTime
@@ -31,13 +33,17 @@ class JournalActivity : AppCompatActivity() {
     private lateinit var repo: Repository
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        SfTheme.apply(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_journal)
         repo = Repository.get(this)
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.journal_content)) { v, insets ->
+        val root = findViewById<android.view.View>(R.id.journal_root) ?: findViewById(android.R.id.content)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.updatePadding(top = bars.top)
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            v.updatePadding(top = bars.top, bottom = maxOf(bars.bottom, ime.bottom))
             insets
         }
 

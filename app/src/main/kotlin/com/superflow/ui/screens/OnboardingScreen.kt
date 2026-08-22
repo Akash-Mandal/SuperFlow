@@ -17,10 +17,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -102,19 +103,26 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier,
 ) {
     val step = state.step
-    Column(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
-            .imePadding(),
     ) {
+        val maxContent = Navigation.MAX_CONTENT_WIDTH.dp
+        val horizPad = if (maxWidth > maxContent) (maxWidth - maxContent) / 2 else 0.dp
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding()
+        ) {
         ProgressLine(step)
 
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .padding(horizontal = horizPad),
             contentAlignment = Alignment.TopCenter,
         ) {
             val animate = SfTheme.motion.enabled
@@ -147,12 +155,14 @@ fun OnboardingScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = Space.LG.dp),
+                        .padding(horizontal = Space.LG.dp)
+                        .imePadding(),
                 )
             }
         }
 
-        Footer(state = state, onAction = onAction)
+            Footer(state = state, onAction = onAction, horizPad = horizPad)
+        }
     }
 }
 
@@ -193,12 +203,14 @@ private fun ProgressLine(step: OnboardingFlow.Step) {
 }
 
 @Composable
-private fun Footer(state: OnboardingUiState, onAction: (OnboardingAction) -> Unit) {
+private fun Footer(state: OnboardingUiState, onAction: (OnboardingAction) -> Unit, horizPad: androidx.compose.ui.unit.Dp = 0.dp) {
     val step = state.step
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = horizPad)
             .navigationBarsPadding()
+            .imePadding()
             .padding(horizontal = Space.LG.dp, vertical = Space.MD.dp),
     ) {
         if (state.blocker != null) {

@@ -186,7 +186,8 @@ class PauseActivity : ScrollActivity() {
 
         ViewCompat.setOnApplyWindowInsetsListener(content) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.updatePadding(bottom = bars.bottom + resources.getDimensionPixelSize(R.dimen.space_xl))
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            v.updatePadding(bottom = maxOf(bars.bottom, ime.bottom) + resources.getDimensionPixelSize(R.dimen.space_xl))
             insets
         }
     }
