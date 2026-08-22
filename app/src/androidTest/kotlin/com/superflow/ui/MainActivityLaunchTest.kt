@@ -46,24 +46,23 @@ class MainActivityLaunchTest {
         prefs.onboarded = false
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         var finishing = false
-        var startedOnboarding = false
+        // MainActivity calls finish() synchronously in onCreate when onboarding
+        // is pending, so this activity is destroyed almost immediately. Capture
+        // the finishing flag now, while it is still alive; once it is torn down
+        // ActivityScenario.onActivity throws "Activity has been destroyed".
         scenario.onActivity { activity ->
             finishing = activity.isFinishing
         }
-        // The redirect startActivity(OnboardingActivity) runs synchronously
-        // in onCreate before finish(); give the scheduler a beat.
+        // Give the redirect/teardown a beat, then close without touching the
+        // (now destroyed) activity again.
         Thread.sleep(500)
-        scenario.onActivity { activity ->
-            startedOnboarding = activity.intent == null || activity.isFinishing
-        }
         scenario.close()
         assertTrue(
             "MainActivity must finish when onboarding is pending",
             finishing
         )
-        // Onboarding became the running activity; verify via the task's top
-        // activity through a second launch of OnboardingActivity is not
-        // needed: the finish() flag proves the redirect branch executed.
+        // The redirect startActivity(OnboardingActivity) runs synchronously in
+        // onCreate before finish(); the finishing flag proves the branch ran.
     }
 
     @Test

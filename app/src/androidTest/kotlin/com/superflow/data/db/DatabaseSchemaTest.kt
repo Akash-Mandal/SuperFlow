@@ -97,10 +97,13 @@ class DatabaseSchemaTest {
         )
         val v3 = upgradeHelper.writableDatabase
 
-        // 42 = bits 2,3,5,6,7 -> Tue, Wed, Fri, Sat, Sun
+        // 42 = 0b101010 = bits 1,3,5 -> Tue (2), Thu (4), Sat (6). The v1
+        // daysMask was a 7-bit weekday mask with Monday = bit 0, so the
+        // conversion maps bit (day-1) to ISO day `day`, matching
+        // Recurrence.fromMask.
         v3.query("SELECT recurrenceRule, scheduleVersion, startDate FROM habit WHERE id='h1'").use { c ->
             assertTrue(c.moveToFirst())
-            assertEquals("WEEKLY:2,3,5,6,7", c.getString(0))
+            assertEquals("WEEKLY:2,4,6", c.getString(0))
             assertEquals(1, c.getInt(1))
         }
         // Zero mask became the every-day default.

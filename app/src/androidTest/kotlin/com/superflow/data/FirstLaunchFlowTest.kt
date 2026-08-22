@@ -80,14 +80,14 @@ class FirstLaunchFlowTest {
                 JSONObject("""{"statement":"someone who moves","lifeArea":"HEALTH"}"""),
                 Actor.USER).data?.optString("id")
             ids[1] = bus.execute("create_goal", JSONObject(
-                """{"title":"Walk daily","why":"health","identityId":"${'$'}{ids[0]}"}"""),
+                """{"title":"Walk daily","why":"health","identityId":"${ids[0]}"}"""),
                 Actor.USER).data?.optString("id")
             ids[2] = bus.execute("create_system", JSONObject(
-                """{"title":"Morning walk","goalId":"${'$'}{ids[1]}"}"""),
+                """{"title":"Morning walk","goalId":"${ids[1]}"}"""),
                 Actor.USER).data?.optString("id")
             ids[3] = bus.execute("create_habit", JSONObject(
                 """{"title":"Walk 10 minutes","tinyStart":"Step outside","cueTime":"07:30",
-                    "systemId":"${'$'}{ids[2]}","identityId":"${'$'}{ids[0]}","days":"daily"}"""),
+                    "systemId":"${ids[2]}","identityId":"${ids[0]}","days":"daily"}"""),
                 Actor.USER).data?.optString("id")
         }
 

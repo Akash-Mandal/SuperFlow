@@ -232,10 +232,23 @@ class MainActivity : AppCompatActivity() {
         syncSelection(tab.index)
     }
 
+    // Both nav surfaces share one OnItemSelectedListener, and assigning
+    // selectedItemId on one surface synchronously dispatches that listener,
+    // which calls syncSelection again. Without the guard the two surfaces
+    // re-enter each other and overflow the stack (setSelectedItemId ->
+    // onItemSelected -> syncSelection -> setSelectedItemId -> ...).
+    private var syncingSelection = false
+
     private fun syncSelection(index: Int) {
+        if (syncingSelection) return
         val id = navIds.getOrNull(index) ?: return
-        if (bottomNav.selectedItemId != id) bottomNav.selectedItemId = id
-        if (rail.selectedItemId != id) rail.selectedItemId = id
+        syncingSelection = true
+        try {
+            if (bottomNav.selectedItemId != id) bottomNav.selectedItemId = id
+            if (rail.selectedItemId != id) rail.selectedItemId = id
+        } finally {
+            syncingSelection = false
+        }
     }
 
     /** Legacy entry point; index is interpreted in the old five-tab order. */
