@@ -1,5 +1,6 @@
 package com.superflow.ui.common
 
+import android.app.Activity
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -73,6 +74,18 @@ fun View.snack(message: String, actionLabel: String? = null, action: (() -> Unit
     if (actionLabel != null && action != null) bar.setAction(actionLabel) { action() }
     bar.setAnchorView(rootView.findViewById(R.id.bottom_nav) ?: null)
     bar.show()
+}
+
+/**
+ * Activity-level [snack].
+ *
+ * Several screens call `snack(...)` with no receiver from inside an Activity.
+ * Only the [View] extension existed, so those calls did not resolve. Anchoring
+ * on the content view keeps one implementation and works for both the
+ * ScrollActivity screens and the plain AppCompatActivity ones.
+ */
+fun Activity.snack(message: String, actionLabel: String? = null, action: (() -> Unit)? = null) {
+    findViewById<View>(android.R.id.content).snack(message, actionLabel, action)
 }
 
 fun View.visible(show: Boolean) {

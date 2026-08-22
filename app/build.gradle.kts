@@ -22,6 +22,13 @@ android {
         versionCode = 3
         versionName = "2.0.0"
 
+        // Required for `connectedDebugAndroidTest`: every test in
+        // app/src/androidTest is a @RunWith(AndroidJUnit4::class) class from
+        // androidx.test. Without this the AGP default
+        // (android.test.InstrumentationTestRunner) is used and the suite does
+        // not run at all.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
         // Vector drawables are used everywhere; keep the support library
         // fallback for pre-21 vector features (minSdk is 26, this is a no-op
         // kept for clarity).
@@ -63,6 +70,32 @@ android {
         // reviewed via ./gradlew lintDebug.
         abortOnError = false
         checkReleaseBuilds = false
+
+        // Analyse this module only. Walking into the dependency AARs roughly
+        // doubles the work and reports issues nobody here can fix.
+        checkDependencies = false
+        ignoreTestSources = true
+        checkGeneratedSources = false
+
+        // On CI, run only the correctness detectors. The full set did not
+        // finish inside 26 minutes and was killed by the job timeout; these
+        // are the checks that catch shipping bugs rather than style, and they
+        // keep the pipeline bounded. A full `./gradlew lintDebug` locally is
+        // still the review gate.
+        //
+        // NewApi earns its place: the delete button in RoutineBuilderActivity
+        // used a Material colour that only exists in values-v31, which would
+        // have crashed on API 26-30 — exactly what this detector flags.
+        if (System.getenv("GITHUB_ACTIONS") == "true") {
+            checkOnly += setOf(
+                "NewApi",
+                "InlinedApi",
+                "ObsoleteSdkInt",
+                "MissingPermission",
+                "MissingSuperCall",
+                "Recycle",
+            )
+        }
     }
 
     testOptions {
@@ -76,6 +109,40 @@ android {
     }
 }
 
+// Surface unit-test failures as GitHub Actions annotations.
+//
+// A failing `testDebugUnitTest` otherwise reports only "Process completed with
+// exit code 1" on the job; the assertion messages live in the run log and in
+// the uploaded report artifact. Echoing each failure as a ::error:: workflow
+// command puts the class, test name and cause directly on the job summary and
+// on the pull request diff, which is where a reviewer looks first.
+if (System.getenv("GITHUB_ACTIONS") == "true") {
+    tasks.withType<Test>().configureEach {
+        testLogging {
+            events("failed")
+            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+            showStackTraces = true
+        }
+        addTestListener(object : TestListener {
+            override fun beforeSuite(suite: TestDescriptor) = Unit
+            override fun afterSuite(suite: TestDescriptor, result: TestResult) = Unit
+            override fun beforeTest(testDescriptor: TestDescriptor) = Unit
+            override fun afterTest(testDescriptor: TestDescriptor, result: TestResult) {
+                if (result.resultType != TestResult.ResultType.FAILURE) return
+                val cause = result.exception
+                    ?.let { "${it.javaClass.simpleName}: ${it.message}" }
+                    ?: "test failed"
+                // Workflow commands are one line: encode newlines as %0A.
+                val encoded = cause.replace("\r", "").replace("\n", "%0A").take(900)
+                logger.lifecycle(
+                    "::error title=${testDescriptor.className}::" +
+                        "${testDescriptor.name} — $encoded"
+                )
+            }
+        })
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -86,6 +153,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.viewpager2)
+    implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.androidx.sqlite)
     implementation(libs.androidx.sqlite.framework)
     implementation(libs.androidx.work.runtime.ktx)

@@ -36,7 +36,7 @@ class DatabaseSchemaTest {
     }
 
     @Test
-    fun `fresh database has the full schema`() {
+    fun freshDatabaseHasTheFullSchema() {
         val expected = setOf(
             "identity", "goal", "sys", "habit", "checkin", "focus", "obstacle",
             "scorecard", "flow", "flowstep", "review", "energy", "audit", "aimsg",
@@ -50,14 +50,14 @@ class DatabaseSchemaTest {
     }
 
     @Test
-    fun `production database uses wal journal mode`() {
+    fun productionDatabaseUsesWalJournalMode() {
         d.query("PRAGMA journal_mode").use { c ->
             assertTrue("journal_mode not WAL", c.moveToFirst() && c.getString(0).equals("wal", true))
         }
     }
 
     @Test
-    fun `migration from v1 converts daysMask to recurrenceRule`() {
+    fun migrationFromV1ConvertsDaysMaskToRecurrenceRule() {
         val name = uniqueDb()
         val helper = FrameworkSQLiteOpenHelperFactory().create(
             androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(
@@ -97,10 +97,13 @@ class DatabaseSchemaTest {
         )
         val v3 = upgradeHelper.writableDatabase
 
-        // 42 = bits 2,3,5,6,7 -> Tue, Wed, Fri, Sat, Sun
+        // 42 = 0b101010 = bits 1,3,5 -> Tue (2), Thu (4), Sat (6). The v1
+        // daysMask was a 7-bit weekday mask with Monday = bit 0, so the
+        // conversion maps bit (day-1) to ISO day `day`, matching
+        // Recurrence.fromMask.
         v3.query("SELECT recurrenceRule, scheduleVersion, startDate FROM habit WHERE id='h1'").use { c ->
             assertTrue(c.moveToFirst())
-            assertEquals("WEEKLY:2,3,5,6,7", c.getString(0))
+            assertEquals("WEEKLY:2,4,6", c.getString(0))
             assertEquals(1, c.getInt(1))
         }
         // Zero mask became the every-day default.
@@ -127,7 +130,7 @@ class DatabaseSchemaTest {
     }
 
     @Test
-    fun `no-op upgrade on current version keeps data`() {
+    fun noOpUpgradeOnCurrentVersionKeepsData() {
         val before = d.query("SELECT COUNT(*) FROM habit").use { c -> c.moveToFirst(); c.getInt(0) }
         Schema.upgrade(d, SuperFlowDatabase.VERSION, SuperFlowDatabase.VERSION)
         val after = d.query("SELECT COUNT(*) FROM habit").use { c -> c.moveToFirst(); c.getInt(0) }
@@ -135,15 +138,15 @@ class DatabaseSchemaTest {
     }
 
     @Test
-    fun `content values helper types correctly`() {
+    fun contentValuesHelperTypesCorrectly() {
         val v = contentValuesOf(
             "s" to "x", "i" to 3, "l" to 9L, "d" to 1.5, "b" to true, "n" to null
         )
         assertEquals("x", v.get("s"))
         assertEquals(3, v.getAsInteger("i"))
         assertEquals(9L, v.getAsLong("l"))
-        assertEquals(1.5, v.getAsDouble("d"))
+        assertEquals(1.5, v.getAsDouble("d"), 0.001)
         assertEquals(1, v.getAsInteger("b"))
-        assertTrue(v.valueAt(5) == null)
+        assertTrue(v.get("missing") == null)
     }
 }

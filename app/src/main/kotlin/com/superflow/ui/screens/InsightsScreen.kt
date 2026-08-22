@@ -193,11 +193,14 @@ private fun ConsistencyCard(state: InsightsUiState, period: Periods.Period) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
+            // transitionSpec is not a @Composable lambda, so the motion specs
+            // have to be read here and captured.
+            val motion = SfTheme.motion
             AnimatedContent(
                 targetState = period.id,
                 transitionSpec = {
-                    fadeIn(SfTheme.motion.tween(SfTheme.motion.quick)) togetherWith
-                        fadeOut(SfTheme.motion.tween(SfTheme.motion.fast))
+                    fadeIn(motion.tween(motion.quick)) togetherWith
+                        fadeOut(motion.tween(motion.fast))
                 },
                 label = "periodSwitch",
             ) { _ ->

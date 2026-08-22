@@ -73,7 +73,7 @@ class ProgressRing @JvmOverloads constructor(
 
     private fun refreshThemeColors() {
         colorSurfaceVariant = themeColor(MR.attr.colorSurfaceVariant)
-        colorPrimary = themeColor(MR.attr.colorPrimary)
+        colorPrimary = themeColor(androidx.appcompat.R.attr.colorPrimary)
         colorOnSurface = themeColor(MR.attr.colorOnSurface)
         colorOnSurfaceVariant = themeColor(MR.attr.colorOnSurfaceVariant)
         trackPaint.color = colorSurfaceVariant
@@ -168,7 +168,7 @@ class BarChart @JvmOverloads constructor(
     }
 
     private fun refreshThemeColors() {
-        colorPrimary = themeColor(MR.attr.colorPrimary)
+        colorPrimary = themeColor(androidx.appcompat.R.attr.colorPrimary)
         colorSurfaceVariant = themeColor(MR.attr.colorSurfaceVariant)
         colorOnSurfaceVariant = themeColor(MR.attr.colorOnSurfaceVariant)
         colorSurface = themeColor(MR.attr.colorSurface)
@@ -263,7 +263,7 @@ class HeatmapView @JvmOverloads constructor(
     }
 
     private fun refreshThemeColors() {
-        colorPrimary = themeColor(MR.attr.colorPrimary)
+        colorPrimary = themeColor(androidx.appcompat.R.attr.colorPrimary)
         colorSurfaceVariant = themeColor(MR.attr.colorSurfaceVariant)
         colorSurface = themeColor(MR.attr.colorSurface)
         notScheduled = blend(colorSurfaceVariant, colorSurface, 0.5f)
@@ -330,7 +330,7 @@ class HistoryStrip @JvmOverloads constructor(
     }
 
     private fun refreshThemeColors() {
-        colorPrimary = themeColor(MR.attr.colorPrimary)
+        colorPrimary = themeColor(androidx.appcompat.R.attr.colorPrimary)
         colorMissed = context.getColor(R.color.state_missed)
         colorSkipped = context.getColor(R.color.state_skipped)
         colorNotScheduled = blend(

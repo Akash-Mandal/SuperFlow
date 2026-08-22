@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 
 /** Rows rendered by the Journey list. */
@@ -64,6 +65,7 @@ sealed class JourneyRow {
         val kind: String get() = row.node.kind.key
         val title: String get() = row.node.title
         val archived: Boolean get() = row.node.archived
+        val graduated: Boolean get() = row.node.graduated
         override val stableId = (row.key).hashCode().toLong()
     }
 
@@ -284,6 +286,21 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
     fun habit(id: String): Habit? = repo.habit(id)
     fun identities(): List<Identity> = repo.identities()
     fun goals(): List<Goal> = repo.goals()
+
+    /**
+     * Persist the order produced by a drag (JourneyFragment's ItemTouchHelper).
+     * The capability re-indexes every active habit and records one grouped undo.
+     */
+    fun reorderHabits(ids: List<String>) =
+        run("reorder_habits", jsonOf("ids" to JSONArray(ids)))
+
+    /** Copy a habit, its obstacle plans included. */
+    fun duplicateHabit(id: String) =
+        run("duplicate_habit", jsonOf("habit" to id))
+
+    /** Nudge a habit one slot along the Today timeline. [direction] is up|down. */
+    fun moveHabit(id: String, direction: String) =
+        run("reorder_habit", jsonOf("habit" to id, "direction" to direction))
 
     fun saveIdentity(id: String?, statement: String, area: LifeArea) {
         if (id == null) run("create_identity", jsonOf("statement" to statement, "lifeArea" to area.name))

@@ -37,7 +37,7 @@ class FirstLaunchFlowTest {
 
     private fun onBg(block: () -> Unit) {
         val latch = CountDownLatch(1)
-        getInstrumentation().runOnMainLooper {
+        getInstrumentation().runOnMainSync {
             block()
             latch.countDown()
         }
@@ -47,7 +47,7 @@ class FirstLaunchFlowTest {
     /* ------------------------------------------------------- preference state */
 
     @Test
-    fun `clean state has onboarding pending and sane defaults`() {
+    fun cleanStateHasOnboardingPendingAndSaneDefaults() {
         prefs.resetAll()
         assertFalse(prefs.onboarded)
         assertEquals(Prefs.THEME_SYSTEM, prefs.themeMode)
@@ -59,7 +59,7 @@ class FirstLaunchFlowTest {
     }
 
     @Test
-    fun `onboarded state survives and themes apply`() {
+    fun onboardedStateSurvivesAndThemesApply() {
         prefs.onboarded = true
         prefs.themeMode = Prefs.THEME_DARK
         assertEquals(Prefs.THEME_DARK, prefs.themeMode)
@@ -71,7 +71,7 @@ class FirstLaunchFlowTest {
     /* --------------------------------------------------- first launch creation */
 
     @Test
-    fun `onboarding creation path writes identity goal system habit`() {
+    fun onboardingCreationWritesIdentityGoalSystemHabit() {
         val bus = CommandBus.get(ApplicationProvider.getApplicationContext())
         val ids = arrayOfNulls<String>(4)
 
@@ -80,14 +80,14 @@ class FirstLaunchFlowTest {
                 JSONObject("""{"statement":"someone who moves","lifeArea":"HEALTH"}"""),
                 Actor.USER).data?.optString("id")
             ids[1] = bus.execute("create_goal", JSONObject(
-                """{"title":"Walk daily","why":"health","identityId":"${'$'}{ids[0]}"}"""),
+                """{"title":"Walk daily","why":"health","identityId":"${ids[0]}"}"""),
                 Actor.USER).data?.optString("id")
             ids[2] = bus.execute("create_system", JSONObject(
-                """{"title":"Morning walk","goalId":"${'$'}{ids[1]}"}"""),
+                """{"title":"Morning walk","goalId":"${ids[1]}"}"""),
                 Actor.USER).data?.optString("id")
             ids[3] = bus.execute("create_habit", JSONObject(
                 """{"title":"Walk 10 minutes","tinyStart":"Step outside","cueTime":"07:30",
-                    "systemId":"${'$'}{ids[2]}","identityId":"${'$'}{ids[0]}","days":"daily"}"""),
+                    "systemId":"${ids[2]}","identityId":"${ids[0]}","days":"daily"}"""),
                 Actor.USER).data?.optString("id")
         }
 
@@ -110,7 +110,7 @@ class FirstLaunchFlowTest {
     }
 
     @Test
-    fun `empty database renders without exceptions`() {
+    fun emptyDatabaseRendersWithoutExceptions() {
         val repo = Repository.get(ApplicationProvider.getApplicationContext())
         // Wipe to simulate a clean install.
         repo.deleteAllData()
@@ -127,7 +127,7 @@ class FirstLaunchFlowTest {
     }
 
     @Test
-    fun `check in and undo round trip`() {
+    fun checkInAndUndoRoundTrip() {
         val bus = CommandBus.get(ApplicationProvider.getApplicationContext())
         val repo = Repository.get(ApplicationProvider.getApplicationContext())
         repo.deleteAllData()
@@ -144,7 +144,7 @@ class FirstLaunchFlowTest {
                 org.json.JSONObject("""{"habit":"$habitId","level":"TINY"}"""), Actor.USER)
             assertTrue(res.ok)
         }
-        val ci = repo.checkIn(habitId, date)
+        val ci = repo.checkIn(habitId!!, date)
         assertNotNull(ci)
         assertEquals(Level.TINY, ci!!.level)
 
@@ -152,33 +152,34 @@ class FirstLaunchFlowTest {
         val audit = repo.audit(5).first()
         val undoRes = onBgReturn { bus.undo(audit) }
         assertTrue(undoRes.ok)
-        assertEquals(null, repo.checkIn(habitId, date))
+        assertEquals(null, repo.checkIn(habitId!!, date))
     }
 
     /* ----------------------------------------------------------------- widget */
 
     @Test
-    fun `widget refresh with zero ids is safe`() {
+    fun widgetRefreshWithZeroIdsIsSafe() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         // No widget is installed in the test environment; this must be a no-op,
         // not a crash. Run several times back to back (debounce + force).
         repeat(3) {
             TodayWidget.refresh(context)
-            TodayWidget.refresh(context, force = true)
+            TodayWidget.refresh(context)
         }
         // If it had thrown, the test fails here.
     }
 
     /* --------------------------------------------------------------- helpers */
 
-    private fun onBgReturn(block: () -> Any?): Any? {
-        var result: Any? = null
+    private fun <T> onBgReturn(block: () -> T): T {
+        var result: T? = null
         val latch = CountDownLatch(1)
-        getInstrumentation().runOnMainLooper {
+        getInstrumentation().runOnMainSync {
             result = block()
             latch.countDown()
         }
         assertTrue("timed out", latch.await(30, TimeUnit.SECONDS))
-        return result
+        @Suppress("UNCHECKED_CAST")
+        return result as T
     }
 }

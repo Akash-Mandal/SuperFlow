@@ -13,7 +13,7 @@ import com.superflow.ui.common.snack
 import com.superflow.ui.sheets.TextInputSheet
 import com.superflow.util.jsonOf
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.lifecycle.lifecycleScope
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate

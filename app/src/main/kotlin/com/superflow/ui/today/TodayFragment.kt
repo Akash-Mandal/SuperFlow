@@ -256,7 +256,6 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
             Intent(requireContext(), HabitDetailActivity::class.java)
                 .putExtra(HabitDetailActivity.EXTRA_HABIT_ID, id)
         )
-        )
     }
 
     override fun onEmptyAction() {

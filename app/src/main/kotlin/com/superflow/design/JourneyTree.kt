@@ -80,6 +80,8 @@ object JourneyTree {
          */
         val active: Boolean = true,
         val archived: Boolean = false,
+        /** A graduated habit is in maintenance: shown, but not reorderable. */
+        val graduated: Boolean = false,
     )
 
     /* ------------------------------------------------------------ output */

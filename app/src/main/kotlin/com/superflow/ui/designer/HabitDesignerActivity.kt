@@ -516,7 +516,7 @@ class HabitDesignerActivity : AppCompatActivity() {
         layout.placeholderText = placeholder
         edit.setText(values[key].orEmpty())
         edit.filters = arrayOf(android.text.InputFilter.LengthFilter(maxLength))
-        layout.counterEnabled = true
+        layout.isCounterEnabled = true
         layout.counterMaxLength = maxLength
         if (numeric) edit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
         if (lines > 1) {

@@ -118,21 +118,23 @@ fun OnboardingScreen(
             contentAlignment = Alignment.TopCenter,
         ) {
             val animate = SfTheme.motion.enabled
+            // transitionSpec is not @Composable; capture the specs out here.
+            val motion = SfTheme.motion
             AnimatedContent(
                 targetState = step,
                 transitionSpec = {
                     if (!animate) {
-                        fadeIn(animationSpec = SfTheme.motion.tween(0)) togetherWith
-                            fadeOut(animationSpec = SfTheme.motion.tween(0))
+                        fadeIn(animationSpec = motion.tween(0)) togetherWith
+                            fadeOut(animationSpec = motion.tween(0))
                     } else {
                         val forward = targetState.index >= initialState.index
                         val offset = if (forward) 1 else -1
                         (
                             slideInHorizontally { full -> offset * full / 6 } +
-                                fadeIn(animationSpec = SfTheme.motion.tween(220))
+                                fadeIn(animationSpec = motion.tween(220))
                             ) togetherWith (
                             slideOutHorizontally { full -> -offset * full / 6 } +
-                                fadeOut(animationSpec = SfTheme.motion.tween(160))
+                                fadeOut(animationSpec = motion.tween(160))
                             )
                     }
                 },

@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.R as MR
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.checkbox.MaterialCheckBox
@@ -226,7 +227,7 @@ class TodayAdapter(
                 val title = v.findViewById<TextView>(R.id.focus_title)
                 title.text = item.title
                 check.buttonTintList = android.content.res.ColorStateList.valueOf(
-                    v.context.themeColor(com.google.android.material.R.attr.colorPrimary)
+                    v.context.themeColor(androidx.appcompat.R.attr.colorPrimary)
                 )
                 check.setOnCheckedChangeListener(null)
                 check.isChecked = item.done
@@ -365,7 +366,7 @@ class TodayAdapter(
             history.setStates(row.history)
 
             // Completion circle
-            val primary = context.themeColor(MR.attr.colorPrimary)
+            val primary = context.themeColor(androidx.appcompat.R.attr.colorPrimary)
             val outline = context.themeColor(MR.attr.colorOutline)
             if (done) {
                 circle.setBackgroundColor(0)

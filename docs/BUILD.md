@@ -47,6 +47,36 @@ smoke test and instrumented tests):
                              #   connectedDebugAndroidTest
 ```
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request to `main`, on pushes to
+`main`, and on demand (`workflow_dispatch`). It mirrors `tools/verify.sh` in
+three jobs:
+
+| Job | What it runs |
+|---|---|
+| **Static checks** | `tools/check_res.py`, `check_policy.py`, `check_compose.py`, `check_generated.py`, `check_widget.py` — the cross-file invariants neither `aapt2` nor the unit tests can see |
+| **Build, unit tests, lint** | JDK 17 + `testDebugUnitTest`, `lintDebug`, `assembleDebug`, then APK integrity: no unresolved `${applicationId}`, the `androidx.startup` provider is present in the merged manifest, and the debug signature verifies. Uploads the APK and all reports |
+| **Emulator verification** | On API **26** (minSdk) and **34** (targetSdk), via `reactivecircus/android-emulator-runner`: runs `tools/ci_emulator_verify.sh` — install, cold launch, logcat crash/ANR check, existing-data relaunch, then `connectedDebugAndroidTest` |
+
+The emulator job depends on the build job, so a broken build fails fast
+without paying for emulator boots. `tools/ci_emulator_verify.sh` is the
+`--device` half of `verify.sh` factored into a single entry point, so it can
+be run locally against a connected device with no arguments.
+
+> The APK integrity assertions are deliberately hard failures: an APK that
+> links but leaves `${applicationId}` unresolved in the startup provider
+> authority is exactly the artifact that produced the original launch crash.
+
+> The workflow is active and is the branch protection gate for PRs into
+> `main`. It was originally staged at `ci/ci.yml` (GitHub only runs
+> workflows under `.github/workflows/`); it lives there now.
+
+> For everything learned while making this pipeline green — the technology
+> stack, the CI procedures, the non-obvious build/test traps and how to
+> avoid them, plus step-by-step recipes for building and for updating the
+> app — see [`docs/BUILD_PLAYBOOK.md`](BUILD_PLAYBOOK.md).
+
 ## Dependencies
 
 Declared in `gradle/libs.versions.toml`. The runtime set matches the exact

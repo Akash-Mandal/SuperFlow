@@ -12,6 +12,8 @@ import kotlin.math.abs
  */
 class FuzzyTest {
 
+    private companion object { const val DELTA = 1e-9 }
+
     @Test
     fun `levenshtein distance`() {
         assertEquals(0, Fuzzy.levenshtein("walk", "walk"))
@@ -26,11 +28,13 @@ class FuzzyTest {
 
     @Test
     fun `similarity`() {
-        assertEquals(1.0, Fuzzy.similarity("walk", "walk"))
+        // similarity returns Double, so these need the delta overload:
+        // JUnit's assertEquals(double, double) is deprecated and fails outright.
+        assertEquals(1.0, Fuzzy.similarity("walk", "walk"), DELTA)
         assertTrue(abs(Fuzzy.similarity("walk", "wlak") - 0.5) < 0.001)
-        assertEquals(0.0, Fuzzy.similarity("walk", "zzzzzzz"))
-        assertEquals(1.0, Fuzzy.similarity("", ""))
-        assertEquals(1.0, Fuzzy.similarity("WALK", "walk"))
+        assertEquals(0.0, Fuzzy.similarity("walk", "zzzzzzz"), DELTA)
+        assertEquals(1.0, Fuzzy.similarity("", ""), DELTA)
+        assertEquals(1.0, Fuzzy.similarity("WALK", "walk"), DELTA)
     }
 
     @Test

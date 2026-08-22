@@ -113,6 +113,7 @@ object JourneyMapper {
                     // counts toward the live tallies, which reads as dormant.
                     active = h.status == Status.ACTIVE && !h.graduated,
                     archived = h.status == Status.ARCHIVED,
+                    graduated = h.graduated,
                 )
             )
         }

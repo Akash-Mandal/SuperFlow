@@ -12,6 +12,7 @@ import com.superflow.data.model.RoutineStep
 import com.superflow.data.model.Status
 import com.superflow.ui.common.ScrollActivity
 import com.superflow.ui.common.snack
+import com.superflow.ui.common.themeColor
 import com.superflow.ui.sheets.TextInputSheet
 
 /**
@@ -107,7 +108,8 @@ class RoutineBuilderActivity : ScrollActivity() {
         val title = parts[0].trim()
         val minutes = parts.getOrNull(1)?.trim()?.filter { it.isDigit() }?.toIntOrNull() ?: 5
         val steps = repo.routineSteps(routine.id)
-        val step = RoutineStep(routineId = routine.id, title = title,
+        // A step typed into the builder is free text, not a linked habit.
+        val step = RoutineStep(routineId = routine.id, habitId = null, title = title,
             durationMinutes = minutes, orderIndex = steps.size)
         repo.saveRoutineStep(step)
         snack("Step added: $title (${minutes} min)")
@@ -130,7 +132,7 @@ class RoutineBuilderActivity : ScrollActivity() {
     }
 
     private fun makeRunButton(routine: Routine, steps: List<RoutineStep>) = MaterialButton(this, null,
-        com.google.android.material.R.attr.materialButtonFilledStyle).apply {
+        com.google.android.material.R.attr.materialButtonStyle).apply {
         text = "▶ Run routine (${steps.sumOf { it.durationMinutes }} min)"
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -147,7 +149,7 @@ class RoutineBuilderActivity : ScrollActivity() {
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
         ).also { it.topMargin = dpi(4) }
-        setTextColor(resources.getColor(com.google.android.material.R.color.material_dynamic_tertiary40, theme))
+        setTextColor(themeColor(androidx.appcompat.R.attr.colorError))
         setOnClickListener {
             MaterialAlertDialogBuilder(this@RoutineBuilderActivity)
                 .setTitle("Delete \"${routine.title}\"?")

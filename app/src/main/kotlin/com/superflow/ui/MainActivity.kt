@@ -17,6 +17,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.navigation.NavigationBarView
 import com.google.android.material.navigationrail.NavigationRailView
+import com.superflow.DynamicShortcuts
 import com.superflow.R
 import com.superflow.data.Prefs
 import com.superflow.design.Navigation
@@ -171,7 +172,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent) {
+    // Public rather than the inherited protected visibility: the deep-link
+    // path is covered by MainActivityLaunchTest, which drives a running
+    // activity through onNewIntent.
+    public override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntent(intent)
@@ -228,10 +232,23 @@ class MainActivity : AppCompatActivity() {
         syncSelection(tab.index)
     }
 
+    // Both nav surfaces share one OnItemSelectedListener, and assigning
+    // selectedItemId on one surface synchronously dispatches that listener,
+    // which calls syncSelection again. Without the guard the two surfaces
+    // re-enter each other and overflow the stack (setSelectedItemId ->
+    // onItemSelected -> syncSelection -> setSelectedItemId -> ...).
+    private var syncingSelection = false
+
     private fun syncSelection(index: Int) {
+        if (syncingSelection) return
         val id = navIds.getOrNull(index) ?: return
-        if (bottomNav.selectedItemId != id) bottomNav.selectedItemId = id
-        if (rail.selectedItemId != id) rail.selectedItemId = id
+        syncingSelection = true
+        try {
+            if (bottomNav.selectedItemId != id) bottomNav.selectedItemId = id
+            if (rail.selectedItemId != id) rail.selectedItemId = id
+        } finally {
+            syncingSelection = false
+        }
     }
 
     /** Legacy entry point; index is interpreted in the old five-tab order. */

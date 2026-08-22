@@ -43,6 +43,191 @@ VALUE_TAGS = {
     "declare-styleable": "styleable", "item": None,  # item carries type=
 }
 
+# Material Components style names this project references, each verified to
+# exist in com.google.android.material:material:1.13.0.
+#
+# A prefix match alone is not enough: `Widget.Material3.Button.Filled` and
+# `Widget.Material3.Button.Outlined` look plausible, carry the right prefix,
+# and do not exist -- Material 3 spells them `Widget.Material3.Button` (filled
+# is the base style) and `Widget.Material3.Button.OutlinedButton`. Both slipped
+# through this checker and only surfaced as an aapt2 resource-linking failure.
+#
+# Adding a Material style here is deliberate: confirm the exact name against
+# the library's own res/values/styles.xml for the pinned version, then list it.
+KNOWN_MATERIAL_STYLES = {
+    "ShapeAppearance.Material3.Corner.ExtraLarge",
+    "ShapeAppearance.Material3.Corner.ExtraSmall",
+    "ShapeAppearance.Material3.Corner.Large",
+    "ShapeAppearance.Material3.Corner.Medium",
+    "ShapeAppearance.Material3.Corner.Small",
+    "TextAppearance.Material3.BodyLarge",
+    "TextAppearance.Material3.BodyMedium",
+    "TextAppearance.Material3.BodySmall",
+    "TextAppearance.Material3.DisplaySmall",
+    "TextAppearance.Material3.HeadlineLarge",
+    "TextAppearance.Material3.HeadlineMedium",
+    "TextAppearance.Material3.LabelLarge",
+    "TextAppearance.Material3.LabelMedium",
+    "TextAppearance.Material3.LabelSmall",
+    "TextAppearance.Material3.TitleLarge",
+    "TextAppearance.Material3.TitleMedium",
+    "Theme.Material3.DayNight.NoActionBar",
+    "ThemeOverlay.Material3.BottomSheetDialog",
+    "ThemeOverlay.Material3.MaterialAlertDialog",
+    "Widget.Material3.BottomNavigationView",
+    "Widget.Material3.BottomNavigationView.ActiveIndicator",
+    "Widget.Material3.BottomSheet.Modal",
+    "Widget.Material3.Button",
+    "Widget.Material3.Button.IconButton",
+    "Widget.Material3.Button.OutlinedButton",
+    "Widget.Material3.Button.TextButton",
+    "Widget.Material3.Button.TonalButton",
+    "Widget.Material3.CardView.Elevated",
+    "Widget.Material3.Chip.Assist",
+    "Widget.Material3.Chip.Filter",
+    "Widget.Material3.NavigationRailView",
+    "Widget.Material3.TextInputLayout.OutlinedBox",
+    "Widget.Material3.Toolbar",
+}
+
+# Style-name prefixes owned by Material Components. A reference carrying one
+# of these is checked against KNOWN_MATERIAL_STYLES above rather than merely
+# waved through as "external".
+CHECKED_MATERIAL_PREFIXES = (
+    "Theme.Material3", "ThemeOverlay.Material3", "Widget.Material3",
+    "TextAppearance.Material3", "ShapeAppearance.Material3",
+    "Theme.MaterialComponents", "Widget.MaterialComponents",
+    "ThemeOverlay.MaterialComponents", "TextAppearance.MaterialComponents",
+    "ShapeAppearance.MaterialComponents",
+)
+
+# Library R references made from Kotlin, each verified to exist in the library
+# that owns it (material:1.13.0, appcompat:1.7.1).
+#
+# With non-transitive R classes each library's R contains only the resources
+# that library declares, so the owning package has to be right. Two ways this
+# goes wrong, both of which reached CI as :app:compileDebugKotlin failures:
+#
+#   * inventing a name -- com.google.android.material.R.attr
+#     .materialButtonFilledStyle does not exist (the filled button is the
+#     default, materialButtonStyle);
+#   * attributing a real name to the wrong library --
+#     com.google.android.material.R.attr.colorPrimary does not exist either,
+#     because colorPrimary is declared by AppCompat, not Material.
+#
+# Adding an entry is deliberate: confirm the attribute is declared by that
+# exact library at the pinned version, then list it.
+KNOWN_LIBRARY_R_REFS = {
+    "androidx.appcompat.R.attr.borderlessButtonStyle",
+    "androidx.appcompat.R.attr.colorError",
+    "androidx.appcompat.R.attr.colorPrimary",
+    "com.google.android.material.R.attr.colorSecondaryContainer",
+    "com.google.android.material.R.attr.colorSurfaceContainerHigh",
+    "com.google.android.material.R.attr.materialButtonOutlinedStyle",
+    "com.google.android.material.R.attr.materialButtonStyle",
+}
+
+LIBRARY_R_RE = re.compile(
+    r'(?:com\.google\.android\.material|androidx\.[a-z0-9.]+)\.R\.\w+\.\w+')
+
+
+def check_library_r_refs(kotlin_files):
+    """Verify every library R reference in Kotlin against the allowlist."""
+    errors = []
+    for path in kotlin_files:
+        try:
+            text = open(path, encoding="utf-8").read()
+        except OSError:
+            continue
+        for lineno, line in enumerate(text.splitlines(), 1):
+            line = line.split("//", 1)[0]
+            for ref in LIBRARY_R_RE.findall(line):
+                if ref in KNOWN_LIBRARY_R_REFS:
+                    continue
+                errors.append(
+                    f"{path}:{lineno}: unverified library reference {ref!r} -- "
+                    f"it is not in KNOWN_LIBRARY_R_REFS in tools/check_res.py. "
+                    f"With non-transitive R classes the owning library must be "
+                    f"exact; confirm the resource is declared by that library "
+                    f"at the pinned version, then add it there.")
+    return errors
+
+
+# Import roots that must be backed by a declared Gradle dependency, mapped to
+# the version-catalog alias that provides them.
+#
+# androidx.swiperefreshlayout was imported by four files and used in two
+# layouts while the dependency was never declared, which fails
+# compileDebugKotlin with an unresolved reference. Nothing caught it: the
+# resource checker only looks at res/, and the layouts name the widget as a
+# string that aapt2 does not resolve to a class.
+IMPORT_ROOT_TO_LIB = {
+    "androidx.activity": "androidx.activity",
+    "androidx.appcompat": "androidx.appcompat",
+    "androidx.compose": "androidx.compose",
+    "androidx.core": "androidx.core",
+    "androidx.fragment": "androidx.fragment",
+    "androidx.lifecycle": "androidx.lifecycle",
+    "androidx.recyclerview": "androidx.recyclerview",
+    "androidx.sqlite": "androidx.sqlite",
+    "androidx.swiperefreshlayout": "androidx.swiperefreshlayout",
+    "androidx.viewpager2": "androidx.viewpager2",
+    "androidx.work": "androidx.work",
+    "com.google.android.material": "material",
+    "kotlinx.coroutines": "kotlinx.coroutines",
+}
+
+# Provided by android.jar or the Kotlin stdlib, so never declared.
+IMPORT_ROOTS_FROM_PLATFORM = ("android.", "java.", "javax.", "kotlin.",
+                              "dalvik.", "org.w3c", "org.xml", "org.json")
+
+
+def check_dependencies(kotlin_files, build_file="app/build.gradle.kts"):
+    """Every library imported by main sources must be a declared dependency."""
+    try:
+        build = open(build_file, encoding="utf-8").read()
+    except OSError:
+        return []
+    declared = set(re.findall(r'implementation\(libs\.([\w.]+)\)', build))
+
+    errors, seen = [], {}
+    for path in kotlin_files:
+        try:
+            text = open(path, encoding="utf-8").read()
+        except OSError:
+            continue
+        for lineno, line in enumerate(text.splitlines(), 1):
+            m = re.match(r'\s*import\s+([\w.]+)', line)
+            if not m:
+                continue
+            fq = m.group(1)
+            if fq.startswith("com.superflow") or fq.startswith(
+                    IMPORT_ROOTS_FROM_PLATFORM):
+                continue
+            root = next((r for r in IMPORT_ROOT_TO_LIB if fq.startswith(r + ".")),
+                        None)
+            if root is None:
+                seen.setdefault(f"unmapped:{fq}", f"{path}:{lineno}")
+                continue
+            alias = IMPORT_ROOT_TO_LIB[root]
+            if not any(d == alias or d.startswith(alias + ".") for d in declared):
+                seen.setdefault(root, f"{path}:{lineno}")
+
+    for key, where in sorted(seen.items()):
+        if key.startswith("unmapped:"):
+            fq = key.split(":", 1)[1]
+            errors.append(
+                f"{where}: import {fq} is not covered by IMPORT_ROOT_TO_LIB in "
+                f"tools/check_res.py. If it comes from a new dependency, "
+                f"declare the dependency and map its root here.")
+        else:
+            errors.append(
+                f"{where}: imports {key}.* but no matching implementation(...) "
+                f"is declared in {build_file}. Add the dependency (and a "
+                f"version-catalog entry) or drop the import.")
+    return errors
+
+
 # Reference prefixes that belong to the framework or a library rather than
 # to this project. These cannot be checked without the AARs.
 EXTERNAL_PREFIXES = (
@@ -185,6 +370,23 @@ def is_external(token):
     return token.startswith(EXTERNAL_PREFIXES)
 
 
+def material_style_error(name):
+    """Return a message if `name` claims a Material prefix but does not exist.
+
+    Material style names are only checkable by exact name: the prefix is the
+    part that always looks right on a typo, so matching on it alone lets
+    invented names such as Widget.Material3.Button.Filled through to aapt2.
+    """
+    if not name.startswith(CHECKED_MATERIAL_PREFIXES):
+        return None
+    if name in KNOWN_MATERIAL_STYLES:
+        return None
+    return (f"unknown Material style {name!r} -- it is not in "
+            f"KNOWN_MATERIAL_STYLES in tools/check_res.py. Confirm the exact "
+            f"name in the Material Components release this project pins, then "
+            f"add it there (see the note above the set).")
+
+
 def check_refs(files, defined):
     errors, external = [], set()
     for path in files:
@@ -211,6 +413,10 @@ def check_refs(files, defined):
                     continue
                 if rtype == "array" and (name in defined["array"]):
                     continue
+                bad_material = material_style_error(name)
+                if bad_material:
+                    errors.append(f"{path}:{lineno}: {bad_material}")
+                    continue
                 if is_external(name) or f"{rtype}/{name}" in EXTERNAL_NAMES:
                     external.add(f"{rtype}/{name}")
                     continue
@@ -226,12 +432,18 @@ def check_refs(files, defined):
                 parent = el.get("parent")
                 if not parent or parent.startswith(("@", "?")) or parent == "":
                     continue
+                if parent in defined["style"]:
+                    continue
+                bad_material = material_style_error(parent)
+                if bad_material:
+                    errors.append(
+                        f"{path}: style {el.get('name')} parent: {bad_material}")
+                    continue
                 if is_external(parent):
                     external.add(f"style/{parent}")
                     continue
-                if parent not in defined["style"]:
-                    errors.append(
-                        f"{path}: style {el.get('name')} has unknown parent {parent}")
+                errors.append(
+                    f"{path}: style {el.get('name')} has unknown parent {parent}")
     return errors, external
 
 
@@ -288,11 +500,18 @@ def main():
     dupes = check_dupes(per_bucket)
     parity = check_night_parity(res_dirs)
 
+    kotlin = sorted(glob.glob("app/src/main/kotlin/**/*.kt", recursive=True))
+    lib_refs = check_library_r_refs(kotlin)
+    deps = check_dependencies(kotlin)
+    if kotlin:
+        print(f"    checked library R references and dependency coverage in "
+              f"{len(kotlin)} kotlin files")
+
     if external:
         print(f"    {len(external)} framework/library refs (not checkable "
               f"without AARs)")
 
-    problems = parse_errors + errors + dupes + parity
+    problems = parse_errors + errors + dupes + parity + lib_refs + deps
     if problems:
         print(f"\n==> {len(problems)} PROBLEM(S)\n")
         for p in problems:

@@ -38,12 +38,12 @@ object AppBackground {
 
     /** Fire-and-forget on the serialized lane. */
     fun launch(block: suspend CoroutineScope.() -> Unit) {
-        scope.launch(block)
+        scope.launch(block = block)
     }
 
     /** Run on the serialized lane and wait for completion (tests, workers). */
     suspend fun await(block: suspend CoroutineScope.() -> Unit) {
-        val jobRef = scope.launch(block)
+        val jobRef = scope.launch(block = block)
         jobRef.join()
     }
 }

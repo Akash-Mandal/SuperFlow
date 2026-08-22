@@ -16,6 +16,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.superflow.R
+import com.superflow.data.Backups
 import com.superflow.data.DataPolicy
 import com.superflow.data.Prefs
 import com.superflow.data.Repository

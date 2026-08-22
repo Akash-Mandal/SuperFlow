@@ -23,6 +23,8 @@ import com.superflow.core.time.SfTime
 import com.superflow.util.Dates
 import com.superflow.util.jsonOf
 import com.superflow.widget.TodayWidget
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.runBlocking
 import java.util.Calendar
 
 /**
@@ -217,7 +219,10 @@ object Reminders {
     /** Synchronous variant for workers and tests that must observe completion. */
     fun rescheduleAllNow(context: Context) {
         val ctx = context.applicationContext
-        AppBackground.await { rescheduleAllInternal(ctx) }
+        // await() suspends; this variant is the blocking one by contract, so
+        // it bridges with runBlocking rather than becoming suspend itself
+        // (its callers are Workers and BroadcastReceivers).
+        runBlocking { AppBackground.await { rescheduleAllInternal(ctx) } }
     }
 
     private fun CoroutineScope.rescheduleAllInternal(context: Context) {
@@ -501,7 +506,7 @@ class ReminderReceiver : BroadcastReceiver() {
                     "skip" -> bus.execute("skip_habit", jsonOf("habit" to habitId), Actor.USER)
                 }
                 NotificationManagerCompat.from(context).cancel(habitId.hashCode() and 0xFFFF)
-                TodayWidget.refresh(context, force = true)
+                TodayWidget.refresh(context)
             }
         }
     }
