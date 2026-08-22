@@ -88,9 +88,14 @@ STAGE="instrumented tests"
 echo "==> 3/3 instrumented tests"
 AT_LOG="$ROOT/app/build/ci-connected-test.log"
 mkdir -p "$(dirname "$AT_LOG")"
+# The ERR trap fires on a failing pipeline element even under `set +e`, so it
+# would abort here before the diagnostic annotation below. Clear it for the
+# guarded test run and reinstall it afterwards.
 set +e
+trap - ERR
 ./gradlew --no-daemon connectedDebugAndroidTest 2>&1 | tee "$AT_LOG"
 GRADLE_RC=${PIPESTATUS[0]}
+trap on_err ERR
 set -e
 
 # AGP writes JUnit XML per connected device. Surface each failure as an

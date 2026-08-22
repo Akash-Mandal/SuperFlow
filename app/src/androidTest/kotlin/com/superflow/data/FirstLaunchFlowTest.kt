@@ -144,7 +144,7 @@ class FirstLaunchFlowTest {
                 org.json.JSONObject("""{"habit":"$habitId","level":"TINY"}"""), Actor.USER)
             assertTrue(res.ok)
         }
-        val ci = repo.checkIn(habitId, date)
+        val ci = repo.checkIn(habitId!!, date)
         assertNotNull(ci)
         assertEquals(Level.TINY, ci!!.level)
 
@@ -152,7 +152,7 @@ class FirstLaunchFlowTest {
         val audit = repo.audit(5).first()
         val undoRes = onBgReturn { bus.undo(audit) }
         assertTrue(undoRes.ok)
-        assertEquals(null, repo.checkIn(habitId, date))
+        assertEquals(null, repo.checkIn(habitId!!, date))
     }
 
     /* ----------------------------------------------------------------- widget */
