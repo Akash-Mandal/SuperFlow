@@ -47,7 +47,7 @@ class FirstLaunchFlowTest {
     /* ------------------------------------------------------- preference state */
 
     @Test
-    fun `clean state has onboarding pending and sane defaults`() {
+    fun cleanStateHasOnboardingPendingAndSaneDefaults() {
         prefs.resetAll()
         assertFalse(prefs.onboarded)
         assertEquals(Prefs.THEME_SYSTEM, prefs.themeMode)
@@ -59,7 +59,7 @@ class FirstLaunchFlowTest {
     }
 
     @Test
-    fun `onboarded state survives and themes apply`() {
+    fun onboardedStateSurvivesAndThemesApply() {
         prefs.onboarded = true
         prefs.themeMode = Prefs.THEME_DARK
         assertEquals(Prefs.THEME_DARK, prefs.themeMode)
@@ -71,7 +71,7 @@ class FirstLaunchFlowTest {
     /* --------------------------------------------------- first launch creation */
 
     @Test
-    fun `onboarding creation path writes identity goal system habit`() {
+    fun onboardingCreationWritesIdentityGoalSystemHabit() {
         val bus = CommandBus.get(ApplicationProvider.getApplicationContext())
         val ids = arrayOfNulls<String>(4)
 
@@ -110,7 +110,7 @@ class FirstLaunchFlowTest {
     }
 
     @Test
-    fun `empty database renders without exceptions`() {
+    fun emptyDatabaseRendersWithoutExceptions() {
         val repo = Repository.get(ApplicationProvider.getApplicationContext())
         // Wipe to simulate a clean install.
         repo.deleteAllData()
@@ -127,7 +127,7 @@ class FirstLaunchFlowTest {
     }
 
     @Test
-    fun `check in and undo round trip`() {
+    fun checkInAndUndoRoundTrip() {
         val bus = CommandBus.get(ApplicationProvider.getApplicationContext())
         val repo = Repository.get(ApplicationProvider.getApplicationContext())
         repo.deleteAllData()
@@ -158,7 +158,7 @@ class FirstLaunchFlowTest {
     /* ----------------------------------------------------------------- widget */
 
     @Test
-    fun `widget refresh with zero ids is safe`() {
+    fun widgetRefreshWithZeroIdsIsSafe() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         // No widget is installed in the test environment; this must be a no-op,
         // not a crash. Run several times back to back (debounce + force).

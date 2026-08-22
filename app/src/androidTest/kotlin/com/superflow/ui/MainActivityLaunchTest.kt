@@ -42,7 +42,7 @@ class MainActivityLaunchTest {
     }
 
     @Test
-    fun `clean state redirects to onboarding`() {
+    fun cleanStateRedirectsToOnboarding() {
         prefs.onboarded = false
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         var finishing = false
@@ -67,7 +67,7 @@ class MainActivityLaunchTest {
     }
 
     @Test
-    fun `onboarded state renders main screen`() {
+    fun onboardedStateRendersMainScreen() {
         prefs.onboarded = true
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         scenario.onActivity { activity ->
@@ -79,7 +79,7 @@ class MainActivityLaunchTest {
     }
 
     @Test
-    fun `tab deep link is accepted on a running activity`() {
+    fun tabDeepLinkIsAcceptedOnARunningActivity() {
         prefs.onboarded = true
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         // onNewIntent path: a second launch with a tab extra.
@@ -94,7 +94,7 @@ class MainActivityLaunchTest {
     }
 
     @Test
-    fun `today data path shows a scheduled habit`() {
+    fun todayDataPathShowsAScheduledHabit() {
         prefs.onboarded = true
         repo.saveHabit(Habit(
             id = "launch-h1", title = "Launch habit", cueTime = "08:00",
@@ -109,7 +109,7 @@ class MainActivityLaunchTest {
     }
 
     @Test
-    fun `onboarding activity inflates without crash`() {
+    fun onboardingActivityInflatesWithoutCrash() {
         val scenario = ActivityScenario.launch(OnboardingActivity::class.java)
         var crashed = false
         scenario.onActivity { }

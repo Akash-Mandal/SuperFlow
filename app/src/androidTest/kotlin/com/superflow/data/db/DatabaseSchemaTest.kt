@@ -36,7 +36,7 @@ class DatabaseSchemaTest {
     }
 
     @Test
-    fun `fresh database has the full schema`() {
+    fun freshDatabaseHasTheFullSchema() {
         val expected = setOf(
             "identity", "goal", "sys", "habit", "checkin", "focus", "obstacle",
             "scorecard", "flow", "flowstep", "review", "energy", "audit", "aimsg",
@@ -50,14 +50,14 @@ class DatabaseSchemaTest {
     }
 
     @Test
-    fun `production database uses wal journal mode`() {
+    fun productionDatabaseUsesWalJournalMode() {
         d.query("PRAGMA journal_mode").use { c ->
             assertTrue("journal_mode not WAL", c.moveToFirst() && c.getString(0).equals("wal", true))
         }
     }
 
     @Test
-    fun `migration from v1 converts daysMask to recurrenceRule`() {
+    fun migrationFromV1ConvertsDaysMaskToRecurrenceRule() {
         val name = uniqueDb()
         val helper = FrameworkSQLiteOpenHelperFactory().create(
             androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(
@@ -127,7 +127,7 @@ class DatabaseSchemaTest {
     }
 
     @Test
-    fun `no-op upgrade on current version keeps data`() {
+    fun noOpUpgradeOnCurrentVersionKeepsData() {
         val before = d.query("SELECT COUNT(*) FROM habit").use { c -> c.moveToFirst(); c.getInt(0) }
         Schema.upgrade(d, SuperFlowDatabase.VERSION, SuperFlowDatabase.VERSION)
         val after = d.query("SELECT COUNT(*) FROM habit").use { c -> c.moveToFirst(); c.getInt(0) }
@@ -135,7 +135,7 @@ class DatabaseSchemaTest {
     }
 
     @Test
-    fun `content values helper types correctly`() {
+    fun contentValuesHelperTypesCorrectly() {
         val v = contentValuesOf(
             "s" to "x", "i" to 3, "l" to 9L, "d" to 1.5, "b" to true, "n" to null
         )
