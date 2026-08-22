@@ -68,9 +68,14 @@ be run locally against a connected device with no arguments.
 > links but leaves `${applicationId}` unresolved in the startup provider
 > authority is exactly the artifact that produced the original launch crash.
 
-> **Status:** the workflow is currently staged at `ci/ci.yml` and is **not
-> active** — GitHub only runs workflows under `.github/workflows/`. See
-> [`ci/README.md`](../ci/README.md) for the one-command move that activates it.
+> The workflow is active and is the branch protection gate for PRs into
+> `main`. It was originally staged at `ci/ci.yml` (GitHub only runs
+> workflows under `.github/workflows/`); it lives there now.
+
+> For everything learned while making this pipeline green — the technology
+> stack, the CI procedures, the non-obvious build/test traps and how to
+> avoid them, plus step-by-step recipes for building and for updating the
+> app — see [`docs/BUILD_PLAYBOOK.md`](BUILD_PLAYBOOK.md).
 
 ## Dependencies
 
