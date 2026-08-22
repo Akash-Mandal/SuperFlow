@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -95,16 +96,19 @@ fun InsightsScreen(
         return
     }
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = Space.BASE.dp,
-            end = Space.BASE.dp,
-            top = Space.SM.dp,
-            bottom = Space.XXXL.dp + Space.XL.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(SfTheme.density.cardGap.dp),
-    ) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val maxContent = 600.dp
+        val horizPad = if (maxWidth > maxContent) (maxWidth - maxContent) / 2 else 0.dp
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = horizPad),
+            contentPadding = PaddingValues(
+                start = Space.BASE.dp,
+                end = Space.BASE.dp,
+                top = Space.SM.dp,
+                bottom = Space.XXXL.dp + Space.XL.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(SfTheme.density.cardGap.dp),
+        ) {
         item(key = "period") {
             SfChipGroup(
                 chips = Periods.all.map { SfChip(id = it.id.toString(), label = it.label) },
@@ -141,6 +145,7 @@ fun InsightsScreen(
         if (state.perHabit.isNotEmpty()) {
             item(key = "habitsHeader") { SfSectionHeader(title = "Per habit") }
             habitRows(state.perHabit)
+        }
         }
     }
 }

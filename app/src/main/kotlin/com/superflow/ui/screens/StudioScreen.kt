@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -117,15 +117,23 @@ fun StudioScreen(
     onAction: (StudioAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxSize()) {
-        Box(modifier = Modifier.weight(1f)) {
-            if (state.loading) {
-                StudioSkeleton()
-            } else {
-                StudioTranscript(state = state, onAction = onAction)
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val maxContent = 600.dp
+        val horizontalPad = if (maxWidth > maxContent) (maxWidth - maxContent) / 2 else 0.dp
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = horizontalPad)
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                if (state.loading) {
+                    StudioSkeleton()
+                } else {
+                    StudioTranscript(state = state, onAction = onAction)
+                }
             }
+            StudioComposer(state = state, onAction = onAction)
         }
-        StudioComposer(state = state, onAction = onAction)
     }
 }
 
@@ -151,7 +159,7 @@ private fun StudioTranscript(
             start = Space.MD.dp,
             end = Space.MD.dp,
             top = Space.MD.dp,
-            bottom = Space.LG.dp,
+            bottom = 88.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(SfTheme.density.cardGap.dp),
     ) {
@@ -514,7 +522,6 @@ private fun StudioComposer(
         Column(
             modifier = Modifier
                 .imePadding()
-                .navigationBarsPadding()
                 .padding(
                     horizontal = Space.MD.dp,
                     vertical = Space.SM.dp,

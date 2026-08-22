@@ -200,7 +200,7 @@ class AiEngineActivity : ScrollActivity() {
                 modeBody.text = "Every parameter with full customization. For users who want complete control."
             }
         }
-        val modeHolder = modeCard.findViewById<TextView>(R.id.text_title).parent as LinearLayout
+        val modeHolder = modeCard.findViewById<TextView>(R.id.text_title).parent as? LinearLayout ?: modeCard as LinearLayout
         val modeChips = ChipGroup(this).apply { isSingleSelection = true }
         listOf("default" to "Default", "intermediate" to "Intermediate", "advanced" to "Advanced")
             .forEach { (value, label) ->
@@ -215,7 +215,7 @@ class AiEngineActivity : ScrollActivity() {
                     }
                 })
             }
-        modeHolder.addView(modeChips)
+        (modeHolder as? LinearLayout)?.addView(modeChips)
         content.addView(modeCard)
 
         // Generation — content depends on mode
@@ -229,10 +229,7 @@ class AiEngineActivity : ScrollActivity() {
                 "Creative (1.0)" to 100,
                 "Very creative (1.5)" to 150
             ), prefs.temperature) { prefs.temperature = it; rebuild() })
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["temperature"]!!.title,
-                AiParameterInfo.parameters["temperature"]!!.shortDesc +
-                        "\n\n" + AiParameterInfo.parameters["temperature"]!!.longDesc))
+            infoViewWithShort("temperature")?.let { content.addView(it) }
 
             content.addView(picker("Response length", listOf(
                 "Short (1024)" to 1024,
@@ -240,10 +237,7 @@ class AiEngineActivity : ScrollActivity() {
                 "Long (8192)" to 8192,
                 "Very long (16384)" to 16384
             ), prefs.maxTokens) { prefs.maxTokens = it; rebuild() })
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["max_tokens"]!!.title,
-                AiParameterInfo.parameters["max_tokens"]!!.shortDesc +
-                        "\n\n" + AiParameterInfo.parameters["max_tokens"]!!.longDesc))
+            infoViewWithShort("max_tokens")?.let { content.addView(it) }
 
             content.addView(picker("Wait time", listOf(
                 "Quick (60s)" to 60,
@@ -251,10 +245,7 @@ class AiEngineActivity : ScrollActivity() {
                 "Patient (300s)" to 300,
                 "Very patient (600s)" to 600
             ), prefs.requestTimeoutSec) { prefs.requestTimeoutSec = it; rebuild() })
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["timeout"]!!.title,
-                AiParameterInfo.parameters["timeout"]!!.shortDesc +
-                        "\n\n" + AiParameterInfo.parameters["timeout"]!!.longDesc))
+            infoViewWithShort("timeout")?.let { content.addView(it) }
         }
 
         // === INTERMEDIATE MODE ===
@@ -266,9 +257,7 @@ class AiEngineActivity : ScrollActivity() {
                 "Creative (1.0)" to 100,
                 "Very creative (1.5)" to 150
             ), prefs.temperature) { prefs.temperature = it; rebuild() })
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["temperature"]!!.title,
-                AiParameterInfo.parameters["temperature"]!!.longDesc))
+            infoView("temperature")?.let { content.addView(it) }
 
             content.addView(picker("Response length", listOf(
                 "Short (1024)" to 1024,
@@ -277,9 +266,7 @@ class AiEngineActivity : ScrollActivity() {
                 "Very long (16384)" to 16384,
                 "Maximum (32768)" to 32768
             ), prefs.maxTokens) { prefs.maxTokens = it; rebuild() })
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["max_tokens"]!!.title,
-                AiParameterInfo.parameters["max_tokens"]!!.longDesc))
+            infoView("max_tokens")?.let { content.addView(it) }
 
             content.addView(picker("Wait time", listOf(
                 "Quick (60s)" to 60,
@@ -287,9 +274,7 @@ class AiEngineActivity : ScrollActivity() {
                 "Patient (300s)" to 300,
                 "Very patient (600s)" to 600
             ), prefs.requestTimeoutSec) { prefs.requestTimeoutSec = it; rebuild() })
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["timeout"]!!.title,
-                AiParameterInfo.parameters["timeout"]!!.longDesc))
+            infoView("timeout")?.let { content.addView(it) }
 
             // Response format — useful for Blueprint Studio
             val fmtChipsInt = ChipGroup(this).apply { isSingleSelection = true }
@@ -305,11 +290,9 @@ class AiEngineActivity : ScrollActivity() {
             fmtCardInt.findViewById<TextView>(R.id.text_title).text = "Response format"
             fmtCardInt.findViewById<TextView>(R.id.text_body).text =
                 "How the AI structures its output. Auto is best for most tasks."
-            (fmtCardInt.findViewById<TextView>(R.id.text_title).parent as LinearLayout).addView(fmtChipsInt)
+            (fmtCardInt.findViewById<TextView>(R.id.text_title).parent as? LinearLayout)?.addView(fmtChipsInt)
             content.addView(fmtCardInt)
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["response_format"]!!.title,
-                AiParameterInfo.parameters["response_format"]!!.longDesc))
+            infoView("response_format")?.let { content.addView(it) }
 
             // Retries — practical for reliability
             content.addView(picker("Retries on failure", listOf(
@@ -318,9 +301,7 @@ class AiEngineActivity : ScrollActivity() {
                 "Persistent (3)" to 3,
                 "Aggressive (5)" to 5
             ), prefs.retryCount) { prefs.retryCount = it; rebuild() })
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["retries"]!!.title,
-                AiParameterInfo.parameters["retries"]!!.longDesc))
+            infoView("retries")?.let { content.addView(it) }
 
             // Conversation history — affects cost and quality
             content.addView(picker("Conversation history", listOf(
@@ -329,18 +310,14 @@ class AiEngineActivity : ScrollActivity() {
                 "Long (40 messages)" to 40,
                 "Very long (80 messages)" to 80
             ), prefs.conversationHistoryLimit) { prefs.conversationHistoryLimit = it; rebuild() })
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["history_limit"]!!.title,
-                AiParameterInfo.parameters["history_limit"]!!.longDesc))
+            infoView("history_limit")?.let { content.addView(it) }
 
             // Streaming toggle
             content.addView(toggles(listOf(
                 Triple("Streaming (show responses as they generate)", prefs.streamingEnabled) { v: Boolean ->
                     prefs.streamingEnabled = v }
             )))
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["streaming"]!!.title,
-                AiParameterInfo.parameters["streaming"]!!.longDesc))
+            infoView("streaming")?.let { content.addView(it) }
         }
 
         // === ADVANCED MODE ===
@@ -354,9 +331,7 @@ class AiEngineActivity : ScrollActivity() {
                 hint = "100 = disabled. Lower values focus on likely tokens.") {
                 prefs.topP = it
             })
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["top_p"]!!.title,
-                AiParameterInfo.parameters["top_p"]!!.longDesc))
+            infoView("top_p")?.let { content.addView(it) }
 
             content.addView(numberParam("Max tokens", prefs.maxTokens, 64, 131_072,
                 hint = "Output length limit. Default 4096. GPT-4o supports up to 16384, Claude up to 8192.") {
@@ -367,36 +342,26 @@ class AiEngineActivity : ScrollActivity() {
                 hint = "Penalizes tokens by how often they've appeared. 0 = off.") {
                 prefs.frequencyPenalty = it
             })
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["frequency_penalty"]!!.title,
-                AiParameterInfo.parameters["frequency_penalty"]!!.longDesc))
+            infoView("frequency_penalty")?.let { content.addView(it) }
 
             content.addView(sliderParam("Presence penalty", -200, 200, prefs.presencePenalty,
                 hint = "Encourages new topics at positive values. 0 = off.") {
                 prefs.presencePenalty = it
             })
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["presence_penalty"]!!.title,
-                AiParameterInfo.parameters["presence_penalty"]!!.longDesc))
+            infoView("presence_penalty")?.let { content.addView(it) }
 
             content.addView(numberParam("Seed (-1 = random)", prefs.seed, -1, 2_147_483_647,
                 hint = "Set a fixed seed for reproducible outputs. -1 for random.") {
                 prefs.seed = it
             })
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["seed"]!!.title,
-                AiParameterInfo.parameters["seed"]!!.longDesc))
+            infoView("seed")?.let { content.addView(it) }
 
-            content.addView(field("Stop sequences (comma-separated)", prefs.stopSequences).let { v ->
-                val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
-                card.findViewById<TextView>(R.id.text_title).text = "Stop sequences"
-                card.findViewById<TextView>(R.id.text_body).text = prefs.stopSequences.ifBlank { "None" }
-                content.addView(card)
-                card
-            })
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["stop_sequences"]!!.title,
-                AiParameterInfo.parameters["stop_sequences"]!!.longDesc))
+            field("Stop sequences (comma-separated)", prefs.stopSequences)
+            val stopCard = layoutInflater.inflate(R.layout.item_text_card, content, false)
+            stopCard.findViewById<TextView>(R.id.text_title).text = "Stop sequences"
+            stopCard.findViewById<TextView>(R.id.text_body).text = prefs.stopSequences.ifBlank { "None" }
+            content.addView(stopCard)
+            infoView("stop_sequences")?.let { content.addView(it) }
 
             // Response format
             val fmtChips = ChipGroup(this).apply { isSingleSelection = true }
@@ -411,11 +376,9 @@ class AiEngineActivity : ScrollActivity() {
             val fmtCard = layoutInflater.inflate(R.layout.item_text_card, content, false)
             fmtCard.findViewById<TextView>(R.id.text_title).text = "Response format"
             fmtCard.findViewById<TextView>(R.id.text_body).visible(false)
-            (fmtCard.findViewById<TextView>(R.id.text_title).parent as LinearLayout).addView(fmtChips)
+            (fmtCard.findViewById<TextView>(R.id.text_title).parent as? LinearLayout)?.addView(fmtChips)
             content.addView(fmtCard)
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["response_format"]!!.title,
-                AiParameterInfo.parameters["response_format"]!!.longDesc))
+            infoView("response_format")?.let { content.addView(it) }
 
             content.addView(section("ADVANCED"))
 
@@ -445,9 +408,7 @@ class AiEngineActivity : ScrollActivity() {
                 Triple("Request/response logging", prefs.requestLoggingEnabled) { v: Boolean ->
                     prefs.requestLoggingEnabled = v }
             )))
-            content.addView(InfoButton.create(this,
-                AiParameterInfo.parameters["logging"]!!.title,
-                AiParameterInfo.parameters["logging"]!!.longDesc))
+            infoView("logging")?.let { content.addView(it) }
         } // end advanced mode block
 
         // AI Instructions & Memory — always visible, both modes
@@ -456,9 +417,7 @@ class AiEngineActivity : ScrollActivity() {
             if (prefs.aiInstructions.isNotBlank())
                 "${prefs.aiInstructions.length} characters of custom instructions active"
             else "None set. Add rules the AI must always follow."))
-        content.addView(InfoButton.create(this,
-            AiParameterInfo.parameters["ai_instructions"]!!.title,
-            AiParameterInfo.parameters["ai_instructions"]!!.longDesc))
+        infoView("ai_instructions")?.let { content.addView(it) }
 
         val instrField = field("Rules the AI must follow (one per line)", prefs.aiInstructions, lines = 4)
         content.addView(MaterialButton(this, null,
@@ -477,9 +436,7 @@ class AiEngineActivity : ScrollActivity() {
             if (prefs.aiLocalMemory.isNotBlank())
                 "${prefs.aiLocalMemory.lines().size} facts stored"
             else "Empty. Add facts about yourself the AI should remember."))
-        content.addView(InfoButton.create(this,
-            AiParameterInfo.parameters["local_memory"]!!.title,
-            AiParameterInfo.parameters["local_memory"]!!.longDesc))
+        infoView("local_memory")?.let { content.addView(it) }
 
         val memField = field("Facts the AI should remember (one per line)", prefs.aiLocalMemory, lines = 4)
         content.addView(MaterialButton(this, null,
@@ -702,7 +659,7 @@ class AiEngineActivity : ScrollActivity() {
         val sttCard = layoutInflater.inflate(R.layout.item_text_card, content, false)
         sttCard.findViewById<TextView>(R.id.text_title).text = "Speech-to-text provider"
         sttCard.findViewById<TextView>(R.id.text_body).visible(false)
-        (sttCard.findViewById<TextView>(R.id.text_title).parent as LinearLayout).addView(sttChips)
+        (sttCard.findViewById<TextView>(R.id.text_title).parent as? LinearLayout)?.addView(sttChips)
         content.addView(sttCard)
 
         // Snapshots
@@ -873,7 +830,7 @@ class AiEngineActivity : ScrollActivity() {
                 setOnClickListener { onPick(value) }
             })
         }
-        (card.findViewById<TextView>(R.id.text_title).parent as LinearLayout).addView(chips)
+        (card.findViewById<TextView>(R.id.text_title).parent as? LinearLayout)?.addView(chips)
         return card
     }
 
@@ -907,7 +864,7 @@ class AiEngineActivity : ScrollActivity() {
         val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
         val titleView = card.findViewById<TextView>(R.id.text_title)
         val bodyView = card.findViewById<TextView>(R.id.text_body)
-        val holder = titleView.parent as LinearLayout
+        val holder = titleView.parent as? LinearLayout ?: card as LinearLayout
 
         fun displayValue(v: Int): String {
             // Show as decimal for parameters stored as ×100
@@ -953,7 +910,7 @@ class AiEngineActivity : ScrollActivity() {
         val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
         card.findViewById<TextView>(R.id.text_title).text = title
         card.findViewById<TextView>(R.id.text_body).text = hint
-        val holder = card.findViewById<TextView>(R.id.text_title).parent as LinearLayout
+        val holder = card.findViewById<TextView>(R.id.text_title).parent as? LinearLayout ?: card as LinearLayout
 
         val input = com.google.android.material.textfield.TextInputLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -1001,5 +958,13 @@ class AiEngineActivity : ScrollActivity() {
         }
     }
 
+    private fun infoView(key: String): android.view.View? {
+        val p = AiParameterInfo.parameters[key] ?: return null
+        return InfoButton.create(this, p.title, p.longDesc)
+    }
+    private fun infoViewWithShort(key: String): android.view.View? {
+        val p = AiParameterInfo.parameters[key] ?: return null
+        return InfoButton.create(this, p.title, p.shortDesc + "\n\n" + p.longDesc)
+    }
     private fun dpi(v: Int) = (v * resources.displayMetrics.density).toInt()
 }

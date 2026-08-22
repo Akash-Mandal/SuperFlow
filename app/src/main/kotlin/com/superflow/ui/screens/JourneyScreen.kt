@@ -3,6 +3,7 @@ package com.superflow.ui.screens
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -99,16 +100,19 @@ fun JourneyScreen(
         state.nodes.associateBy({ it.kind.key + ":" + it.id }, { it.title })
     }
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = Space.BASE.dp,
-            end = Space.BASE.dp,
-            top = Space.SM.dp,
-            bottom = Space.XXXL.dp + Space.XL.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(SfTheme.density.cardGap.dp),
-    ) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val maxContent = 600.dp
+        val horizPad = if (maxWidth > maxContent) (maxWidth - maxContent) / 2 else 0.dp
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = horizPad),
+            contentPadding = PaddingValues(
+                start = Space.BASE.dp,
+                end = Space.BASE.dp,
+                top = Space.SM.dp,
+                bottom = Space.XXXL.dp + Space.XL.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(SfTheme.density.cardGap.dp),
+        ) {
         item(key = "chain") { ChainHeader(tree.summary) }
 
         item(key = "tools") { ToolRow(onTool = { onAction(JourneyAction.Tool(it)) }) }
@@ -148,6 +152,7 @@ fun JourneyScreen(
 
         if (tree.isEmpty) {
             item(key = "empty") { EmptyJourney(onAdd = { onAction(JourneyAction.Add(it, null)) }) }
+        }
         }
     }
 }

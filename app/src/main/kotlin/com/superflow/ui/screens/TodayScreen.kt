@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -94,23 +95,25 @@ fun TodayScreen(
         return
     }
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = Space.BASE.dp,
-            end = Space.BASE.dp,
-            top = Space.SM.dp,
-            // Room for the bottom bar; content scrolling under a nav bar it
-            // cannot clear is the most common Compose layout bug.
-            bottom = Space.XXXL.dp + Space.XL.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(SfTheme.density.cardGap.dp),
-    ) {
-        todayRows(
-            rows = state.rows,
-            entered = entered,
-            onAction = onAction,
-        )
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val maxContent = 600.dp
+        val horizPad = if (maxWidth > maxContent) (maxWidth - maxContent) / 2 else 0.dp
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = horizPad),
+            contentPadding = PaddingValues(
+                start = Space.BASE.dp,
+                end = Space.BASE.dp,
+                top = Space.SM.dp,
+                bottom = Space.XXXL.dp + Space.XL.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(SfTheme.density.cardGap.dp),
+        ) {
+            todayRows(
+                rows = state.rows,
+                entered = entered,
+                onAction = onAction,
+            )
+        }
     }
 }
 

@@ -108,14 +108,13 @@ class StudioFragment : Fragment() {
         }
 
         val host = view.findViewById<ComposeView>(R.id.compose)
-        // The composer must clear the IME and the shell's navigation bar.
-        // Compose's own imePadding would handle the keyboard but knows
-        // nothing about the bottom bar the fragment is sitting inside, so
-        // the padding is applied out here where both are visible.
         ViewCompat.setOnApplyWindowInsetsListener(host) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
-            v.updatePadding(bottom = maxOf(bars.bottom, ime.bottom))
+            val bottomNav = requireActivity().findViewById<View>(R.id.bottom_nav)
+            val navHeight = if (bottomNav != null && bottomNav.visibility == View.VISIBLE) {
+                if (bottomNav.height > 0) bottomNav.height else (56 * v.resources.displayMetrics.density).toInt()
+            } else 0
+            v.updatePadding(bottom = navHeight + bars.bottom)
             insets
         }
         host.sfContent {
