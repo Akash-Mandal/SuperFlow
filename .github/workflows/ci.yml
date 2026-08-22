@@ -145,6 +145,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         # minSdk and targetSdk from app/build.gradle.kts.
         api-level: [26, 34]
@@ -169,6 +170,12 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/powershell /usr/local/lib/node_modules /usr/share/swift /opt/hostedtoolcache/CodeQL 2>/dev/null || true
+          sudo apt-get clean
+          df -h /
 
       - name: AVD cache
         uses: actions/cache@v4
