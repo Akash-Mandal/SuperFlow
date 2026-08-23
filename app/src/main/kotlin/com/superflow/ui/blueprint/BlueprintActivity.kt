@@ -99,6 +99,7 @@ class BlueprintActivity : ScrollActivity() {
         sourcesSection(project)
         instructionsSection(project)
         ledgerSection(project)
+        autoReinforceSection(project)
         runSection(project)
         versionsSection(project)
         if (report.isNotBlank()) {
@@ -208,6 +209,32 @@ class BlueprintActivity : ScrollActivity() {
             content.addView(outlined("Collapse") { showAllLedger = false; rebuild() })
         }
         content.addView(textCard("Tip", "Tap a requirement to accept or reject it. Large plans are now intelligently phased — only the next phase shows; future phases are scheduled as Auto Reinforce."))
+    }
+
+    private fun autoReinforceSection(p: BlueprintProject) {
+        try {
+            val db = com.superflow.data.db.SuperFlowDatabase.get(this).db
+            val cur = db.query("SELECT id, phaseIndex, whenExpr, whereKind, status FROM blueprint_auto_plan WHERE projectId=? ORDER BY phaseIndex", arrayOf(p.id))
+            val rows = mutableListOf<String>()
+            cur.use { while (it.moveToNext()) rows.add("Phase ${it.getInt(1)} · ${it.getString(2)} · ${it.getString(3)} · ${it.getString(4)}") }
+            content.addView(section("AUTO REINFORCE"))
+            val mode = Prefs.get(this).autoReinforceMode
+            content.addView(textCard("Mode: $mode (from AI Engine)", if (rows.isEmpty()) "No pending phases — compile a large plan to create them. You can also trigger via Studio chat: \"reinforce now\"." else "${rows.size} pending phase(s) scheduled. Trigger via chat or below."))
+            if (rows.isNotEmpty()) {
+                rows.forEachIndexed { idx, txt ->
+                    val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
+                    card.findViewById<TextView>(R.id.text_title).text = "Pending ${idx + 1}"
+                    card.findViewById<TextView>(R.id.text_body).text = txt
+                    content.addView(card)
+                }
+                content.addView(outlined("Trigger pending now") {
+                    lifecycleScope.launch { com.superflow.domain.CommandBus.get(this@BlueprintActivity).execute("trigger_auto_reinforce", org.json.JSONObject().put("projectId", p.id), com.superflow.domain.Actor.USER); rebuild() }
+                })
+            }
+        } catch (_: Exception) {
+            content.addView(section("AUTO REINFORCE"))
+            content.addView(textCard("Auto Reinforce", "Trigger via Studio: \"reinforce now\" — applies pending phase when enabled."))
+        }
     }
 
     private fun runSection(p: BlueprintProject) {
