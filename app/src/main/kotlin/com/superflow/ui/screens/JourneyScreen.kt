@@ -95,7 +95,7 @@ fun JourneyScreen(
     val tree = remember(state.nodes, state.expanded) {
         JourneyTree.build(state.nodes, state.expanded)
     }
-    val gaps = remember(state.nodes) { JourneyTree.gaps(state.nodes) }
+    val gaps = remember(tree) { JourneyTree.gaps(tree) }
     val titles = remember(state.nodes) {
         state.nodes.associateBy({ it.kind.key + ":" + it.id }, { it.title })
     }
@@ -168,7 +168,7 @@ private fun LazyListScope.entityRows(
     onAction: (JourneyAction) -> Unit,
 ) {
     for (row in rows) {
-        item(key = row.key) {
+        item(key = row.key, contentType = row.node.kind) {
             val kind = row.node.kind
             val id = row.node.id
             val parentKey = kind.parent?.key + ":" + row.node.parentId

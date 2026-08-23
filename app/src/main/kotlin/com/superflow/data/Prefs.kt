@@ -630,9 +630,9 @@ class Prefs private constructor(context: Context) {
         get() = num("topP", 100)
         set(v) = setNum("topP", v.coerceIn(0, 100))
 
-    /** Maximum output tokens. Default 4096. Range 64–131072. */
+    /** Maximum output tokens. Default 8192. Range 64–131072. */
     var maxTokens: Int
-        get() = num("maxTokens", 4096)
+        get() = num("maxTokens", 8192)
         set(v) = setNum("maxTokens", v.coerceIn(64, 131_072))
 
     /** Frequency penalty × 100. Default 0. Range -200 to 200. */
@@ -675,9 +675,9 @@ class Prefs private constructor(context: Context) {
         get() = num("convHistoryLimit", 20)
         set(v) = setNum("convHistoryLimit", v.coerceIn(2, 100))
 
-    /** Max context characters sent in the system prompt. Default 12000. Range 1000–80000. */
+    /** Max context characters sent in the system prompt. Default 20000. Range 1000–80000. */
     var maxContextChars: Int
-        get() = num("maxCtxChars", 12000)
+        get() = num("maxCtxChars", 20000)
         set(v) = setNum("maxCtxChars", v.coerceIn(1_000, 80_000))
 
     /** Enable streaming responses (where supported). */

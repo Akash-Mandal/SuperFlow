@@ -358,8 +358,9 @@ object JourneyTree {
      *
      * Capped, because a list of fifteen chores is a list nobody reads.
      */
-    fun gaps(nodes: List<Node>, limit: Int = 3): List<Gap> {
-        val tree = build(nodes)
+    fun gaps(nodes: List<Node>, limit: Int = 3): List<Gap> = gaps(build(nodes), limit)
+
+    fun gaps(tree: Tree, limit: Int = 3): List<Gap> {
         val out = ArrayList<Gap>()
 
         if (tree.summary.identities == 0) {
