@@ -184,7 +184,8 @@ private fun ProgressBlock(row: TodayRow.Progress) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = Space.SM.dp),
+            .padding(vertical = Space.SM.dp)
+            .semantics { heading() },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.LG.dp),
     ) {
