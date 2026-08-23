@@ -165,6 +165,15 @@ class DataManagementFragment : Fragment() {
                     "and must be re-entered after import on a new device."
         ))
 
+        // Diagnostics / logs
+        container.addView(section("DIAGNOSTICS"))
+        container.addView(group(listOf(
+            actionRow("Export error logs",
+                "Crash + app logs for debugging") {
+                exportLogs()
+            }
+        )))
+
         // Auto-backup
         container.addView(section("AUTO-BACKUP"))
         container.addView(group(listOf(
@@ -478,6 +487,17 @@ class DataManagementFragment : Fragment() {
                 putExtra(Intent.EXTRA_TEXT, body)
             }, "Share progress"))
         }
+    }
+
+    private fun exportLogs() {
+        val txt = com.superflow.util.LogFile.read(requireContext()).ifBlank { "No logs yet." } +
+                "\n\n--- Diagnostics ---\n" + checkIntegrity()
+        val share = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "SuperFlow logs")
+            putExtra(Intent.EXTRA_TEXT, txt.take(120000))
+        }
+        startActivity(Intent.createChooser(share, "Export logs"))
     }
 
     private fun pickBackup(files: List<File>) {

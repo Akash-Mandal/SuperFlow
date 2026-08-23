@@ -809,6 +809,14 @@ class Prefs private constructor(context: Context) {
         get() = bool("growthPlans", true)
         set(v) = setBool("growthPlans", v)
 
+    var autoReinforceEnabled: Boolean
+        get() = bool("autoReinforce", false)
+        set(v) = setBool("autoReinforce", v)
+
+    var autoReinforceMode: String
+        get() = str("autoReinforceMode", "propose")
+        set(v) = setStr("autoReinforceMode", if (v == "auto") "auto" else "propose")
+
     /* ---- Data management ---- */
 
     var autoBackupEnabled: Boolean

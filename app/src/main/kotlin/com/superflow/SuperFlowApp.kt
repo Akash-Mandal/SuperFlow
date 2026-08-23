@@ -30,6 +30,7 @@ class SuperFlowApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.superflow.util.LogFile.installCrashHandler(this)
         val prefs = Prefs.get(this)
         applyTheme(prefs.themeMode)
         // Channel creation is a system-service call and WorkManager's first
