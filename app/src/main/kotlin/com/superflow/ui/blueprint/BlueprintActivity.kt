@@ -527,6 +527,13 @@ class BlueprintActivity : ScrollActivity() {
                 note = "Planned but not found in the database afterwards"))
         }
         repo.saveProject(p.copy(state = "VERIFIED"))
+        try {
+            if (repo.flows().isEmpty() && applied >= 2) {
+                val db2 = com.superflow.data.db.SuperFlowDatabase.get(this@BlueprintActivity).db
+                db2.execSQL("INSERT OR IGNORE INTO proactive_suggestion VALUES (?,?,?,?,?,?,?,?)",
+                    arrayOf(java.util.UUID.randomUUID().toString(), "GROWTH", "Blueprint created ${applied} habits — consider generating a Routine/Flow to chain them. Ask Studio: 'create a morning flow with my new habits' or apply via Flows.", "MEDIUM", """{"command":"create_flow","args":{"title":"Morning Flow"}}""", null, 0, 0, System.currentTimeMillis()))
+            }
+        } catch (_: Exception) {}
 
         return buildString {
             append("BUILD REPORT\n\n")
