@@ -133,7 +133,7 @@ private fun LazyListScope.todayRows(
     onAction: (TodayAction) -> Unit,
 ) {
     rows.forEachIndexed { index, row ->
-        item(key = row.stableId) {
+        item(key = row.stableId, contentType = row::class.simpleName) {
             TodayRowItem(
                 row = row,
                 index = index,

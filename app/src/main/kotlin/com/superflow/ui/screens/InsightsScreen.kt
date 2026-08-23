@@ -153,7 +153,7 @@ fun InsightsScreen(
 /** Named habitRows to avoid colliding with Compose's LazyListScope.items. */
 private fun LazyListScope.habitRows(habits: List<HabitConsistency>) {
     for (habit in habits) {
-        item(key = "habit_${habit.id}") { HabitConsistencyRow(habit) }
+        item(key = "habit_${habit.id}", contentType = "HabitConsistency") { HabitConsistencyRow(habit) }
     }
 }
 
