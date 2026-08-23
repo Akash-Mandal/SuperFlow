@@ -160,7 +160,8 @@ object CompilerV2 {
         return listOf(
             "i want", "i need", "i should", "i will", "every day", "daily", "each morning",
             "each evening", "habit", "goal", "routine", "stop ", "start ", "quit ",
-            "identity", "becom", "track", "reduce", "practice", "practise"
+            "identity", "becom", "track", "reduce", "practice", "practise",
+            "journal", "read ", "write ", "drink ", "meditat", "exercise", "stretch", "walk", "yoga", "sleep"
         ).any { s.contains(it) }
     }
 
