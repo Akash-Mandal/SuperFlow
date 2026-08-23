@@ -17,6 +17,7 @@ import com.google.android.material.textfield.TextInputLayout
 import com.superflow.R
 import com.superflow.ai.Agent
 import com.superflow.ai.MainBrain
+import com.superflow.ai.ModelCatalog
 import com.superflow.ai.Snapshots
 import com.superflow.data.Prefs
 import com.superflow.domain.Capabilities
@@ -179,6 +180,16 @@ class AiEngineActivity : ScrollActivity() {
             }
         })
         content.addView(row)
+        val fetchRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        fetchRow.addView(MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            text = "Fetch models"
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            setOnClickListener {
+                saveProvider(providerField, baseField, modelField, keyField, fallbackField, orgField, headersField, quiet = true)
+                fetchModels(modelField)
+            }
+        })
+        content.addView(fetchRow)
         if (diagnostic.isNotBlank()) content.addView(textCard("Diagnostics", diagnostic))
 
         // Mode toggle: Default / Intermediate / Advanced
@@ -954,6 +965,31 @@ class AiEngineActivity : ScrollActivity() {
         lifecycleScope.launch {
             val r = withContext(Dispatchers.IO) { MainBrain.testConnection(prefs) }
             diagnostic = if (r.ok) r.text else "Failed: ${r.error}"
+            rebuild()
+        }
+    }
+
+    private fun fetchModels(modelField: TextInputEditText) {
+        diagnostic = "Fetching models…"
+        rebuild()
+        lifecycleScope.launch {
+            val res = withContext(Dispatchers.IO) { ModelCatalog.fetchModels(this@AiEngineActivity, prefs) }
+            if (res.models.isNotEmpty()) {
+                val current = prefs.model
+                val choices = res.models
+                MaterialAlertDialogBuilder(this@AiEngineActivity)
+                    .setTitle(if (res.fromCache) "Models (cached)" else "Models")
+                    .setSingleChoiceItems(choices.toTypedArray(), choices.indexOf(current)) { d, which ->
+                        modelField.setText(choices[which])
+                        d.dismiss()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .setNeutralButton("Refresh") { _, _ -> fetchModels(modelField) }
+                    .show()
+                diagnostic = "Found ${res.models.size} models${if (res.fromCache) " (cached)" else ""}${res.error?.let { " — $it" } ?: ""}"
+            } else {
+                diagnostic = "No models found${res.error?.let { ": $it" } ?: ". Check Base URL / API key, or type manually."}"
+            }
             rebuild()
         }
     }
