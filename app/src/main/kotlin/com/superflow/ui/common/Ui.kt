@@ -136,6 +136,8 @@ fun SwipeRefreshLayout.wireRefresh(prefs: Prefs, onRefresh: (done: () -> Unit) -
 
 /** Staggered entry animation for a freshly populated list. */
 fun RecyclerView.runEntryAnimation() {
+    val motionOff = runCatching { com.superflow.ui.common.SfTheme.motionDisabled(context) }.getOrDefault(false)
+    if (motionOff) return
     val controller = AnimationUtils.loadLayoutAnimation(context, R.anim.layout_slide_up)
     layoutAnimation = controller
     scheduleLayoutAnimation()

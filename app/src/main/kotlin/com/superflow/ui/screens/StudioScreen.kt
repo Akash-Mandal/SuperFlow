@@ -469,6 +469,26 @@ private fun FoldRow(hidden: Int, expanded: Boolean, onAction: (StudioAction) -> 
 private fun TypingRow() {
     val scheme = MaterialTheme.colorScheme
     val animate = SfTheme.motion.enabled
+    if (!animate) {
+        Row(
+            modifier = Modifier
+                .padding(start = Space.XS.dp, top = Space.XS.dp)
+                .semantics { contentDescription = "Studio is replying" },
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            repeat(3) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .alpha(0.7f)
+                        .clip(RoundedCornerShape(50))
+                        .background(scheme.onSurfaceVariant),
+                )
+            }
+        }
+        return
+    }
     val transition = rememberInfiniteTransition(label = "typing")
     Row(
         modifier = Modifier
@@ -490,7 +510,7 @@ private fun TypingRow() {
             Box(
                 modifier = Modifier
                     .size(7.dp)
-                    .alpha(if (animate) alpha else 0.7f)
+                    .alpha(alpha)
                     .clip(RoundedCornerShape(50))
                     .background(scheme.onSurfaceVariant),
             )

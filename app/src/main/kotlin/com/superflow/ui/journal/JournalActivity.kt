@@ -69,7 +69,7 @@ class JournalActivity : AppCompatActivity() {
                 setEnsureMinTouchTargetSize(false)
                 setOnClickListener {
                     content.setText(prompt + "\n\n")
-                    content.setSelection(content.text!!.length)
+                    content.setSelection(content.text?.length ?: 0)
                 }
             })
         }

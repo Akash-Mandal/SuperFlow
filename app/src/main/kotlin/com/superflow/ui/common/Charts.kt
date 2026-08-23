@@ -91,7 +91,8 @@ class ProgressRing @JvmOverloads constructor(
         val target = value.coerceIn(0f, 1f)
         progress = target
         animator?.cancel()
-        if (!animate) {
+        val motionOff = runCatching { com.superflow.ui.common.SfTheme.motionDisabled(context) }.getOrDefault(false)
+        if (!animate || motionOff) {
             animated = target
             invalidate()
             return
@@ -187,7 +188,8 @@ class BarChart @JvmOverloads constructor(
         bars = list
         maxValue = (list.maxOfOrNull { it.value } ?: 1).coerceAtLeast(1)
         animator?.cancel()
-        if (!animate) { phase = 1f; invalidate(); return }
+        val motionOff = runCatching { com.superflow.ui.common.SfTheme.motionDisabled(context) }.getOrDefault(false)
+        if (!animate || motionOff) { phase = 1f; invalidate(); return }
         animator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 650
             interpolator = DecelerateInterpolator()

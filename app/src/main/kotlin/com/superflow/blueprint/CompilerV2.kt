@@ -358,8 +358,8 @@ object CompilerV2 {
     private fun estimateMinutes(text: String): Int = when {
         text.isBlank() -> 5
         text.contains("hour") || text.contains("hr") -> 60
-        Regex("(\\d+)\\s*min").find(text)?.groupValues?.get(1)?.toIntOrNull() != null ->
-            Regex("(\\d+)\\s*min").find(text)!!.groupValues[1].toInt()
+        Regex("(\\d+)\\s*min").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() != null ->
+            Regex("(\\d+)\\s*min").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 10
         text.length > 100 -> 20
         text.length > 30 -> 10
         else -> 2

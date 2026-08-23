@@ -251,7 +251,10 @@ private fun ExpandToggle(expanded: Boolean, count: Int, onToggle: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        IconButton(onClick = onToggle) {
+        IconButton(
+            onClick = onToggle,
+            modifier = Modifier.size(48.dp)
+        ) {
             Icon(
                 painter = painterResource(R.drawable.ic_chevron_down),
                 contentDescription = null,

@@ -35,6 +35,7 @@ import com.superflow.ui.common.visible
 import com.superflow.data.Prefs
 import com.superflow.ui.common.snack
 import com.superflow.ui.common.wireRefresh
+import com.superflow.util.onDebouncedClick
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.detail.HabitDetailActivity
 import com.superflow.ui.flows.FlowActivity
@@ -119,6 +120,8 @@ class JourneyFragment : Fragment() {
             onTool = ::openTool
         )
         list.layoutManager = LinearLayoutManager(requireContext())
+        list.setHasFixedSize(true)
+        list.setItemViewCacheSize(12)
         list.adapter = adapter
 
         // Long-press and drag to reorder habits. Only habit rows are draggable;
@@ -392,18 +395,31 @@ class JourneyAdapter(
     }
 
     inner class ToolsVH(v: View) : RecyclerView.ViewHolder(v) {
+        private val icons = listOf(
+            v.findViewById<ImageView>(R.id.tool_1_icon),
+            v.findViewById<ImageView>(R.id.tool_2_icon),
+            v.findViewById<ImageView>(R.id.tool_3_icon)
+        )
+        private val labels = listOf(
+            v.findViewById<TextView>(R.id.tool_1_label),
+            v.findViewById<TextView>(R.id.tool_2_label),
+            v.findViewById<TextView>(R.id.tool_3_label)
+        )
+        private val cards = listOf(
+            v.findViewById<MaterialCardView>(R.id.tool_1),
+            v.findViewById<MaterialCardView>(R.id.tool_2),
+            v.findViewById<MaterialCardView>(R.id.tool_3)
+        )
         fun bind() {
             val specs = listOf(
-                Triple(R.id.tool_1, R.drawable.ic_scorecard, "Scorecard"),
-                Triple(R.id.tool_2, R.drawable.ic_flow, "Flows"),
-                Triple(R.id.tool_3, R.drawable.ic_history, "Reviews")
+                Triple(R.drawable.ic_scorecard, "Scorecard", 0),
+                Triple(R.drawable.ic_flow, "Flows", 1),
+                Triple(R.drawable.ic_history, "Reviews", 2)
             )
-            val icons = listOf(R.id.tool_1_icon, R.id.tool_2_icon, R.id.tool_3_icon)
-            val labels = listOf(R.id.tool_1_label, R.id.tool_2_label, R.id.tool_3_label)
-            specs.forEachIndexed { index, (cardId, icon, label) ->
-                itemView.findViewById<ImageView>(icons[index]).setImageResource(icon)
-                itemView.findViewById<TextView>(labels[index]).text = label
-                itemView.findViewById<MaterialCardView>(cardId).setOnClickListener { onTool(index) }
+            specs.forEachIndexed { index, (icon, label, tool) ->
+                icons[index].setImageResource(icon)
+                labels[index].text = label
+                cards[index].onDebouncedClick { onTool(tool) }
             }
         }
     }
@@ -456,7 +472,7 @@ class JourneyAdapter(
             } else {
                 action.visibility = View.VISIBLE
                 action.text = row.addLabel
-                action.setOnClickListener { onAdd(row.kind) }
+                action.onDebouncedClick { onAdd(row.kind) }
             }
         }
     }
@@ -510,16 +526,26 @@ class JourneyAdapter(
                 )
                 expand.contentDescription =
                     if (tree.expanded) "Collapse ${row.title}" else "Expand ${row.title}"
-                expand.setOnClickListener { onToggle(row) }
+                expand.minimumWidth = itemView.context.dp(48)
+                expand.minimumHeight = itemView.context.dp(48)
+                expand.onDebouncedClick { onToggle(row) }
+                expand.post {
+                    (expand.parent as? View)?.let { parent ->
+                        val rect = android.graphics.Rect()
+                        expand.getHitRect(rect)
+                        rect.inset(-expand.context.dp(8), -expand.context.dp(8))
+                        parent.touchDelegate = android.view.TouchDelegate(rect, expand)
+                    }
+                }
             } else {
                 expand.visibility = View.GONE
                 expand.setOnClickListener(null)
             }
 
             card.contentDescription = describe(row)
-            card.setOnClickListener { onOpen(row) }
+            card.onDebouncedClick { onOpen(row) }
             menu.contentDescription = "More options for ${row.title}"
-            menu.setOnClickListener { onMenu(row, it) }
+            menu.onDebouncedClick { onMenu(row, it) }
         }
 
         /**
@@ -568,7 +594,7 @@ class JourneyAdapter(
             body.text = row.gap.body
             action.visibility = View.VISIBLE
             action.text = "Add ${row.gap.kind.label.lowercase()}"
-            action.setOnClickListener { onAdd(row.gap.kind.key) }
+            action.onDebouncedClick { onAdd(row.gap.kind.key) }
         }
     }
 
@@ -581,7 +607,7 @@ class JourneyAdapter(
             body.text = row.body
             action.visibility = View.VISIBLE
             action.text = "Add"
-            action.setOnClickListener { onAdd(row.kind) }
+            action.onDebouncedClick { onAdd(row.kind) }
         }
     }
 }
