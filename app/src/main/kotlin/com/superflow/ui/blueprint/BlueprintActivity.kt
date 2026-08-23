@@ -12,6 +12,7 @@ import com.superflow.R
 import com.superflow.ai.MainBrain
 import com.superflow.ai.Snapshots
 import com.superflow.blueprint.Compiler
+import com.superflow.blueprint.CompilerV2
 import com.superflow.blueprint.PdfText
 import com.superflow.data.Prefs
 import com.superflow.data.Repository
@@ -44,6 +45,7 @@ class BlueprintActivity : ScrollActivity() {
     private var report: String = ""
     private var lastGroupId: String? = null
     private var busy = false
+    private var showAllLedger = false
 
     private val pickFile = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -177,8 +179,9 @@ class BlueprintActivity : ScrollActivity() {
                         "citation, and flags conflicts."))
             return
         }
-        content.addView(textCard("Coverage", Compiler.coverage(reqs)))
-        reqs.forEach { r ->
+        content.addView(textCard("Coverage", Compiler.coverage(reqs) + if (reqs.size > 20) "\n\nShowing ${if (showAllLedger) reqs.size else 20} of ${reqs.size} — tap Show more to expand." else ""))
+        val visible = if (showAllLedger || reqs.size <= 20) reqs else reqs.take(20)
+        visible.forEach { r ->
             val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
             card.findViewById<TextView>(R.id.text_title).text = r.text
             card.findViewById<TextView>(R.id.text_body).text = buildString {
@@ -199,7 +202,12 @@ class BlueprintActivity : ScrollActivity() {
             }
             content.addView(card)
         }
-        content.addView(textCard("Tip", "Tap a requirement to accept or reject it."))
+        if (!showAllLedger && reqs.size > 20) {
+            content.addView(outlined("Show ${reqs.size - 20} more") { showAllLedger = true; rebuild() })
+        } else if (showAllLedger && reqs.size > 20) {
+            content.addView(outlined("Collapse") { showAllLedger = false; rebuild() })
+        }
+        content.addView(textCard("Tip", "Tap a requirement to accept or reject it. Large plans are now intelligently phased — only the next phase shows; future phases are scheduled as Auto Reinforce."))
     }
 
     private fun runSection(p: BlueprintProject) {
@@ -395,7 +403,26 @@ class BlueprintActivity : ScrollActivity() {
 
             var reqs = withContext(Dispatchers.IO) {
                 repo.clearRequirements(p.id)
-                Compiler.extractRequirements(p, sources).onEach { repo.saveRequirement(it) }
+                val v1 = Compiler.extractRequirements(p, sources)
+                if (v1.size > 20) {
+                    val intent = CompilerV2.captureIntent(goal = p.instructions.ifBlank { "Build a habit system" }, dailyTimeMinutes = 30, durationWeeks = 12)
+                    val plan = CompilerV2.compileForBlueprint(p, sources, intent)
+                    val phase0 = CompilerV2.compilePhase(plan.phases.first(), p.id, 0)
+                    phase0.onEach { repo.saveRequirement(it) }
+                    val db = com.superflow.data.db.SuperFlowDatabase.get(this@BlueprintActivity).db
+                    plan.phases.drop(1).forEachIndexed { idx, ph ->
+                        val auto = CompilerV2.compilePhase(ph, p.id, idx + 1)
+                        for (req in auto) {
+                            try {
+                                db.execSQL("INSERT OR REPLACE INTO blueprint_auto_plan VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                                    arrayOf(java.util.UUID.randomUUID().toString(), p.id, idx + 1, req.plannedCommand ?: "{}", "WEEK:${ph.weekStart}", ph.focusArea, "ADD", null, "PENDING", System.currentTimeMillis(), null))
+                            } catch (_: Exception) {}
+                        }
+                    }
+                    phase0
+                } else {
+                    v1.onEach { repo.saveRequirement(it) }
+                }
             }
 
             var refined = 0

@@ -23,7 +23,7 @@ class SuperFlowDatabase private constructor(context: Context) {
 
     companion object {
         const val NAME = "superflow.db"
-        const val VERSION = 4
+        const val VERSION = 5
         const val TAG = "SuperFlowDb"
 
         @Volatile private var instance: SuperFlowDatabase? = null
@@ -289,6 +289,15 @@ object Schema {
                 consistency INTEGER DEFAULT 0, date TEXT NOT NULL, notes TEXT DEFAULT '')"""
         )
         db.execSQL("CREATE INDEX idx_bp_version_project ON bp_version(projectId)")
+
+        db.execSQL(
+            """CREATE TABLE blueprint_auto_plan(
+                id TEXT PRIMARY KEY, projectId TEXT NOT NULL, phaseIndex INTEGER NOT NULL,
+                whatJson TEXT NOT NULL, whenExpr TEXT NOT NULL, whereKind TEXT NOT NULL,
+                howOp TEXT NOT NULL, conditionJson TEXT, status TEXT NOT NULL,
+                createdAt INTEGER NOT NULL, appliedAt INTEGER)"""
+        )
+        db.execSQL("CREATE INDEX idx_bap_project ON blueprint_auto_plan(projectId)")
     }
 
     /**
@@ -304,6 +313,7 @@ object Schema {
         if (old < 2) migrateToV2(db)
         if (old < 3) migrateToV3(db)
         if (old < 4) migrateToV4(db)
+        if (old < 5) migrateToV5(db)
     }
 
     /** v2: colour seeds, blueprint parent versions and the version table. */
@@ -522,6 +532,18 @@ object Schema {
                 phase_index INTEGER NOT NULL, action TEXT NOT NULL,
                 consistency INTEGER DEFAULT 0, date TEXT NOT NULL, notes TEXT DEFAULT '')""")
         }
+    }
+
+    private fun migrateToV5(db: SupportSQLiteDatabase) {
+        runCatching {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS blueprint_auto_plan(
+                id TEXT PRIMARY KEY, projectId TEXT NOT NULL, phaseIndex INTEGER NOT NULL,
+                whatJson TEXT NOT NULL, whenExpr TEXT NOT NULL, whereKind TEXT NOT NULL,
+                howOp TEXT NOT NULL, conditionJson TEXT, status TEXT NOT NULL,
+                createdAt INTEGER NOT NULL, appliedAt INTEGER)""")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_bap_project ON blueprint_auto_plan(projectId)")
+        }
+        runCatching { db.execSQL("ALTER TABLE bp_project ADD COLUMN modelOverride TEXT DEFAULT ''") }
     }
 }
 
