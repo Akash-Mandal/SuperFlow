@@ -65,6 +65,9 @@ abstract class ScrollActivity : AppCompatActivity() {
             )
         }
         list.layoutManager = LinearLayoutManager(this)
+        list.setHasFixedSize(false)
+        list.setItemViewCacheSize(4)
+        list.isNestedScrollingEnabled = false
         list.adapter = SingleContentAdapter(content)
 
         ViewCompat.setOnApplyWindowInsetsListener(list) { v, insets ->

@@ -46,6 +46,11 @@ object Coordinator {
         val s = raw.lowercase()
         if (s.isBlank()) return null
 
+        if (Regex("reinforce|apply.*next phase|next phase|auto.*upgrade").containsMatchIn(s)) {
+            return Plan("trigger_auto_reinforce", JSONObject(), 0.92,
+                "Triggering Auto Reinforce — applying pending phase.")
+        }
+
         if (s in setOf("hi", "hello", "hey", "yo")) {
             return Plan("noop", JSONObject(), 1.0,
                 "Hello. Tell me what to change and I will do it — check in a habit, plan tomorrow, " +

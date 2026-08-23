@@ -95,6 +95,15 @@ class MainActivity : AppCompatActivity() {
 
         pager.isUserInputEnabled = false
         pager.offscreenPageLimit = 2
+        try {
+            val recycler = pager.getChildAt(0) as? androidx.recyclerview.widget.RecyclerView
+            recycler?.let {
+                it.setHasFixedSize(true)
+                it.setItemViewCacheSize(8)
+                val pool = androidx.recyclerview.widget.RecyclerView.RecycledViewPool()
+                it.setRecycledViewPool(pool)
+            }
+        } catch (_: Exception) { }
         // Which fragment backs each tab is decided by design.Rendering, not
         // here: three of the four screens exist in both a View and a Compose
         // implementation while the migration lands, and that fact belongs in

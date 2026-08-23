@@ -18,7 +18,7 @@ import org.json.JSONObject
  */
 object Capabilities {
 
-    const val CATALOG_VERSION = 4  // growth engine, templates, journal, routines, memory, what-if, accountability, milestones, sprints, settings, analysis, coaching, blueprint V2, environment, simulation, notification, integrity, polish, graduation, search
+    const val CATALOG_VERSION = 5  // +auto-reinforce
 
     fun all(): List<Capability> = buildList {
         addAll(identityCaps())
@@ -2232,6 +2232,27 @@ object Capabilities {
                 "Advanced to blueprint v${newProject.version}",
                 null, null, c.groupId)
             okResult("Advanced to blueprint v${newProject.version}", null, id)
+        },
+
+        Capability("trigger_auto_reinforce", "Apply pending Auto Reinforce phases now",
+            listOf("projectId" to "string"), Risk.LOW) { c ->
+            val pid = c.str("projectId")
+            try {
+                val db = com.superflow.data.db.SuperFlowDatabase.get(c.repo.appContext).db
+                val cur = db.query("SELECT id, whatJson FROM blueprint_auto_plan WHERE projectId=? AND status='PENDING' LIMIT 5", arrayOf(pid))
+                var applied = 0
+                cur.use {
+                    while (it.moveToNext()) {
+                        val id = it.getString(0); val what = it.getString(1)
+                        val j = org.json.JSONObject(what)
+                        val cmd = j.optString("command"); val args = j.optJSONObject("args") ?: org.json.JSONObject()
+                        val r = c.bus.execute(cmd, args, c.actor, c.groupId)
+                        if (r.ok) { db.execSQL("UPDATE blueprint_auto_plan SET status='APPLIED', appliedAt=? WHERE id=?", arrayOf(System.currentTimeMillis(), id)); applied++ }
+                    }
+                }
+                if (applied == 0) okResult("No pending Auto Reinforce phases for this project.")
+                else okResult("Auto Reinforce applied $applied pending phase(s).")
+            } catch (e: Exception) { CommandResult.fail("Auto Reinforce failed: ${e.message}") }
         }
     )
 

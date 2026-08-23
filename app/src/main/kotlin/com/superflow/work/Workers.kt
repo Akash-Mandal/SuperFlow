@@ -491,6 +491,14 @@ object BackgroundWork {
                 ProactiveAiWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, proactive
             )
         }
+        val autoReinforce = PeriodicWorkRequestBuilder<AutoReinforceWorker>(6, TimeUnit.HOURS)
+            .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(false).build())
+            .build()
+        runCatching {
+            manager.enqueueUniquePeriodicWork(
+                AutoReinforceWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, autoReinforce
+            )
+        }
 
         // Milestones and the weekly review run daily; WorkManager de-duplicates
         // by unique name, and the workers themselves are idempotent.
@@ -538,6 +546,7 @@ object BackgroundWork {
                 cancelUniqueWork(DailyRolloverWorker.NAME)
                 cancelUniqueWork(ReminderRefreshWorker.NAME)
                 cancelUniqueWork(ProactiveAiWorker.NAME)
+                cancelUniqueWork(AutoReinforceWorker.NAME)
                 cancelUniqueWork(MilestoneWorker.NAME)
                 cancelUniqueWork(ReviewWorker.NAME)
                 cancelUniqueWork(SnapshotCleanupWorker.NAME)
