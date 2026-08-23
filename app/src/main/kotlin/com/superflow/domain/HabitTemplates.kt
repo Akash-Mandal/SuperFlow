@@ -37,7 +37,7 @@ object HabitTemplates {
 
     fun suggestForGoal(goalTitle: String): List<HabitTemplate> {
         val g = goalTitle.lowercase()
-        return when {
+        val res = when {
             g.contains("run") || g.contains("5k") || g.contains("marathon") -> runningPlan()
             g.contains("read") || g.contains("book") -> readingPlan()
             g.contains("write") || g.contains("novel") || g.contains("blog") -> writingPlan()
@@ -48,6 +48,8 @@ object HabitTemplates {
             g.contains("save") || g.contains("money") || g.contains("budget") -> financePlan()
             else -> generalWellbeing()
         }
+        android.util.Log.d("HabitTemplates", "suggestForGoal '$goalTitle' -> ${res.firstOrNull()?.title} (${res.size})")
+        return res
     }
 
     /* ------------------------------------------------------------- HEALTH */
