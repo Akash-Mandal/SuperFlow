@@ -91,6 +91,7 @@ sealed interface StudioAction {
     data class Suggestion(val text: String) : StudioAction
     data class Message(val turnId: String, val action: StudioModel.MessageAction) : StudioAction
     data class OpenProject(val id: String) : StudioAction
+    data object Attach : StudioAction
 }
 
 /**
@@ -565,6 +566,13 @@ private fun StudioComposer(
                             null
                         },
                         enabled = !state.sending,
+                    )
+                }
+                IconButton(onClick = { onAction(StudioAction.Attach) }) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_add),
+                        contentDescription = "Attach file",
+                        tint = scheme.onSurfaceVariant,
                     )
                 }
                 Spacer(Modifier.width(Space.SM.dp))

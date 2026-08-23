@@ -112,6 +112,7 @@ class AppearanceFragment : Fragment() {
 
     private fun render() {
         container.removeAllViews()
+        container.addView(previewCard())
 
         /* ------------------------------------------------------- theme mode */
 
@@ -410,6 +411,14 @@ class AppearanceFragment : Fragment() {
             }
         }
         return v
+    }
+
+    private fun previewCard(): View {
+        val card = layoutInflater.inflate(R.layout.item_text_card, container, false)
+        card.findViewById<TextView>(R.id.text_title).text = "Preview — ${Catalog.choiceOf(Catalog.palettes, prefs.palette).label} · ${Catalog.choiceOf(Catalog.densities, prefs.density).label}"
+        card.findViewById<TextView>(R.id.text_body).text = "Habit card · 7d streak · Tap palette or density to see this card re-tint after restart. Calm is paper, Forest is growth, Ocean is depth, Dusk is evening, Mono is quiet."
+        card.alpha = 0.95f
+        return card
     }
 
     /** A filled circle, optionally with a selection ring around it. */

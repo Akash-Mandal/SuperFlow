@@ -81,6 +81,11 @@ class StudioFragment : Fragment() {
             else view?.snack(getString(R.string.mic_permission_needed))
         }
 
+    private val pickFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@registerForActivityResult
+        handleFile(uri)
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -136,7 +141,21 @@ class StudioFragment : Fragment() {
             is StudioAction.Suggestion -> model.send(action.text)
             is StudioAction.Message -> message(action.turnId, action.action)
             is StudioAction.OpenProject -> openBlueprint(action.id)
+            StudioAction.Attach -> pickFile.launch(arrayOf("text/*", "application/pdf", "image/*", "*/*"))
         }
+    }
+
+    private fun handleFile(uri: android.net.Uri) {
+        try {
+            val bytes = requireContext().contentResolver.openInputStream(uri)?.readBytes() ?: return
+            if (bytes.size > 2_000_000) { view?.snack("File too large (>2MB). Split it."); return }
+            val isPdf = com.superflow.blueprint.PdfText.looksLikePdf(bytes)
+            val text = if (isPdf) com.superflow.blueprint.PdfText.extract(bytes) else String(bytes, Charsets.UTF_8)
+            if (text.isBlank()) { view?.snack("No readable text. For scanned PDFs, paste instead."); return }
+            val name = uri.lastPathSegment?.substringAfterLast("/") ?: "file"
+            model.input("Attached $name:\n\n${text.take(6000)}")
+            view?.snack("Attached $name — edit and send")
+        } catch (_: Exception) { view?.snack("Could not read that file") }
     }
 
     private fun send() {
