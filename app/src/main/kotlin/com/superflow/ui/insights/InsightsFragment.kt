@@ -397,6 +397,8 @@ class InsightsFragment : Fragment() {
             }
         val adapter = InsightsAdapter()
         list.layoutManager = LinearLayoutManager(requireContext())
+        list.setHasFixedSize(true)
+        list.setItemViewCacheSize(6)
         list.adapter = adapter
 
         viewLifecycleOwner.lifecycleScope.launch {

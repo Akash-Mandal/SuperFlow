@@ -77,6 +77,8 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
 
         adapter = TodayAdapter(this)
         list.layoutManager = LinearLayoutManager(requireContext())
+        list.setHasFixedSize(true)
+        list.setItemViewCacheSize(8)
         list.adapter = adapter
         (list.itemAnimator as? DefaultItemAnimator)?.supportsChangeAnimations = false
 
