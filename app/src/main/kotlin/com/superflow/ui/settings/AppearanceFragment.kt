@@ -278,6 +278,18 @@ class AppearanceFragment : Fragment() {
                 )
             )
         )
+        container.addView(
+            groupOf(
+                MaterialButton(requireContext()).apply {
+                    text = "Test haptics"
+                    setOnClickListener {
+                        SfHaptics.perform(requireView(), Haptics.TICK, prefs)
+                        requireView().postDelayed({ SfHaptics.perform(requireView(), Haptics.SELECT, prefs) }, 180)
+                        requireView().postDelayed({ SfHaptics.perform(requireView(), Haptics.COMPLETE, prefs) }, 360)
+                    }
+                }
+            )
+        )
 
         /* --------------------------------------------------------- gestures */
 
