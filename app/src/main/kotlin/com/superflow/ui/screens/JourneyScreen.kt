@@ -37,6 +37,7 @@ import com.superflow.design.JourneyTree
 import com.superflow.design.Space
 import com.superflow.ui.components.SfCard
 import com.superflow.ui.components.SfCardVariant
+import com.superflow.ui.components.SfEmptyState
 import com.superflow.ui.components.SfEntityRow
 import com.superflow.ui.components.SfHabitCardSkeleton
 import com.superflow.ui.components.SfSectionHeader
@@ -308,34 +309,14 @@ private fun GapCard(gap: JourneyTree.Gap, onAdd: (JourneyTree.Kind) -> Unit) {
 
 /**
  * The first-run state.
- *
- * Offers exactly one action. A blank Journey with four "Add" buttons asks
- * the user to pick an entry point into a model they have not learned yet;
- * the identity is the entry point, and everything else follows from it.
  */
 @Composable
 private fun EmptyJourney(onAdd: (JourneyTree.Kind) -> Unit) {
-    SfCard(variant = SfCardVariant.Accent) {
-        Text(
-            text = "Start with who you want to be",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.semantics { heading() },
-        )
-        Spacer(modifier = Modifier.height(Space.SM.dp))
-        Text(
-            text = "\u201cSomeone who moves every day.\u201d From there, a goal gives it " +
-                "direction, a system makes it repeatable, and habits do the work.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Spacer(modifier = Modifier.height(Space.MD.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-            TextButton(onClick = { onAdd(JourneyTree.Kind.IDENTITY) }) {
-                Text(text = "Write an identity")
-            }
-            Spacer(modifier = Modifier.width(Space.SM.dp))
-            TextButton(onClick = { onAdd(JourneyTree.Kind.HABIT) }) {
-                Text(text = "Just add a habit")
-            }
-        }
-    }
+    SfEmptyState(
+        icon = R.drawable.ic_identity,
+        title = "Start with who you want to be",
+        body = "\u201cSomeone who moves every day.\u201d From there, a goal gives it direction, a system makes it repeatable, and habits do the work.",
+        actionLabel = "Write an identity",
+        onAction = { onAdd(JourneyTree.Kind.IDENTITY) }
+    )
 }
