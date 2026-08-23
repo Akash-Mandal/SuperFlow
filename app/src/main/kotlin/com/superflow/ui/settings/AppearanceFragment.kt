@@ -427,8 +427,15 @@ class AppearanceFragment : Fragment() {
 
     private fun previewCard(): View {
         val card = layoutInflater.inflate(R.layout.item_text_card, container, false)
-        card.findViewById<TextView>(R.id.text_title).text = "Preview — ${Catalog.choiceOf(Catalog.palettes, prefs.palette).label} · ${Catalog.choiceOf(Catalog.densities, prefs.density).label}"
-        card.findViewById<TextView>(R.id.text_body).text = "Habit card · 7d streak · Tap palette or density to see this card re-tint after restart. Calm is paper, Forest is growth, Ocean is depth, Dusk is evening, Mono is quiet."
+        val density = Catalog.choiceOf(Catalog.densities, prefs.density)
+        card.findViewById<TextView>(R.id.text_title).text = "Preview — ${Catalog.choiceOf(Catalog.palettes, prefs.palette).label} · ${density.label}"
+        card.findViewById<TextView>(R.id.text_body).text = "${density.detail}\nHabit card · 7d streak · Tap palette or density to see this card re-tint after restart. Calm is paper, Forest is growth, Ocean is depth, Dusk is evening, Mono is quiet."
+        val pad = when (prefs.density) {
+            Prefs.DENSITY_COMPACT -> requireContext().dp(8)
+            Prefs.DENSITY_SPACIOUS -> requireContext().dp(20)
+            else -> requireContext().dp(12)
+        }
+        card.setPadding(pad, pad, pad, pad)
         card.alpha = 0.95f
         return card
     }
