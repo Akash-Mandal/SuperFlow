@@ -44,6 +44,8 @@ class AutoReinforceWorker(context: Context, params: WorkerParameters) : Coroutin
                 else db.execSQL("UPDATE blueprint_auto_plan SET status='FAILED' WHERE id=?", arrayOf(p["id"]))
             } catch (e: Exception) { Log.w("AutoReinforce", "apply failed", e) }
         }
+        try { com.superflow.widget.TodayWidget.refresh(applicationContext) } catch (_: Exception) {}
+        try { com.superflow.notify.Reminders.rescheduleAllNow(applicationContext) } catch (_: Exception) {}
         Result.success()
     } catch (e: Exception) { Log.w("AutoReinforce", "worker failed", e); Result.retry() }
     companion object { const val NAME = "superflow_auto_reinforce" }
