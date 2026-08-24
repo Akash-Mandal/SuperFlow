@@ -155,6 +155,10 @@ class Prefs private constructor(context: Context) {
             .coerceIn(DENSITY_COMPACT, DENSITY_SPACIOUS)
         set(v) = setNum("density", v)
 
+    var customHue: Int
+        get() = num("customHue", -1).coerceIn(-1, 360)
+        set(v) = setNum("customHue", v.coerceIn(-1, 360))
+
     /** Motion level, one of the `MOTION_*` constants. */
     var motionLevel: Int
         get() = num("motionLevel", MOTION_STANDARD)

@@ -210,6 +210,34 @@ class AppearanceFragment : Fragment() {
             )
         )
 
+        container.addView(section("Custom hue (experimental)"))
+        container.addView(
+            group(
+                listOf(
+                    toggle(
+                        "Enable custom hue",
+                        if (prefs.customHue < 0) "Uses palette hue" else "Hue ${prefs.customHue}°",
+                        prefs.customHue >= 0,
+                    ) { on ->
+                        prefs.customHue = if (on) 160 else -1
+                        applyAndRestart { prefs.setAppearance() }
+                    }
+                )
+            )
+        )
+        if (prefs.customHue >= 0) {
+            val slider = com.google.android.material.slider.Slider(requireContext()).apply {
+                valueFrom = 0f; valueTo = 360f; value = prefs.customHue.toFloat(); stepSize = 1f
+                addOnChangeListener { _, v, _ -> prefs.customHue = v.toInt() }
+                addOnSliderTouchListener(object : com.google.android.material.slider.Slider.OnSliderTouchListener {
+                    override fun onStartTrackingTouch(s: com.google.android.material.slider.Slider) {}
+                    override fun onStopTrackingTouch(s: com.google.android.material.slider.Slider) { applyAndRestart { prefs.setAppearance() } }
+                })
+            }
+            container.addView(groupOf(slider))
+            container.addView(note("Custom hue blends the Calm palette toward your hue. Full hue engine ships in next polish."))
+        }
+
         /* --------------------------------------------------------- app icon */
 
         container.addView(section(getString(R.string.app_icon)))
