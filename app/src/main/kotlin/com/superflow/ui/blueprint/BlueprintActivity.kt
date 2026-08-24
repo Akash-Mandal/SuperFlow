@@ -46,6 +46,7 @@ class BlueprintActivity : ScrollActivity() {
     private var lastGroupId: String? = null
     private var busy = false
     private var showAllLedger = false
+    private var collapsedThemes = mutableSetOf<String>()
 
     private val pickFile = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -180,35 +181,64 @@ class BlueprintActivity : ScrollActivity() {
                         "citation, and flags conflicts."))
             return
         }
-        content.addView(textCard("Coverage", Compiler.coverage(reqs) + if (reqs.size > 20) "\n\nShowing ${if (showAllLedger) reqs.size else 20} of ${reqs.size} — tap Show more to expand." else ""))
-        val visible = if (showAllLedger || reqs.size <= 20) reqs else reqs.take(20)
-        visible.forEach { r ->
-            val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
-            card.findViewById<TextView>(R.id.text_title).text = r.text
-            card.findViewById<TextView>(R.id.text_body).text = buildString {
-                append("${r.citation} · ${r.status.name.lowercase()}")
-                if (r.assumption) append(" · assumption")
-                if (r.note.isNotBlank()) append("\n${r.note}")
-                if (r.plannedCommand.isNotBlank()) {
-                    val cmd = runCatching { JSONObject(r.plannedCommand).optString("command") }
-                        .getOrDefault("")
-                    append("\nPlans to run: $cmd")
+        content.addView(textCard("Coverage", Compiler.coverage(reqs) + if (reqs.size > 20) "\n\nShowing ${if (showAllLedger) reqs.size else 20} of ${reqs.size} — grouped by theme below." else ""))
+        val grouped = reqs.groupBy { themeForRequirement(it) }.toSortedMap()
+        grouped.forEach { (theme, items) ->
+            val isCollapsed = collapsedThemes.contains(theme)
+            val header = layoutInflater.inflate(R.layout.item_text_card, content, false)
+            header.findViewById<TextView>(R.id.text_title).text = "$theme · ${items.size} ${if (items.size==1) "item" else "items"} ${if (isCollapsed) "▶" else "▼"}"
+            header.findViewById<TextView>(R.id.text_body).text = if (isCollapsed) "Tap to expand" else "Tap to collapse"
+            header.setOnClickListener { if (isCollapsed) collapsedThemes.remove(theme) else collapsedThemes.add(theme); rebuild() }
+            content.addView(header)
+            if (!isCollapsed) {
+                val visible = if (showAllLedger || items.size <= 10) items else items.take(10)
+                visible.forEach { r ->
+                    val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
+                    card.findViewById<TextView>(R.id.text_title).text = r.text
+                    card.findViewById<TextView>(R.id.text_body).text = buildString {
+                        append("${r.citation} · ${r.status.name.lowercase()}")
+                        if (r.assumption) append(" · assumption")
+                        if (r.note.isNotBlank()) append("\n${r.note}")
+                        if (r.plannedCommand.isNotBlank()) {
+                            val cmd = runCatching { JSONObject(r.plannedCommand).optString("command") }.getOrDefault("")
+                            append("\nPlans to run: $cmd")
+                        }
+                    }
+                    card.setOnClickListener {
+                        val next = if (r.status == RequirementStatus.REJECTED) RequirementStatus.ACCEPTED else RequirementStatus.REJECTED
+                        repo.saveRequirement(r.copy(status = next)); rebuild()
+                    }
+                    card.alpha = 0.96f
+                    card.setPadding(card.paddingLeft + dpi(8), card.paddingTop, card.paddingRight, card.paddingBottom)
+                    content.addView(card)
+                }
+                if (!showAllLedger && items.size > 10) {
+                    content.addView(outlined("Show ${items.size - 10} more in $theme") { showAllLedger = true; rebuild() })
                 }
             }
-            card.setOnClickListener {
-                val next = if (r.status == RequirementStatus.REJECTED)
-                    RequirementStatus.ACCEPTED else RequirementStatus.REJECTED
-                repo.saveRequirement(r.copy(status = next))
-                rebuild()
-            }
-            content.addView(card)
         }
         if (!showAllLedger && reqs.size > 20) {
-            content.addView(outlined("Show ${reqs.size - 20} more") { showAllLedger = true; rebuild() })
+            content.addView(outlined("Show all ${reqs.size} (ungrouped)") { showAllLedger = true; rebuild() })
         } else if (showAllLedger && reqs.size > 20) {
-            content.addView(outlined("Collapse") { showAllLedger = false; rebuild() })
+            content.addView(outlined("Collapse all") { showAllLedger = false; rebuild() })
         }
-        content.addView(textCard("Tip", "Tap a requirement to accept or reject it. Large plans are now intelligently phased — only the next phase shows; future phases are scheduled as Auto Reinforce."))
+        content.addView(textCard("Tip", "Grouped by theme (Movement/Mindfulness/...). Tap header to collapse. Large plans are intelligently phased — only phase 0 shows; future phases are Auto Reinforce."))
+    }
+
+    private fun themeForRequirement(r: Requirement): String {
+        val t = r.text.lowercase()
+        return when {
+            t.contains("walk") || t.contains("run") || t.contains("exercise") || t.contains("stretch") || t.contains("fitness") -> "Movement"
+            t.contains("meditat") || t.contains("mindful") || t.contains("breath") || t.contains("calm") || t.contains("yoga") -> "Mindfulness"
+            t.contains("read") || t.contains("book") || t.contains("study") || t.contains("learn") -> "Learning"
+            t.contains("eat") || t.contains("nutrition") || t.contains("food") || t.contains("water") || t.contains("protein") -> "Nutrition"
+            t.contains("sleep") || t.contains("bed") || t.contains("wind down") -> "Sleep"
+            t.contains("work") || t.contains("focus") || t.contains("deep") -> "Focus"
+            t.contains("family") || t.contains("friend") || t.contains("partner") -> "Relationships"
+            t.contains("save") || t.contains("money") || t.contains("budget") || t.contains("finance") -> "Finance"
+            t.contains("write") || t.contains("creative") || t.contains("art") || t.contains("music") -> "Creativity"
+            else -> "General"
+        }
     }
 
     private fun autoReinforceSection(p: BlueprintProject) {

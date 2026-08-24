@@ -176,13 +176,29 @@ object CompilerV2 {
         // Convert each section into a theme, unless items are sparse
         for ((section, groupItems) in bySection) {
             if (groupItems.size == 1 && section.length < 5) continue  // Skip noise
+            val deduped = dedupByJaccard(groupItems.map { it.text })
             themes.add(Theme(
                 name = section.ifBlank { groupItems.first().text.take(40) },
-                items = groupItems.map { it.text },
+                items = deduped,
                 estimatedMinutesPerDay = estimateThemeMinutes(groupItems)
             ))
         }
         return themes
+    }
+
+    private fun dedupByJaccard(items: List<String>): List<String> {
+        val out = mutableListOf<String>()
+        for (t in items) {
+            val norm = t.lowercase().replace(Regex("[^a-z0-9 ]"), " ").trim().split(Regex("\\s+")).filter { it.length > 2 }.toSet()
+            if (out.none { o ->
+                val oSet = o.lowercase().replace(Regex("[^a-z0-9 ]"), " ").trim().split(Regex("\\s+")).filter { it.length > 2 }.toSet()
+                val inter = norm.intersect(oSet).size.toDouble()
+                val union = norm.union(oSet).size.toDouble()
+                if (union == 0.0) false else inter / union >= 0.8
+            }) out.add(t)
+        }
+        return out
+    }
     }
 
     private fun prioritiseThemes(themes: List<Theme>, intent: UserIntent): List<Theme> {
