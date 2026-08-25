@@ -46,15 +46,15 @@ else
   AAPT2=""
 fi
 if [ -n "$AAPT2" ]; then
-  "$AAPT2" dump badging "$APK" | grep -E "^package:|application-label:" | head -3
+  "$AAPT2" dump badging "$APK" | grep -E "^package:|application-label:" | head -n 3 || true
   MANIFEST=$("$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" 2>/dev/null || true)
-  if echo "$MANIFEST" | grep -q 'E: provider'; then
+  if grep -q 'provider' <<<"$MANIFEST"; then
     echo "    merged manifest carries the InitializationProvider (from work-runtime):"
-    echo "$MANIFEST" | grep -A3 "E: provider" | head -8
+    echo "$MANIFEST" | grep -i -A3 "provider" | head -n 8 || true
   else
     echo "    NOTE: no <provider> in merged manifest"
   fi
-  if echo "$MANIFEST" | grep -q 'applicationId'; then
+  if grep -q 'applicationId' <<<"$MANIFEST"; then
     echo "FATAL: unresolved \${applicationId} placeholder in merged manifest" >&2
     exit 1
   fi

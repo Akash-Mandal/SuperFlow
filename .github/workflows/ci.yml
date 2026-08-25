@@ -104,14 +104,14 @@ jobs:
           AAPT2="$BUILD_TOOLS/aapt2"
           APKSIGNER="$BUILD_TOOLS/apksigner"
 
-          "$AAPT2" dump badging "$APK" | grep -E '^package:|application-label:' | head -3
+          "$AAPT2" dump badging "$APK" | grep -E '^package:|application-label:' | head -n 3 || true
 
           MANIFEST="$("$AAPT2" dump xmltree --file AndroidManifest.xml "$APK")"
-          if echo "$MANIFEST" | grep -q 'applicationId'; then
+          if grep -q 'applicationId' <<<"$MANIFEST"; then
             echo "FATAL: unresolved \${applicationId} placeholder in merged manifest" >&2
             exit 1
           fi
-          if echo "$MANIFEST" | grep -q 'E: provider'; then
+          if grep -qi 'provider' <<<"$MANIFEST"; then
             echo "OK: merged manifest carries the androidx.startup InitializationProvider"
           else
             echo "FATAL: no <provider> in merged manifest (work-runtime AAR not merged)" >&2
