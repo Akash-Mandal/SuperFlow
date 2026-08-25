@@ -37,13 +37,52 @@ android {
         }
     }
 
+    // One stable signing identity for every build (debug AND release).
+    //
+    // Android refuses to update an installed app whose new APK was signed
+    // with a different certificate ("App not installed"), and GitHub
+    // Actions runners generate a fresh random ~/.android/debug.keystore on
+    // every job — which is exactly why alpha builds could never update in
+    // place. The fix is a single committed keystore (app/debug.keystore,
+    // standard public debug credentials android/androiddebugkey) that every
+    // machine and every CI run shares. The ~/.android fallback keeps local
+    // builds working before the committed file exists.
+    val stableKeystore = file("debug.keystore").takeIf { it.exists() }
+        ?: file(System.getProperty("user.home") + "/.android/debug.keystore")
+
+    signingConfigs {
+        getByName("debug") {
+            storeFile = stableKeystore
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+        create("release") {
+            storeFile = stableKeystore
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
             isDebuggable = true
+            signingConfig = signingConfigs.getByName("debug")
         }
         release {
+            // Non-debuggable + signed with the same stable identity: fewer
+            // Play Protect heuristics fire on sideloaded copies, and a
+            // release install updates in place over a debug install.
             isMinifyEnabled = false
+            isDebuggable = false
+            isJniDebuggable = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

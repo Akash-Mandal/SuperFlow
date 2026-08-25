@@ -74,19 +74,30 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Ensure consistent debug keystore (fixes "app not installed" on update)
+      - name: Restore stable debug keystore (fixes "app not installed" on update)
+        id: keystore
+        uses: actions/cache@v6
+        with:
+          path: app/debug.keystore
+          key: superflow-stable-debug-keystore-v1
+
+      - name: Generate keystore only on first run
+        if: steps.keystore.outputs.cache-hit != 'true'
         run: |
-          if [ -f app/debug.keystore ]; then
-            echo "Using committed debug.keystore"
-            ls -lh app/debug.keystore
-          else
-            echo "Generating deterministic debug.keystore for consistent updates"
-            mkdir -p ~/.android
-            if [ -f ~/.android/debug.keystore ]; then cp ~/.android/debug.keystore app/debug.keystore; else
-              keytool -genkey -v -keystore app/debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=SuperFlow Debug, OU=SuperFlow, O=SuperFlow, L=Unknown, S=Unknown, C=US" || keytool -genkeypair -v -keystore app/debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=SuperFlow Debug, OU=SuperFlow, O=SuperFlow, L=Unknown, S=Unknown, C=US"
-            fi
-            ls -lh app/debug.keystore || true
-          fi
+          mkdir -p app
+          rm -f app/debug.keystore ~/.android/debug.keystore
+          keytool -genkeypair -v -keystore app/debug.keystore \
+            -alias androiddebugkey -storepass android -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=SuperFlow Debug, OU=SuperFlow, O=SuperFlow, L=Unknown, S=Unknown, C=US"
+          # Also seed the runner default so Gradle's fallback agrees.
+          mkdir -p ~/.android && cp app/debug.keystore ~/.android/debug.keystore
+
+      - name: Verify signing identity is present and consistent
+        run: |
+          test -s app/debug.keystore || { echo "FATAL: app/debug.keystore missing" >&2; exit 1; }
+          keytool -list -v -keystore app/debug.keystore -alias androiddebugkey -storepass android \
+            | grep -E "Alias name|SHA256:" | head -n 4
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
@@ -101,6 +112,9 @@ jobs:
 
       - name: Assemble debug APK
         run: ./gradlew --no-daemon assembleDebug
+
+      - name: Assemble release APK (non-debuggable, same signing identity)
+        run: ./gradlew --no-daemon assembleRelease
 
       # The checks below are the reason the Gradle-less pipeline was removed
       # (docs/BUILD.md): an APK that links but leaves ${applicationId}
@@ -140,6 +154,14 @@ jobs:
         with:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload release APK (recommended install — fewer Play Protect flags)
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
       - name: Upload reports

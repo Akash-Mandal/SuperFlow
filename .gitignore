@@ -7,6 +7,9 @@ out/
 *.ap_
 *.jks
 *.keystore
+# Exception: the stable shared debug keystore MUST be committed so every
+# CI build signs with the same certificate and installs update in place.
+!app/debug.keystore
 local.properties
 .gradle/
 
