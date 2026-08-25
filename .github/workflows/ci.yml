@@ -164,6 +164,14 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
+      - name: Upload signing keystore for permanent commit
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stable-debug-keystore
+          path: app/debug.keystore
+          if-no-files-found: error
+
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -198,6 +206,24 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: true
+
+      - name: Restore stable debug keystore (emulator build signs identically)
+        id: keystore
+        uses: actions/cache@v6
+        with:
+          path: app/debug.keystore
+          key: superflow-stable-debug-keystore-v1
+
+      - name: Generate keystore only on first run
+        if: steps.keystore.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p app
+          rm -f app/debug.keystore ~/.android/debug.keystore
+          keytool -genkeypair -v -keystore app/debug.keystore \
+            -alias androiddebugkey -storepass android -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=SuperFlow Debug, OU=SuperFlow, O=SuperFlow, L=Unknown, S=Unknown, C=US"
+          mkdir -p ~/.android && cp app/debug.keystore ~/.android/debug.keystore
 
       # Hardware acceleration; without it the emulator boot times out.
       - name: Enable KVM
