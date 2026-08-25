@@ -73,6 +73,8 @@ class HabitDesignerActivity : AppCompatActivity() {
     private var recurrence: Recurrence = Recurrence.EVERY_DAY
     private var reminder = false
     private var protectedRoutine = false
+    private var initialSystemId: String? = null
+    private var initialIdentityId: String? = null
 
     // Step 0 (Template) is only shown when creating a new habit; editing
     // jumps straight to Meaning. The rendered list is built in [renderSteps].
@@ -98,6 +100,10 @@ class HabitDesignerActivity : AppCompatActivity() {
         btnNext = findViewById(R.id.btn_next)
 
         intent.getStringExtra(EXTRA_HABIT_ID)?.let { loadExisting(it) }
+        if (editing == null) {
+            initialSystemId = intent.getStringExtra(EXTRA_SYSTEM_ID)
+            initialIdentityId = intent.getStringExtra(EXTRA_IDENTITY_ID)
+        }
 
         toolbar.setNavigationOnClickListener { confirmExit() }
         btnBack.setOnClickListener { if (step > 0) { step--; render() } }
@@ -617,7 +623,7 @@ class HabitDesignerActivity : AppCompatActivity() {
 
     private fun v(key: String) = values[key]?.trim().orEmpty()
 
-    private fun draft(): Habit = (editing ?: Habit(title = v("title"))).copy(
+    private fun draft(): Habit = (editing ?: Habit(title = v("title"), systemId = initialSystemId, identityId = initialIdentityId)).copy(
         title = v("title"), mode = mode, trackType = trackType,
         targetCount = v("targetCount").toIntOrNull() ?: 1, unit = v("unit"),
         cueTime = v("cueTime"), cuePlace = v("cuePlace"), anchorText = v("anchorText"),
@@ -662,7 +668,8 @@ class HabitDesignerActivity : AppCompatActivity() {
             "targetCount" to (v("targetCount").toIntOrNull() ?: 1),
             "mode" to mode.name, "trackType" to trackType.name,
             "days" to recurrence.encode(),
-            "reminder" to reminder, "protected" to protectedRoutine
+            "reminder" to reminder, "protected" to protectedRoutine,
+            "systemId" to (initialSystemId ?: ""), "identityId" to (initialIdentityId ?: "")
         )
         val target = editing?.id
         // The write and the alarm re-arm are database work; keep them off the
@@ -694,5 +701,7 @@ class HabitDesignerActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_HABIT_ID = "habitId"
+        const val EXTRA_SYSTEM_ID = "systemId"
+        const val EXTRA_IDENTITY_ID = "identityId"
     }
 }

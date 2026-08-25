@@ -53,6 +53,14 @@
             android:paddingTop="@dimen/space_md"
             android:paddingBottom="@dimen/space_md">
 
+            <View
+                android:id="@+id/entity_accent"
+                android:layout_width="4dp"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="@dimen/space_sm"
+                android:background="@drawable/bg_accent_bar"
+                android:visibility="visible" />
+
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/entity_icon_frame"
                 android:layout_width="36dp"
@@ -110,6 +118,17 @@
                 android:visibility="gone"
                 android:textAppearance="@style/Text.SuperFlow.Data"
                 android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/entity_add"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="@dimen/touch_min"
+                android:minHeight="@dimen/touch_min"
+                android:visibility="gone"
+                app:icon="@drawable/ic_add"
+                app:iconTint="?attr/colorPrimary" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/entity_expand"

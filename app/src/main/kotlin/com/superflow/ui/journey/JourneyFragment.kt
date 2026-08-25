@@ -217,12 +217,23 @@ class JourneyFragment : Fragment() {
         }
     }
 
-    private fun addFor(kind: String) {
+    private fun addFor(kind: String, parentId: String? = null) {
         when (kind) {
             "identity" -> editIdentity(null, "", LifeArea.HEALTH)
-            "goal" -> editGoal(null, "", "", model.identities().firstOrNull()?.id)
-            "system" -> editSystem(null, "", "", model.goals().firstOrNull()?.id)
-            "habit" -> startActivity(Intent(requireContext(), HabitDesignerActivity::class.java))
+            "goal" -> editGoal(null, "", "", parentId ?: model.identities().firstOrNull()?.id)
+            "system" -> editSystem(null, "", "", parentId ?: model.goals().firstOrNull()?.id)
+            "habit" -> {
+                val intent = Intent(requireContext(), HabitDesignerActivity::class.java)
+                if (parentId != null) {
+                    intent.putExtra(HabitDesignerActivity.EXTRA_SYSTEM_ID, parentId)
+                    model.system(parentId)?.goalId?.let { gid ->
+                        model.goal(gid)?.identityId?.let { iid ->
+                            intent.putExtra(HabitDesignerActivity.EXTRA_IDENTITY_ID, iid)
+                        }
+                    }
+                }
+                startActivity(intent)
+            }
         }
     }
 
@@ -248,6 +259,12 @@ class JourneyFragment : Fragment() {
 
     private fun showMenu(row: JourneyRow.Entity, anchor: View) {
         val menu = PopupMenu(requireContext(), anchor)
+        when (row.kind) {
+            "identity" -> menu.menu.add("Add goal to this identity").setOnMenuItemClickListener { addFor("goal", row.id); true }
+            "goal" -> menu.menu.add("Add system to this goal").setOnMenuItemClickListener { addFor("system", row.id); true }
+            "system" -> menu.menu.add("Add habit to this system").setOnMenuItemClickListener { addFor("habit", row.id); true }
+            else -> Unit
+        }
         if (row.archived) {
             menu.menu.add("Restore").setOnMenuItemClickListener {
                 model.restoreHabit(row.id); true
@@ -306,7 +323,7 @@ class JourneyAdapter(
     private val onOpen: (JourneyRow.Entity) -> Unit,
     private val onMenu: (JourneyRow.Entity, View) -> Unit,
     private val onToggle: (JourneyRow.Entity) -> Unit,
-    private val onAdd: (String) -> Unit,
+    private val onAdd: (String, String?) -> Unit,
     private val onTool: (Int) -> Unit
 ) : ListAdapter<JourneyRow, RecyclerView.ViewHolder>(DIFF) {
 
@@ -472,7 +489,7 @@ class JourneyAdapter(
             } else {
                 action.visibility = View.VISIBLE
                 action.text = row.addLabel
-                action.onDebouncedClick { onAdd(row.kind) }
+                action.onDebouncedClick { onAdd(row.kind, null) }
             }
         }
     }
@@ -481,10 +498,12 @@ class JourneyAdapter(
         private val indent: View = v.findViewById(R.id.tree_indent)
         private val rail: View = v.findViewById(R.id.tree_rail)
         private val card: MaterialCardView = v.findViewById(R.id.entity_card)
+        private val accent: View = v.findViewById(R.id.entity_accent)
         private val icon: ImageView = v.findViewById(R.id.entity_icon)
         private val title: TextView = v.findViewById(R.id.entity_title)
         private val sub: TextView = v.findViewById(R.id.entity_sub)
         private val count: TextView = v.findViewById(R.id.entity_count)
+        private val add: MaterialButton = v.findViewById(R.id.entity_add)
         private val expand: MaterialButton = v.findViewById(R.id.entity_expand)
         private val menu: MaterialButton = v.findViewById(R.id.entity_menu)
 
@@ -501,6 +520,14 @@ class JourneyAdapter(
             title.text = row.title
             sub.text = row.subtitle
             sub.visible(row.subtitle.isNotBlank())
+
+            val accentColor = when (row.node.kind) {
+                JourneyTree.Kind.IDENTITY -> itemView.context.themeColor(com.google.android.material.R.attr.colorPrimary)
+                JourneyTree.Kind.GOAL -> itemView.context.themeColor(com.google.android.material.R.attr.colorSecondary)
+                JourneyTree.Kind.SYSTEM -> itemView.context.themeColor(com.google.android.material.R.attr.colorTertiary)
+                else -> itemView.context.themeColor(com.google.android.material.R.attr.colorSurfaceVariant)
+            }
+            accent.setBackgroundColor(accentColor)
 
             card.alpha = if (tree.dormant || row.archived) DORMANT_ALPHA else 1f
             // Orphans get the outline treatment: visibly not attached,
@@ -540,6 +567,16 @@ class JourneyAdapter(
             } else {
                 expand.visibility = View.GONE
                 expand.setOnClickListener(null)
+            }
+
+            val child = row.node.kind.child
+            if (child != null) {
+                add.visibility = View.VISIBLE
+                add.contentDescription = "Add ${child.label} to ${row.title}"
+                add.onDebouncedClick { onAdd(child.key, row.id) }
+            } else {
+                add.visibility = View.GONE
+                add.setOnClickListener(null)
             }
 
             card.contentDescription = describe(row)
@@ -594,7 +631,7 @@ class JourneyAdapter(
             body.text = row.gap.body
             action.visibility = View.VISIBLE
             action.text = "Add ${row.gap.kind.label.lowercase()}"
-            action.onDebouncedClick { onAdd(row.gap.kind.key) }
+            action.onDebouncedClick { onAdd(row.gap.kind.key, row.gap.nodeId) }
         }
     }
 
@@ -607,7 +644,7 @@ class JourneyAdapter(
             body.text = row.body
             action.visibility = View.VISIBLE
             action.text = "Add"
-            action.onDebouncedClick { onAdd(row.kind) }
+            action.onDebouncedClick { onAdd(row.kind, null) }
         }
     }
 }

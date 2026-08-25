@@ -173,6 +173,7 @@ private fun LazyListScope.entityRows(
             val kind = row.node.kind
             val id = row.node.id
             val parentKey = kind.parent?.key + ":" + row.node.parentId
+            val addKind = kind.child
             SfEntityRow(
                 row = row,
                 parentTitle = titles[parentKey],
@@ -183,6 +184,7 @@ private fun LazyListScope.entityRows(
                     null
                 },
                 onMenu = { onAction(JourneyAction.Menu(kind, id)) },
+                onAdd = addKind?.let { ck -> { onAction(JourneyAction.Add(ck, id)) } },
             )
         }
     }

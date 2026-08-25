@@ -65,6 +65,7 @@ fun SfEntityRow(
     onClick: (() -> Unit)? = null,
     onToggle: (() -> Unit)? = null,
     onMenu: (() -> Unit)? = null,
+    onAdd: (() -> Unit)? = null,
     /** Trailing content inside the card: badges, counts, a chevron. */
     trailing: (@Composable () -> Unit)? = null,
 ) {
@@ -169,6 +170,11 @@ fun SfEntityRow(
                             )
                         }
                         Spacer(modifier = Modifier.weight(1f))
+                        if (row.node.kind != JourneyTree.Kind.HABIT && onAdd != null) {
+                            androidx.compose.material3.IconButton(onClick = onAdd, modifier = androidx.compose.ui.Modifier.size(32.dp)) {
+                                Icon(painter = painterResource(R.drawable.ic_add), contentDescription = "Add ${row.node.kind.child?.label ?: ""} to ${row.node.title}", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
                         if (row.expandable && onToggle != null) {
                             ExpandToggle(
                                 expanded = row.expanded,

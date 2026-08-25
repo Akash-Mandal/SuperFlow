@@ -133,12 +133,18 @@ class ComposeJourneyFragment : Fragment() {
                 editGoal(null, "", "", parentId ?: model.identities().firstOrNull()?.id)
             JourneyTree.Kind.SYSTEM ->
                 editSystem(null, "", "", parentId ?: model.goals().firstOrNull()?.id)
-            // The designer has no system field of its own, so a habit
-            // added from under a system opens unlinked and is linked
-            // afterwards from the system's own editor. Worth fixing, but
-            // not by inventing an extra the designer would ignore.
-            JourneyTree.Kind.HABIT ->
-                startActivity(Intent(requireContext(), HabitDesignerActivity::class.java))
+            JourneyTree.Kind.HABIT -> {
+                val intent = Intent(requireContext(), HabitDesignerActivity::class.java)
+                if (parentId != null) {
+                    intent.putExtra(HabitDesignerActivity.EXTRA_SYSTEM_ID, parentId)
+                    model.system(parentId)?.goalId?.let { gid ->
+                        model.goal(gid)?.identityId?.let { iid ->
+                            intent.putExtra(HabitDesignerActivity.EXTRA_IDENTITY_ID, iid)
+                        }
+                    }
+                }
+                startActivity(intent)
+            }
         }
     }
 
