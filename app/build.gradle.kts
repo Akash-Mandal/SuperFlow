@@ -19,8 +19,8 @@ android {
         applicationId = "com.superflow"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "2.0.0"
+        versionCode = 4
+        versionName = "alpha2.5"
 
         // Required for `connectedDebugAndroidTest`: every test in
         // app/src/androidTest is a @RunWith(AndroidJUnit4::class) class from
