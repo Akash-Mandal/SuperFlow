@@ -377,6 +377,9 @@ object DataPolicy {
         "scorecardLastPrompt" to prefs.scorecardLastPrompt,
         "activeProfile" to prefs.activeProfile,
         "growthPlansEnabled" to prefs.growthPlansEnabled,
+        "customHue" to prefs.customHue,
+        "autoReinforceEnabled" to prefs.autoReinforceEnabled,
+        "autoReinforceMode" to prefs.autoReinforceMode,
         "preferredSttProvider" to prefs.preferredSttProvider
         // NOTE: apiKey, the app-lock PIN hash and the Whisper key are
         // deliberately excluded (stored in the secrets file).
@@ -516,6 +519,9 @@ object DataPolicy {
         str("scorecardLastPrompt")?.let { prefs.scorecardLastPrompt = it }
         str("activeProfile")?.let { prefs.activeProfile = it }
         bool("growthPlansEnabled")?.let { prefs.growthPlansEnabled = it }
+        int("customHue")?.let { prefs.customHue = it }
+        bool("autoReinforceEnabled")?.let { prefs.autoReinforceEnabled = it }
+        str("autoReinforceMode")?.let { prefs.autoReinforceMode = it }
         str("preferredSttProvider")?.let { prefs.preferredSttProvider = it }
         // NOTE: the PIN hash and Whisper key are secrets and are never imported.
     }

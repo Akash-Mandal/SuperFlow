@@ -31,6 +31,7 @@ import com.superflow.R
 import com.superflow.data.model.LifeArea
 import com.superflow.design.JourneyTree
 import com.superflow.ui.common.dp
+import com.superflow.ui.common.themeColor
 import com.superflow.ui.common.visible
 import com.superflow.data.Prefs
 import com.superflow.ui.common.snack
@@ -521,8 +522,8 @@ class JourneyAdapter(
             sub.text = row.subtitle
             sub.visible(row.subtitle.isNotBlank())
 
-            val accentColor = when (row.node.kind) {
-                JourneyTree.Kind.IDENTITY -> itemView.context.themeColor(com.google.android.material.R.attr.colorPrimary)
+            val accentColor = when (tree.node.kind) {
+                JourneyTree.Kind.IDENTITY -> itemView.context.themeColor(androidx.appcompat.R.attr.colorPrimary)
                 JourneyTree.Kind.GOAL -> itemView.context.themeColor(com.google.android.material.R.attr.colorSecondary)
                 JourneyTree.Kind.SYSTEM -> itemView.context.themeColor(com.google.android.material.R.attr.colorTertiary)
                 else -> itemView.context.themeColor(com.google.android.material.R.attr.colorSurfaceVariant)
@@ -569,7 +570,7 @@ class JourneyAdapter(
                 expand.setOnClickListener(null)
             }
 
-            val child = row.node.kind.child
+            val child = tree.node.kind.child
             if (child != null) {
                 add.visibility = View.VISIBLE
                 add.contentDescription = "Add ${child.label} to ${row.title}"

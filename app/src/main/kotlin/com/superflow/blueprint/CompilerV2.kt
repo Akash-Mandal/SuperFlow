@@ -199,7 +199,6 @@ object CompilerV2 {
         }
         return out
     }
-    }
 
     private fun prioritiseThemes(themes: List<Theme>, intent: UserIntent): List<Theme> {
         val goal = intent.goal.lowercase()

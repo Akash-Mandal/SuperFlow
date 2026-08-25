@@ -71,16 +71,18 @@ object ModelCatalog {
         return out.sorted()
     }
 
-    private fun readCache(context: Context): Pair<List<String>, Long>? = try {
-        val f = java.io.File(context.filesDir, CACHE_FILE)
-        if (!f.exists()) return null
-        val j = JSONObject(f.readText())
-        val arr = j.optJSONArray("models") ?: return null
-        val ts = j.optLong("ts", 0)
-        val list = mutableListOf<String>()
-        for (i in 0 until arr.length()) list.add(arr.getString(i))
-        Pair(list, ts)
-    } catch (_: Exception) { null }
+    private fun readCache(context: Context): Pair<List<String>, Long>? {
+        return try {
+            val f = java.io.File(context.filesDir, CACHE_FILE)
+            if (!f.exists()) return null
+            val j = JSONObject(f.readText())
+            val arr = j.optJSONArray("models") ?: return null
+            val ts = j.optLong("ts", 0)
+            val list = mutableListOf<String>()
+            for (i in 0 until arr.length()) list.add(arr.getString(i))
+            Pair(list, ts)
+        } catch (_: Exception) { null }
+    }
 
     private fun writeCache(context: Context, models: List<String>) = try {
         val f = java.io.File(context.filesDir, CACHE_FILE)
