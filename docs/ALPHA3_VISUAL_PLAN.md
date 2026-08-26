@@ -353,8 +353,30 @@ Order of prominence = order of daily use.
 - Appearance tab gains: live-preview palette picker (now 7 palettes), dark variant, motion level, sound mixer (per-event toggles + volume), haptics intensity, serif toggle, density, high contrast.
 - Every setting applies live behind the sheet (preview-in-place).
 
-### 11.8 Remaining surfaces
-Habit Designer, Habit Detail, Journal, Scorecard, Recovery, Pause, Search, Routine Builder, Activity Log, Lock screen — each receives material pass, motion grammar pass, empty states (§10.6), insets audit. Per-screen one-pagers written during milestone execution.
+### 11.8 Whole-app surface coverage — every existing screen redesigned
+
+Per Plan B F10 ("every existing capability gets an optimization + redesign pass"), **no screen ships untouched**. Each surface below receives: material pass (§6.2), motion grammar pass (§7.2), SfScreenScaffold adoption, empty/loading/error states from §10.6, insets audit — plus its specific fixes:
+
+| Surface | Files | Specific alpha3 treatment |
+|---------|-------|--------------------------|
+| Habit Detail | `detail/HabitDetailActivity.kt` | Hero header morphs from row (§7.2); stats as StatHero minis; heatmap inline; graduation progress bar (Plan B F10.7); edit actions in bottom sheet |
+| Habit Designer | `designer/HabitDesignerActivity.kt` | Multi-step narrative form matching Plan B F10.6 cue→action→reward order; live habit card preview while editing; LifeArea color picker swatches |
+| Checkpoint | `today/CheckpointActivity.kt` | Full-screen ink-wash moment; one-screen flow per Plan B F10.1; level selector as segmented control; bloom on save |
+| Review | `review/ReviewActivity.kt` | Guided card-stack (§11.5); prefilled highlights cards rendering Plan B F10.2 auto-generated data |
+| Journal | `journal/JournalActivity.kt` | Reading-first typography; serif entries (§5.2); day chips → Day Replay; search entry with FTS results as SfEntityRows |
+| Scorecard | `scorecard/ScorecardActivity.kt` | Instant open (Plan B F10.3): cached render with number roll-up on update; metricXL tabular numerals |
+| Recovery / Pause | `recovery/*`, `pause/PauseActivity.kt` | Calm full-screen flows; gentle-state palette only; auto-resume summary layout for pause (Plan B F10.4) |
+| Search | `search/SearchActivity.kt` | Becomes the Command Palette's result view (§10.11); grouped SfEntityRow results with relevance emphasis |
+| Routine Builder | `routine/RoutineBuilderActivity.kt` | Drag-reorder with spring physics; guided run mode with per-step check-off and progress rail (Plan B F10.6) |
+| Activity Log | `activity/ActivityLogActivity.kt` | SfTimeline rendering with filter chips; entries link to entity screens (Plan B F10.11) |
+| AI Engine | `engine/AiEngineActivity.kt` | Night aesthetic; model catalog as cards with status dots; provider routing as segmented control |
+| Blueprint Studio | `blueprint/BlueprintActivity.kt` | Aurora gradient header; requirement ledger rows with source-link chips; resumable-run banner; diff preview list (Plan B F10.8) |
+| Settings | `settings/*` | Experience Hub restructure (Plan B F10.13); live-preview pickers; sound mixer; settings search field |
+| Lock screen | `security/LockActivity.kt` | Minimal ink canvas, biometric prompt styling, PIN pad with settle-spring keys |
+| Sheets (all) | `sheets/*` | GlassMat, velocity dismiss, grabber pill (§10.10); EntityEditorSheet gains live preview of affected entities |
+| Onboarding | `onboarding/*` | §11.6 cinematic six-step flow ending in "Tune your app" (Plan B F10.13) |
+
+Coverage rule: this table is exhaustive over existing activities/screens; any surface not listed is still covered by the four universal passes (materials, motion, scaffold, states). Verified by a checklist script against the route table (§9.3).
 
 ---
 
@@ -388,7 +410,9 @@ Both plans execute in lockstep; each milestone ships visual + functional work to
 | **M2 · Insight** (wk 6–7) | Insights redesign, chart kit v3, SfTimeline component | F2 Day Replay, F6 Advanced analytics | Insights fully animated; replay renders from Timeline store |
 | **M3 · Intelligence** (wk 8–9) | Studio night aesthetic, blueprint run visuals, nudge banners | F2 Blueprint upgrades, F4 AI Memory viewer, F7 Adaptive nudges | Studio on v3; memory + nudge surfaces shipped |
 | **M4 · Commitment** (wk 10–11) | Review card-stack, sprint board visuals, consent cards | F8 Commitment Sprints, F9 Graduation ceremony | Sprint lifecycle usable end-to-end |
-| **M5 · Polish & Ship** (wk 12) | Widgets, splash, icons, share cards, a11y audit, perf budgets | F10 Experience hub, QA, docs | Quality gates §18 all green; versionName=alpha3, versionCode=5 |
+| **M5 · Polish & Ship** (wk 12) | Widgets, splash, icons, share cards, a11y audit, perf budgets | F10.12 app-wide hardening + F10.13 experience hub, QA, docs | Quality gates §18 all green; versionName=alpha3, versionCode=5 |
+
+Also folded into earlier milestones: Plan B F10's per-module optimization passes ride alongside each module's redesign (core loop M1, reviews/journal/scorecard M2, routines/growth/blueprint/AI/notifications M3, recovery/pause/graduation M4).
 
 Sequencing rule: **no functional feature merges without its named visual surface**, and vice versa (§15). Feature flags (`Prefs`) allow independent rollout, but both sides of a pair merge within the same milestone.
 
@@ -409,7 +433,8 @@ Traceability contract between the two plans:
 | F7 Adaptive coaching nudges | Notification styling, SfNudgeBanner | §13, §10.16 |
 | F8 Commitment Sprints | Sprint board screen (new), large Breath Ring, countdown numerals, sprint widget | §10.3, §5.1, §13 |
 | F9 Graduation ceremony | Grand celebration (aurora wash), certificate layout, serif voice, chime | §8.3, §5.2 |
-| F10 Experience hub | Settings live-preview pickers, sound mixer UI | §11.7 |
+| F10 Whole-app optimization (Plan B F10.1–F10.13) | §11.8 whole-app surface coverage: every existing screen's material/motion/scaffold/states pass | §11.8 |
+| F10.13 Experience hub | Settings live-preview pickers, sound mixer UI | §11.7 |
 
 Reverse mapping guarantees no orphan polish: Flow Line ← Today/onboarding/replay; Breath Ring ← check-ins/sprints/Focus; GlassMat ← palette/nudges/banners; gradients ← hero cards only.
 
@@ -449,7 +474,8 @@ Perceived-speed tactics: optimistic check-in UI (state flips instantly, persiste
 4. **A11y audit:** TalkBack walkthrough passes on Today, Journey, Insights, Studio, Review.
 5. **Performance:** budgets in §17 met on reference device profile.
 6. **Consistency:** every Plan B feature demoable using only v3 components (matrix §15 checked both directions).
-7. **Regression:** existing instrumented tests (`FirstLaunchFlowTest`, `MainActivityLaunchTest`, etc.) pass with updated selectors only.
+7. **Whole-app coverage:** §11.8 checklist verified against the §9.3 route table — zero surfaces without the four universal passes plus their specific treatments; each paired with its Plan B F10 optimization pass.
+8. **Regression:** existing instrumented tests (`FirstLaunchFlowTest`, `MainActivityLaunchTest`, etc.) pass with updated selectors only.
 
 ---
 

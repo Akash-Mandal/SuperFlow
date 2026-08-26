@@ -2,7 +2,7 @@
 
 **Version:** alpha3 · August 2026
 **Companion document:** [ALPHA3_VISUAL_PLAN.md](ALPHA3_VISUAL_PLAN.md) — *Plan A: Visual & Experience Redesign*
-**Coordination contract:** §12 (Shared Milestones) and §13 (Feature-Surface Matrix) bind the two plans together. They are designed to be executed **simultaneously**: every feature below names the visual surfaces (from Plan A) it must ship with, and every Plan A system has at least one feature consumer defined here. No feature merges without its surface; no surface merges without a consumer.
+**Coordination contract:** §13 (Shared Milestones) and §14 (Feature-Surface Matrix) bind the two plans together. They are designed to be executed **simultaneously**: every feature below names the visual surfaces (from Plan A) it must ship with, and every Plan A system has at least one feature consumer defined here. No feature merges without its surface; no surface merges without a consumer.
 
 ---
 
@@ -19,13 +19,14 @@
 9. [F7 · Adaptive Coaching Nudges & Smart Notifications 2](#9-f7--adaptive-coaching-nudges--smart-notifications-2)
 10. [F8 · Commitment Sprints](#10-f8--commitment-sprints)
 11. [F9 · Graduation Ceremony & Identity Milestones](#11-f9--graduation-ceremony--identity-milestones)
-12. [Shared Milestones (with Plan A)](#12-shared-milestones-with-plan-a)
-13. [Feature-Surface Matrix](#13-feature-surface-matrix)
-14. [Data & Schema Changes](#14-data--schema-changes)
-15. [AI & Domain Logic Changes](#15-ai--domain-logic-changes)
-16. [Privacy, Safety & Full Control Alignment](#16-privacy-safety--full-control-alignment)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Quality Gates & Acceptance Criteria](#18-quality-gates--acceptance-criteria)
+12. [F10 · Whole-App Optimization: Every Existing Capability Redesigned](#12-f10--whole-app-optimization-every-existing-capability-redesigned)
+13. [Shared Milestones (with Plan A)](#13-shared-milestones-with-plan-a)
+14. [Feature-Surface Matrix](#14-feature-surface-matrix)
+15. [Data & Schema Changes](#15-data--schema-changes)
+16. [AI & Domain Logic Changes](#16-ai--domain-logic-changes)
+17. [Privacy, Safety & Full Control Alignment](#17-privacy-safety--full-control-alignment)
+18. [Testing Strategy](#18-testing-strategy)
+19. [Quality Gates & Acceptance Criteria](#19-quality-gates--acceptance-criteria)
 
 ---
 
@@ -242,24 +243,118 @@ Ships with grand celebration (aurora wash), certificate layout, serif voice, chi
 
 ---
 
-## 12. Shared Milestones (with Plan A)
+## 12. F10 · Whole-App Optimization: Every Existing Capability Redesigned
 
-Mirror of Plan A §14 — identical milestone table, functional side:
+Alpha3 is not only additive. **Every capability that already exists gets an explicit optimization + redesign pass**, executed in the same milestones as its Plan A visual treatment. Nothing ships in alpha3 untouched.
+
+### F10.1 Core loop engine (check-ins, checkpoints, levels)
+
+- Check-in write path batched and debounced; today-list query rewritten against covering indexes (target: <5ms for 100 habits).
+- Checkpoint flow reduced from multi-screen to single-screen with inline level changes; skip reasons become one-tap chips.
+- Level progression logic unified into `domain/` (removing UI-side duplication found in TodayAdapter paths) — one source of truth, unit-tested.
+- Undo for check-ins within same session via grouped undo (CommandBus), not just edit-overwrite.
+
+### F10.2 Reviews & reflection
+
+- Weekly/monthly/quarterly reviews share one engine with per-kind question sets (currently three near-duplicate flows).
+- Review answers prefill from data: auto-generated "highlights of the week" (from F2 Day Replay + F6 analytics) so users reflect on facts, not memory.
+- Action items get owners/due states and surface on Today until resolved (closing the review→action gap).
+
+### F10.3 Journal, Scorecard, Energy
+
+- Journal: full-text search via FTS table (currently LIKE scans), entry linking to habits/identities (`[[habit]]` autocomplete), day-chip navigation into Day Replay.
+- Scorecard: computed incrementally on check-in rather than full recalculation on open; opens instantly regardless of history size.
+- Energy logs: one-tap logging from Today greeting chip (was buried), weekly energy-vs-completion chart added to Insights.
+
+### F10.4 Recovery, Pause & gentle flows
+
+- Recovery flow merges with F5.3 miss-handling sheet (one recovery experience, not two).
+- Pause windows gain optional auto-resume summaries ("what was maintained during your pause") instead of silent return.
+- All gentle flows copy-reviewed against Evidence-over-Judgment tone guide (no red, no shame language).
+
+### F10.5 Search & navigation infrastructure
+
+- Search moved onto SQLite FTS5 with indexed per-entity tables; results ranked by relevance + recency; sub-50ms on 10k entries.
+- Deep links formalized for every entity (`superflow://habit/{id}` etc.) powering shortcuts, widgets, notifications, and AI actions uniformly.
+- Dynamic shortcuts regenerated from Focus Engine top items instead of static config.
+
+### F10.6 Routines, Templates & Habit Designer
+
+- Routine builder: drag-reorder with autosave, step timing hints, and "start routine" guided mode with per-step check-off.
+- Habit templates: curated starter packs filtered by LifeArea; template preview shows exactly which entities will be created before applying.
+- Designer form restructured into cue→action→reward narrative order with inline examples (reduces blank-field paralysis).
+
+### F10.7 Growth Engine & Graduation logic
+
+- Growth plan phases recalculate lazily + cached (InsightsCache pattern extended); upgrade decisions explainable ("phase advanced because…").
+- AutoReview frequency made adaptive (based on user responsiveness) instead of fixed cadence.
+- Graduation criteria surfaced transparently in Habit Detail ("on track: 84% over last 45 days, needs 90%").
+
+### F10.8 Blueprint Studio reliability
+
+- Compiler v2 hardening: idempotent phase execution (safe retry), deterministic ordering, snapshot before each mutating phase.
+- Source extraction: PDF text pipeline cached per document hash; large-document progress reporting.
+- Verification pass produces machine-readable result consumed by run UI (Plan A §11.4).
+
+### F10.9 AI coordinator, voice & suggestions
+
+- Coordinator request queue with priority + cancellation; no overlapping agent runs; token/context budget enforced per turn.
+- Voice input v2 error states redesigned: partial transcription shown with tap-to-fix; offline fallback message honest about limits.
+- Suggestions deduplicated across sources (Suggestions.kt vs GrowthEngine vs new Nudges.kt) through a single suggestion ledger with suppression memory.
+
+### F10.10 Notifications, reminders & shortcuts
+
+- Reminder scheduling migrated to exact-alarm policy-compliant path with graceful inexact fallback + status surfacing in Settings.
+- Notification actions (check-in/snooze) execute through CommandBus so they're identical to in-app actions and undoable.
+- Smart notification channels consolidated; per-habit reminder inherits quiet hours (F5.2).
+
+### F10.11 Data management, backups & security
+
+- Backups: incremental + integrity checksums; restore preview (what will change) before applying; automatic local backup ring (7 daily).
+- Activity log: filterable by command type/entity, entries link to affected entities, retention configurable.
+- App lock: biometric-first with PIN fallback (existing), now also guarding Inbox/Memory/Sprint surfaces; privacy veil gesture from Plan A §9.2.
+- DataPolicy page rewritten as plain-language data map: what exists, where, how to export/delete each kind.
+
+### F10.12 App-wide engineering optimization
+
+| Area | Optimization | Target |
+|------|--------------|--------|
+| Startup | Lazy domain init, baseline profile, deferred non-critical work | Cold start ≤900ms |
+| Database | Index audit, WAL tuning, query plan checks in CI | p95 query <10ms |
+| Memory | Image/bitmap reuse in charts+heatmap, list recycling audit | No growth over 30-min session |
+| Battery | JobScheduler batching for nudges/backups/caches | ≤1 wakeup/hour idle |
+| APK size | R8 full mode, resource shrinking, font subsetting | Net-neutral or smaller vs alpha2.5 |
+| Reliability | Crash-free session target, uncaught-handler with local report | ≥99.7% crash-free |
+| Code health | Detekt clean, dead code sweep (VoiceInput v1 etc.), module boundary rules | Zero known-duplicated logic |
+
+Each row lands in M5 (app-wide hardening) with per-module passes distributed through M1–M4 alongside their redesigns.
+
+### F10.13 Experience Hub & Settings Consolidation
+
+- Settings restructured into: Appearance · Experience (motion/sound/haptics/nudges) · AI & Control · Data & Privacy · About — every alpha3 preference finds one home here.
+- New-user "Tune your app" flow after onboarding: five quick choices (palette, motion level, nudge budget, density, essential habits) writing real prefs.
+- Every setting applies live; search over settings entries; reset-per-section with undo.
+
+---
+
+## 13. Shared Milestones (with Plan A)
+
+Mirror of Plan A §14 — identical milestone table, functional side. F10 optimization passes ride along per module:
 
 | Milestone | Functional (this plan) | Visual (Plan A) | Exit criteria |
 |-----------|------------------------|-----------------|---------------|
 | **M0 · Foundation** (wk 1–2) | CapturedItem/Sprint schema, Timeline store, memory indexing, CommandBus registrations | Tokens v3, materials, motion specs | Migrations pass; schema tests green |
-| **M1 · Core Loop** (wk 3–5) | F1 Quick Capture + Focus Engine, F3 energy loop, F5 gestures/flex | Today redesign, SfHabitCard v3, command palette | Daily loop demoable end-to-end |
-| **M2 · Insight** (wk 6–7) | F2 Day Replay, F6 analytics pack | Insights redesign, chart kit v3, SfTimeline | Replay + 6 analyses shipped behind flags |
-| **M3 · Intelligence** (wk 8–9) | F2 Blueprint resume/diff/templates, F4 Memory viewer, F7 adaptive nudges | Studio night theme, nudge banners | Memory transparency complete; nudges state-aware |
-| **M4 · Commitment** (wk 10–11) | F8 Sprints lifecycle, F9 Graduation ceremony | Sprint board, celebration system | Full sprint + graduation flows usable |
-| **M5 · Polish & Ship** (wk 12) | F10 Experience hub settings wiring, QA, docs | Widgets, splash, icons, audits | Quality gates green; versionName=alpha3 |
+| **M1 · Core Loop** (wk 3–5) | F1 Quick Capture + Focus Engine, F3 energy loop, F5 gestures/flex; F10.1 core-loop engine + F10.5 search/FTS + deep links | Today redesign, SfHabitCard v3, command palette | Daily loop demoable end-to-end |
+| **M2 · Insight** (wk 6–7) | F2 Day Replay, F6 analytics pack; F10.2 reviews engine, F10.3 journal/scorecard/energy | Insights redesign, chart kit v3, SfTimeline | Replay + 6 analyses shipped behind flags |
+| **M3 · Intelligence** (wk 8–9) | F2 Blueprint resume/diff/templates, F4 Memory viewer, F7 adaptive nudges; F10.6–F10.10 module passes (routines, growth, blueprint reliability, AI coordinator, notifications) | Studio night theme, nudge banners | Memory transparency complete; nudges state-aware |
+| **M4 · Commitment** (wk 8–11) | F8 Sprints lifecycle, F9 Graduation ceremony; F10.4 recovery/pause merge, F10.7 graduation transparency | Sprint board, celebration system | Full sprint + graduation flows usable |
+| **M5 · Polish & Ship** (wk 12) | F10.11 data/security passes, F10.12 app-wide hardening, Experience hub wiring, QA, docs | Widgets, splash, icons, audits | Quality gates green; versionName=alpha3 |
 
 Sequencing rule (both plans): features and their named surfaces merge in the same milestone; feature flags allow staged enablement but never split a pair across releases.
 
 ---
 
-## 13. Feature-Surface Matrix
+## 14. Feature-Surface Matrix
 
 Functional side of the contract (mirror of Plan A §15):
 
@@ -274,11 +369,12 @@ Functional side of the contract (mirror of Plan A §15):
 | F7 Adaptive nudges | Notification styling, SfNudgeBanner | M3 |
 | F8 Sprints | Sprint board, large Breath Ring, widget | M4 |
 | F9 Graduation | Grand celebration, serif voice, certificate template | M4 |
-| F10 Experience hub | Settings live-preview pickers, sound mixer | M5 |
+| F10 Whole-app optimization (F10.1–F10.12) | Every existing surface's Plan A material/motion pass; SfScreenScaffold adoption | M1–M5 (per-module, table in §12) |
+| F10.13 Experience hub | Settings live-preview pickers, sound mixer | M5 |
 
 ---
 
-## 14. Data & Schema Changes
+## 15. Data & Schema Changes
 
 Backwards-compatible additions (existing databases migrate forward automatically; `DatabaseSchemaTest` extended):
 
@@ -294,7 +390,7 @@ All changes ship with: migration test, backup/restore round-trip test, and DataP
 
 ---
 
-## 15. AI & Domain Logic Changes
+## 16. AI & Domain Logic Changes
 
 - New domain modules (pure Kotlin, unit-testable): `FocusEngine.kt`, `DayReplay.kt`, `Nudges.kt`, `Analytics.kt` (or extensions of Insights.kt)
 - `Coordinator.kt`/`Agent.kt`: new intents registered — capture triage assistance, sprint retrospective drafting, graduation reflection prompts. All optional enhancements over deterministic defaults
@@ -304,7 +400,7 @@ All changes ship with: migration test, backup/restore round-trip test, and DataP
 
 ---
 
-## 16. Privacy, Safety & Full Control Alignment
+## 17. Privacy, Safety & Full Control Alignment
 
 - No new permissions except share-sheet intent receipt (F1) — no location, no contacts, no account
 - All new data local-only; backups already cover exports, extended for new tables
@@ -314,24 +410,26 @@ All changes ship with: migration test, backup/restore round-trip test, and DataP
 
 ---
 
-## 17. Testing Strategy
+## 18. Testing Strategy
 
-- Unit: FocusEngine scoring (property-based: weights produce stable rankings under permutation), Flex streak math, analytics correctness on fixture datasets, nudge budget enforcement
-- Instrumented (extend existing suite): FirstLaunchFlowTest extended for onboarding capture step; ReminderSchedulingTest extended for adaptive nudges; DatabaseSchemaTest for migrations; new SprintLifecycleTest, GraduationFlowTest, DayReplayTest
-- Manual scripts: gesture discoverability, Minimum Mode round-trip, sprint abandon/release honesty paths
+- Unit: FocusEngine scoring (property-based: weights produce stable rankings under permutation), Flex streak math, analytics correctness on fixture datasets, nudge budget enforcement, F10.1 unified level-progression logic, FTS query correctness
+- Instrumented (extend existing suite): FirstLaunchFlowTest extended for onboarding capture step; ReminderSchedulingTest extended for adaptive nudges + exact-alarm fallback; DatabaseSchemaTest for all §15 migrations; new SprintLifecycleTest, GraduationFlowTest, DayReplayTest, BackupRestoreRoundTripTest
+- Performance tests: startup macrobenchmark, today-list query benchmark, 30-min memory session test (F10.12 targets enforced in CI where emulator allows)
+- Manual scripts: gesture discoverability, Minimum Mode round-trip, sprint abandon/release honesty paths, restore-preview flow, biometric lock on new surfaces
 
 ---
 
-## 18. Quality Gates & Acceptance Criteria
+## 19. Quality Gates & Acceptance Criteria
 
 1. Every feature F1–F9 demoable offline with AI disabled entirely
 2. Every feature reachable and operable via Full Control commands (parity check script)
 3. Zero nag violations: nudge frequency budgets enforced by unit test
-4. All migrations tested up/down against alpha2.5 databases
-5. Existing behaviors regress-free: reviews, checkpoints, Blueprint runs, backups
-6. Feature-surface matrix (§13) fully checked — no feature ships without its visual surface
-7. Docs updated (README feature list, BUILD notes) and versionName=alpha3 / versionCode=5
+4. All migrations tested up/down against alpha2.5 databases; backup/restore round-trip green for every new table
+5. Existing behaviors regress-free: reviews, checkpoints, Blueprint runs, backups — plus each F10.1–F10.13 pass verified by its own before/after check (query timing, flow step count, etc.)
+6. Feature-surface matrix (§14) fully checked — no feature ships without its visual surface; **no existing capability ships without its F10 optimization pass**
+7. F10.12 engineering budgets met: startup ≤900ms, p95 query <10ms, ≥99.7% crash-free, APK net-neutral or smaller
+8. Docs updated (README feature list, BUILD notes) and versionName=alpha3 / versionCode=5
 
 ---
 
-*This document is the functional half of alpha3. Read together with [ALPHA3_VISUAL_PLAN.md](ALPHA3_VISUAL_PLAN.md); conflicts resolve in favor of the matrix in §13.*
+*This document is the functional half of alpha3. Read together with [ALPHA3_VISUAL_PLAN.md](ALPHA3_VISUAL_PLAN.md); conflicts resolve in favor of the matrix in §14.*
