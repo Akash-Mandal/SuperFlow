@@ -9,6 +9,7 @@ import com.superflow.data.model.*
 import com.superflow.domain.Actor
 import com.superflow.domain.CommandBus
 import com.superflow.domain.CommandResult
+import com.superflow.domain.FocusEngine
 import com.superflow.domain.Insights
 import com.superflow.ai.Suggestions
 import com.superflow.core.time.DayBucket
@@ -162,12 +163,15 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         val returning = Insights.returnCandidates(snap, repo, date)
         if (returning.isNotEmpty()) rows.add(TodayRow.Returning(returning))
 
-        rows.add(TodayRow.Focus(repo.focusFor(iso)))
+        // Energy for the current checkpoint feeds both the Checkpoints row
+        // and the Focus ranking below - one read, two consumers.
+        val cp = currentCheckpoint()
+        val currentEnergy = repo.energyFor(iso).firstOrNull { it.checkpoint == cp }?.energy
+
+        rows.add(TodayRow.Focus(rankFocus(snap, date, done, currentEnergy)))
 
         if (prefs.checkpointsEnabled) {
-            val cp = currentCheckpoint()
-            val energy = repo.energyFor(iso).firstOrNull { it.checkpoint == cp }?.energy
-            rows.add(TodayRow.Checkpoints(energy))
+            rows.add(TodayRow.Checkpoints(currentEnergy))
         }
 
         // Active growth plans
@@ -225,6 +229,45 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         else -> "Every action today was a vote for who you are becoming."
     }
 
+    /**
+     * Orders the user's focus items with the Focus engine (Plan B F1.2).
+     *
+     * User intent stays authoritative: title-only pins keep their original
+     * order at the top of the card, and habit-linked pins are reordered by
+     * engine score so the item most worth doing next is the first one seen.
+     * Nothing is added or removed - ranking, not prescription.
+     */
+    private fun rankFocus(
+        snap: Repository.DataSnapshot,
+        date: LocalDate,
+        checkedSoFar: Int,
+        energy: Int?,
+    ): List<FocusItem> {
+        val items = repo.focusFor(SfTime.format(date))
+        if (items.size < 2) return items
+
+        val statsById = Insights.allStats(snap, repo, date).associateBy { it.habit.id }
+        val scoreOf = FocusEngine
+            .rank(repo.todayHabits(snap, date), { statsById[it] }, energy, checkedSoFar)
+            .asSequence()
+            .mapIndexed { index, candidate -> candidate.habit.id to (index + 1).toFloat() }
+            .toMap()
+
+        return items.asSequence()
+            .mapIndexed { originalIndex, item -> item to originalIndex }
+            .sortedWith(
+                compareBy(
+                    // Title-only pins (no habit behind them) always lead.
+                    { (item, _) -> if (item.habitId == null) 0 else 1 },
+                    { (item, original) ->
+                        item.habitId?.let { scoreOf[it] } ?: original.toFloat()
+                    },
+                ),
+            )
+            .map { it.first }
+            .toList()
+    }
+
     private fun currentCheckpoint(): Checkpoint =
         when (SfTime.greetingFor(repo.clock.nowTime())) {
             Greeting.MORNING -> Checkpoint.MORNING
@@ -279,6 +322,9 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
 
     fun removeFocus(item: FocusItem) =
         run("remove_focus_item", jsonOf("id" to item.id), announce = false)
+
+    fun removeFocus(focusId: String) =
+        run("remove_focus_item", jsonOf("id" to focusId), announce = false)
 
     fun addFocus(title: String) = run("add_focus_item", jsonOf("title" to title), announce = false)
 

@@ -16,6 +16,7 @@ import com.superflow.ui.common.sfComposeView
 import com.superflow.ui.common.snack
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.detail.HabitDetailActivity
+import com.superflow.ui.sheets.TextInputSheet
 import com.superflow.ui.screens.TodayAction
 import com.superflow.ui.screens.TodayScreen
 import kotlinx.coroutines.launch
@@ -85,6 +86,25 @@ class ComposeTodayFragment : Fragment() {
                     .putExtra(HabitDetailActivity.EXTRA_HABIT_ID, action.habitId)
             )
             is TodayAction.ToggleFocus -> model.toggleFocus(action.focusId, action.done)
+            is TodayAction.RemoveFocus -> model.removeFocus(action.focusId)
+            TodayAction.FocusAdd -> TextInputSheet.show(
+                parentFragmentManager,
+                title = "Add a focus action",
+                hint = "What deserves emphasis today?",
+            ) { text -> if (text.isNotBlank()) model.addFocus(text.trim()) }
+            TodayAction.FocusSuggest -> model.suggestFocus()
+            is TodayAction.SuggestionAction -> when (action.row.tone) {
+                com.superflow.ai.Suggestions.Tone.DESIGN,
+                com.superflow.ai.Suggestions.Tone.INSIGHT,
+                com.superflow.ai.Suggestions.Tone.ENCOURAGE ->
+                    action.row.habitId?.let { id ->
+                        startActivity(
+                            Intent(requireContext(), HabitDetailActivity::class.java)
+                                .putExtra(HabitDetailActivity.EXTRA_HABIT_ID, id)
+                        )
+                    }
+                else -> model.actOnSuggestion(action.row)
+            }
             is TodayAction.LogEnergy -> model.logEnergy(action.value)
             TodayAction.AddHabit ->
                 startActivity(Intent(requireContext(), HabitDesignerActivity::class.java))

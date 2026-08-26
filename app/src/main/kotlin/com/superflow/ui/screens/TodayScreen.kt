@@ -3,9 +3,11 @@ package com.superflow.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,11 +15,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,9 +36,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.superflow.data.model.Level
 import com.superflow.design.Space
@@ -61,6 +73,10 @@ sealed interface TodayAction {
     data class Undo(val habitId: String) : TodayAction
     data class OpenHabit(val habitId: String) : TodayAction
     data class ToggleFocus(val focusId: String, val done: Boolean) : TodayAction
+    data class RemoveFocus(val focusId: String) : TodayAction
+    data object FocusAdd : TodayAction
+    data object FocusSuggest : TodayAction
+    data class SuggestionAction(val row: TodayRow.Suggestion) : TodayAction
     data class LogEnergy(val value: Int) : TodayAction
     data object AddHabit : TodayAction
     data object Refresh : TodayAction
@@ -171,9 +187,12 @@ private fun TodayRowItem(
             is TodayRow.Section -> SfSectionHeader(title = row.title)
             is TodayRow.HabitRow -> HabitBlock(row, onAction)
             is TodayRow.Empty -> EmptyBlock(row, onAction)
-            // Focus, Checkpoints and Returning still render through the
-            // View implementation; they are Phase 2 follow-ups and are
-            // deliberately not stubbed with placeholder UI here.
+            is TodayRow.Load -> LoadBlock(row)
+            is TodayRow.Returning -> ReturningBlock(row, onAction)
+            is TodayRow.Focus -> FocusBlock(row, onAction)
+            is TodayRow.Checkpoints -> EnergyBlock(row, onAction)
+            is TodayRow.GrowthPlanStatus -> GrowthBlock(row)
+            is TodayRow.Suggestion -> SuggestionBlock(row, onAction)
             else -> Unit
         }
     }
@@ -261,5 +280,193 @@ private fun EmptyBlock(row: TodayRow.Empty, onAction: (TodayAction) -> Unit) {
                 Text(row.action)
             }
         }
+    }
+}
+
+@Composable
+private fun LoadBlock(row: TodayRow.Load) {
+    // Daily load indicator (§15). A quiet informational strip, not a card:
+    // it is context for the list below, not an object to act on.
+    val tint = when (row.color) {
+        "green" -> MaterialTheme.colorScheme.primary
+        "amber" -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.error
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Space.XS.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.SM.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(tint, CircleShape),
+        )
+        Text(
+            text = "${row.habits} habits · ~${row.minutes} min today",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun ReturningBlock(row: TodayRow.Returning, onAction: (TodayAction) -> Unit) {
+    SfCard(
+        variant = SfCardVariant.Warm,
+        onClick = { row.habits.firstOrNull()?.let { onAction(TodayAction.OpenHabit(it.id)) } },
+    ) {
+        Text(
+            text = if (row.habits.size == 1) "Ready to return?" else "Ready to return? (${row.habits.size})",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.semantics { heading() },
+        )
+        Spacer(modifier = Modifier.height(Space.XS.dp))
+        Text(
+            text = row.habits.joinToString(", ") { it.title },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+    }
+}
+
+/**
+ * The Focus card. Items arrive engine-ranked from the ViewModel (Plan B
+ * F1.2): the one most worth doing next is the first checkbox, not buried.
+ */
+@Composable
+private fun FocusBlock(row: TodayRow.Focus, onAction: (TodayAction) -> Unit) {
+    SfCard(variant = SfCardVariant.Elevated) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Focus",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { heading() },
+            )
+            Text(
+                text = "${row.items.count { it.done }}/${row.items.size}",
+                style = SfTheme.type.data,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(modifier = Modifier.height(Space.SM.dp))
+        row.items.forEach { item ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = item.done,
+                    onCheckedChange = { checked ->
+                        onAction(TodayAction.ToggleFocus(item.id, checked))
+                    },
+                )
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textDecoration = if (item.done) TextDecoration.LineThrough else null,
+                    color = if (item.done) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { onAction(TodayAction.RemoveFocus(item.id)) }) {
+                    Icon(
+                        painter = painterResource(com.superflow.R.drawable.ic_close),
+                        contentDescription = "Remove ${item.title}",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(Space.XS.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.SM.dp)) {
+            TextButton(onClick = { onAction(TodayAction.FocusAdd) }) {
+                Text("Add")
+            }
+            TextButton(onClick = { onAction(TodayAction.FocusSuggest) }) {
+                Text("Suggest")
+            }
+        }
+    }
+}
+
+/** Current-checkpoint energy logger (§15). Unlogged state is the default. */
+@Composable
+private fun EnergyBlock(row: TodayRow.Checkpoints, onAction: (TodayAction) -> Unit) {
+    SfCard(variant = SfCardVariant.Filled) {
+        Text(
+            text = "How is your energy right now?",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.semantics { heading() },
+        )
+        Spacer(modifier = Modifier.height(Space.SM.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.SM.dp)) {
+            for (value in 1..5) {
+                val selected = row.energy == value
+                FilledTonalButton(
+                    onClick = { onAction(TodayAction.LogEnergy(value)) },
+                    colors = if (selected) {
+                        ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    } else {
+                        ButtonDefaults.filledTonalButtonColors()
+                    },
+                ) {
+                    Text("$value")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GrowthBlock(row: TodayRow.GrowthPlanStatus) {
+    SfCard(variant = SfCardVariant.Filled) {
+        Text(
+            text = "${row.habitTitle} · ${row.phaseLabel}",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.semantics { heading() },
+        )
+        Spacer(modifier = Modifier.height(Space.SM.dp))
+        LinearProgressIndicator(
+            progress = { row.phaseIndex.toFloat() / row.totalPhases },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(Space.XS.dp))
+        Text(
+            text = "Phase ${row.phaseIndex} of ${row.totalPhases}",
+            style = SfTheme.type.data,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun SuggestionBlock(row: TodayRow.Suggestion, onAction: (TodayAction) -> Unit) {
+    SfCard(
+        variant = SfCardVariant.Warm,
+        onClick = { onAction(TodayAction.SuggestionAction(row)) },
+    ) {
+        Text(
+            text = row.title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.semantics { heading() },
+        )
+        Spacer(modifier = Modifier.height(Space.XS.dp))
+        Text(
+            text = row.body,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
     }
 }
