@@ -23,15 +23,10 @@ package com.superflow.design
  * Blueprint and the AI engine (plan 11.4) and was written new — so there
  * was nothing to migrate and no fallback to keep.
  *
- * Today, Journey and Insights are Views. Each has a finished Compose
- * counterpart in `ui.screens`, and each also has a View implementation that
- * has been exercised. The Compose ones are held back for one reason:
- * nothing in this environment can compile a Compose source file, so those
- * screens have been checked statically (`tools/check_compose.py`) and read,
- * but never run. Shipping three unexecuted screens as the app's only path
- * to its own content would be a worse decision than shipping the ones that
- * work, and the flag makes flipping them a one-line change once a Compose
- * toolchain is available.
+ * Today, Journey and Insights were Views. Alpha3 flipped Today to its
+ * Compose implementation (every row type now renders in Compose, and CI's
+ * emulator suite exercises it on two API levels). Journey and Insights
+ * remain Views until their alpha3 redesigns land.
  *
  * Flipping a screen means: set its entry here to [Renderer.COMPOSE], run
  * the app, and delete the View implementation once it has been through a
@@ -42,7 +37,7 @@ object Rendering {
     enum class Renderer { VIEWS, COMPOSE }
 
     /** Screens that have two implementations, and which one is live. */
-    val today: Renderer = Renderer.VIEWS
+    val today: Renderer = Renderer.COMPOSE
     val journey: Renderer = Renderer.VIEWS
     val insights: Renderer = Renderer.VIEWS
 
@@ -66,9 +61,13 @@ object Rendering {
      * Kept as a list so the count can be asserted: it should only ever go
      * down, and a new entry appearing means someone added a second
      * implementation instead of replacing one.
+     *
+     * Alpha3 M1: Today flipped to Compose once every [TodayRow] type had a
+     * Compose rendering and the emulator suite passed on it; its View
+     * implementation remains in the tree until the next release, per the
+     * migration rule above, but is no longer reachable from the shell.
      */
     val dualImplemented: List<Navigation.Tab> = listOf(
-        Navigation.Tab.TODAY,
         Navigation.Tab.JOURNEY,
         Navigation.Tab.INSIGHTS,
     )
