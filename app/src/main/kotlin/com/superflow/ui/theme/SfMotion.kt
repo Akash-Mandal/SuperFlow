@@ -14,6 +14,8 @@ import androidx.compose.animation.core.spring as composeSpring
 import androidx.compose.animation.core.tween as composeTween
 import androidx.compose.runtime.Immutable
 import com.superflow.design.Motion
+import com.superflow.design.tokens.V3Motion
+import com.superflow.design.tokens.V3Springs
 
 /**
  * Motion tokens (§8.1).
@@ -72,6 +74,8 @@ data class SfMotionSpecs(
     val normal: Int,
     val slow: Int,
     val deliberate: Int,
+    /** Scene-level transitions: onboarding steps, graduation reveal (alpha3 §7.1). */
+    val cinematic: Int,
 ) {
     /** Stagger between items in an orchestrated list entrance (§8.4). */
     fun staggerDelay(index: Int): Int =
@@ -115,6 +119,30 @@ data class SfMotionSpecs(
             stiffness = Spring.StiffnessMediumLow,
         )
 
+    /**
+     * The alpha3 named springs (ALPHA3_VISUAL_PLAN §7.1), resolved against
+     * the motion level: standard for enter/exit and shared-element morphs,
+     * snappy for the check-in bloom and chip selection, settle for drag
+     * snap-backs. All collapse to a snap when motion is off.
+     */
+    fun <T> springStandard(): FiniteAnimationSpec<T> =
+        if (!enabled) snap() else composeSpring(
+            dampingRatio = V3Springs.STANDARD.dampingRatio,
+            stiffness = V3Springs.STANDARD.stiffness,
+        )
+
+    fun <T> springSnappy(): FiniteAnimationSpec<T> =
+        if (!enabled) snap() else composeSpring(
+            dampingRatio = V3Springs.SNAPPY.dampingRatio,
+            stiffness = V3Springs.SNAPPY.stiffness,
+        )
+
+    fun <T> springSettle(): FiniteAnimationSpec<T> =
+        if (!enabled) snap() else composeSpring(
+            dampingRatio = V3Springs.SETTLE.dampingRatio,
+            stiffness = V3Springs.SETTLE.stiffness,
+        )
+
     companion object {
         fun forLevel(level: SfMotionLevel, systemAnimationsOff: Boolean): SfMotionSpecs {
             val off = Motion.isDisabled(level.id, systemAnimationsOff)
@@ -123,11 +151,12 @@ data class SfMotionSpecs(
                 level = level,
                 enabled = !off,
                 instant = d(Motion.INSTANT),
-                fast = d(Motion.FAST),
+                fast = d(V3Motion.FAST),
                 quick = d(Motion.QUICK),
-                normal = d(Motion.NORMAL),
-                slow = d(Motion.SLOW),
+                normal = d(V3Motion.NORMAL),
+                slow = d(V3Motion.SLOW),
                 deliberate = d(Motion.DELIBERATE),
+                cinematic = d(V3Motion.CINEMATIC),
             )
         }
     }

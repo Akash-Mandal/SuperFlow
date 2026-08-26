@@ -23,7 +23,7 @@ class SuperFlowDatabase private constructor(context: Context) {
 
     companion object {
         const val NAME = "superflow.db"
-        const val VERSION = 5
+        const val VERSION = 6
         const val TAG = "SuperFlowDb"
 
         @Volatile private var instance: SuperFlowDatabase? = null
@@ -298,6 +298,8 @@ object Schema {
                 createdAt INTEGER NOT NULL, appliedAt INTEGER)"""
         )
         db.execSQL("CREATE INDEX idx_bap_project ON blueprint_auto_plan(projectId)")
+
+        createCapturedItem(db)
     }
 
     /**
@@ -314,6 +316,7 @@ object Schema {
         if (old < 3) migrateToV3(db)
         if (old < 4) migrateToV4(db)
         if (old < 5) migrateToV5(db)
+        if (old < 6) migrateToV6(db)
     }
 
     /** v2: colour seeds, blueprint parent versions and the version table. */
@@ -544,6 +547,25 @@ object Schema {
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_bap_project ON blueprint_auto_plan(projectId)")
         }
         runCatching { db.execSQL("ALTER TABLE bp_project ADD COLUMN modelOverride TEXT DEFAULT ''") }
+    }
+
+    /**
+     * v6: quick capture inbox (Plan B F1). Additive only; nothing existing
+     * changes shape, so a plain create-if-not-exists is the whole migration.
+     */
+    private fun migrateToV6(db: SupportSQLiteDatabase) {
+        guard(db, "v6 create captured_item") { createCapturedItem(db) }
+    }
+
+    private fun createCapturedItem(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS captured_item(
+                id TEXT PRIMARY KEY, text TEXT NOT NULL, kind TEXT DEFAULT 'NOTE',
+                source TEXT DEFAULT 'MANUAL', state TEXT DEFAULT 'OPEN',
+                converted_to_id TEXT, created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL)"""
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_captured_state ON captured_item(state, created_at)")
     }
 }
 

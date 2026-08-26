@@ -303,6 +303,18 @@ object Rows {
         )
     }
 
+    /** Quick-capture inbox item (Plan B F1). */
+    fun capturedItem(c: Cursor) = CapturedItem(
+        id = c.str("id"),
+        text = c.str("text"),
+        kind = CaptureKind.valueOf(c.str("kind").ifBlank { "NOTE" }),
+        source = CaptureSource.valueOf(c.str("source").ifBlank { "MANUAL" }),
+        state = CaptureState.valueOf(c.str("state").ifBlank { "OPEN" }),
+        convertedToId = c.strOrNull("converted_to_id"),
+        createdAt = c.lng("created_at"),
+        updatedAt = c.lngOrNull("updated_at") ?: c.lng("created_at"),
+    )
+
     fun routine(c: Cursor) = Routine(
         id = c.str("id"), title = c.str("title"), trigger = c.str("trigger_text"),
         estimatedMinutes = c.int("estimated_minutes"),

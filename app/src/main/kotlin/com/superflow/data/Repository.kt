@@ -743,6 +743,37 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
 
     fun deleteJournalEntry(id: String) = delete("journal_entry", "id=?", arrayOf(id))
 
+    /* --------------------------------------------- quick capture inbox (alpha3) */
+
+    /** Open items first (newest last, so triage reads chronologically), then everything else. */
+    fun capturedItems(): List<CapturedItem> =
+        query(
+            """SELECT * FROM captured_item
+               ORDER BY CASE state WHEN 'OPEN' THEN 0 ELSE 1 END, created_at DESC"""
+        ).mapAll(Rows::capturedItem)
+
+    fun capturedItems(state: CaptureState): List<CapturedItem> =
+        query("SELECT * FROM captured_item WHERE state=? ORDER BY created_at DESC", arrayOf(state.name))
+            .mapAll(Rows::capturedItem)
+
+    fun openCaptureCount(): Int =
+        query("SELECT COUNT(*) FROM captured_item WHERE state='OPEN'")
+            .mapAll { it.getInt(0) }.firstOrNull() ?: 0
+
+    fun capturedItem(id: String?): CapturedItem? =
+        if (id == null) null
+        else query("SELECT * FROM captured_item WHERE id=?", arrayOf(id))
+            .mapAll(Rows::capturedItem).firstOrNull()
+
+    fun saveCapturedItem(item: CapturedItem) = insert("captured_item", contentValuesOf(
+        "id" to item.id, "text" to item.text, "kind" to item.kind.name,
+        "source" to item.source.name, "state" to item.state.name,
+        "converted_to_id" to item.convertedToId,
+        "created_at" to item.createdAt, "updated_at" to item.updatedAt,
+    ))
+
+    fun deleteCapturedItem(id: String) = delete("captured_item", "id=?", arrayOf(id))
+
     /* ------------------------------------------------------------- routines */
 
     fun routines(): List<Routine> =

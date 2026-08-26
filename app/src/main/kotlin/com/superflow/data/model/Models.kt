@@ -777,3 +777,36 @@ data class HabitTemplate(
     val tags: List<String> = emptyList(),
     val id: String = newId()
 )
+
+/* ============================================== QUICK CAPTURE / INBOX (alpha3) */
+
+/** Where a captured thought entered the app (Plan B F1.1). */
+enum class CaptureSource { PALETTE, SHARE_SHEET, WIDGET, VOICE, MANUAL }
+
+/**
+ * What a captured item was recognised as. Detection is heuristic at capture
+ * time and the user's triage choice is authoritative.
+ */
+enum class CaptureKind { IDEA, HABIT_CANDIDATE, GOAL_CANDIDATE, WORRY, NOTE }
+
+/** Lifecycle of an inbox item: nothing is ever hard-deleted silently. */
+enum class CaptureState { OPEN, CONVERTED, DISCARDED, ARCHIVED }
+
+/**
+ * A captured thought awaiting triage (Plan B F1).
+ *
+ * Captures are cheap by design: one text field, no required structure. The
+ * value is that the friction between "I have a thought" and "the thought is
+ * somewhere safe" is close to zero, so thoughts stop leaking.
+ */
+data class CapturedItem(
+    val id: String = newId(),
+    val text: String,
+    val kind: CaptureKind = CaptureKind.NOTE,
+    val source: CaptureSource = CaptureSource.MANUAL,
+    val state: CaptureState = CaptureState.OPEN,
+    /** Set when [state] is CONVERTED: the entity the item became. */
+    val convertedToId: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = createdAt,
+)
