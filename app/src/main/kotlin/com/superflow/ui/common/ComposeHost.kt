@@ -1,6 +1,7 @@
 package com.superflow.ui.common
 
 import android.content.Context
+import android.view.ViewGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -29,7 +30,16 @@ import com.superflow.ui.theme.SfThemeFromPrefs
  * were built from, so the two agree.
  */
 fun Fragment.sfComposeView(content: @Composable () -> Unit): ComposeView =
-    requireContext().sfComposeView(content)
+    requireContext().sfComposeView(content).apply {
+        // A fragment view created in code has no layout params until it is
+        // added, and ViewPager2's generated defaults are wrap-content - which
+        // measures the composition with infinite height and crashes any
+        // LazyColumn inside. Every tab fills its page; say so explicitly.
+        layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+        )
+    }
 
 fun Context.sfComposeView(content: @Composable () -> Unit): ComposeView =
     ComposeView(this).sfContent(content)
