@@ -73,9 +73,11 @@ class ElevationTintTest {
 
     @Test
     fun `light mode mixes away from base (negative) and caps later`() {
-        val m = ElevationTint.mix(48f, isDark = false)
-        assertTrue(m < 0f)
-        assertEquals(m, ElevationTint.mix(480f, isDark = false))
+        val half = ElevationTint.mix(48f, isDark = false)
+        val capped = ElevationTint.mix(96f, isDark = false)
+        assertTrue(half < 0f && capped < half)
+        // Cap reached: anything beyond 96dp matches.
+        assertEquals(capped, ElevationTint.mix(480f, isDark = false))
     }
 
     /* ------------------------------------------------------------- surface */
