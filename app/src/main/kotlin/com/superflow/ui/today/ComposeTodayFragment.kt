@@ -8,9 +8,7 @@ import android.view.ViewGroup
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
@@ -24,7 +22,6 @@ import com.superflow.data.Repository
 import com.superflow.data.model.CapturedItem
 import com.superflow.data.model.JournalEntry
 import com.superflow.data.model.FocusItem
-import com.superflow.design.Navigation
 import com.superflow.core.time.SfTime
 import com.superflow.domain.Search
 import com.superflow.domain.SearchResult
