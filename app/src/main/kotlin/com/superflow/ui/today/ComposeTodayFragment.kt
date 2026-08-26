@@ -7,12 +7,14 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.superflow.ui.common.sfComposeView
+import com.superflow.R
+import com.superflow.ui.common.sfContent
 import com.superflow.ui.common.snack
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.detail.HabitDetailActivity
@@ -47,9 +49,15 @@ class ComposeTodayFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = sfComposeView {
-        val state by model.state.collectAsState()
-        TodayScreen(state = state, onAction = ::handle)
+    ): View {
+        // Inflated rather than constructed: see fragment_compose_tab.xml for
+        // why a code-built ComposeView breaks inside ViewPager2.
+        val host = inflater.inflate(R.layout.fragment_compose_tab, container, false)
+            .findViewById<ComposeView>(R.id.compose_host)
+        return host.sfContent {
+            val state by model.state.collectAsState()
+            TodayScreen(state = state, onAction = ::handle)
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
