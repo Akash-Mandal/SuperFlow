@@ -7,16 +7,18 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.superflow.R
 import com.superflow.core.time.SfTime
 import com.superflow.data.Repository
 import com.superflow.design.HistoryStates
 import com.superflow.design.Periods
 import com.superflow.domain.Insights
-import com.superflow.ui.common.sfComposeView
+import com.superflow.ui.common.sfContent
 import com.superflow.ui.screens.HabitConsistency
 import com.superflow.ui.screens.InsightsScreen
 import com.superflow.ui.screens.InsightsUiState
@@ -48,9 +50,15 @@ class ComposeInsightsFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = sfComposeView {
-        val state by model.state.collectAsState()
-        InsightsScreen(state = state, onPeriodChange = model::setPeriod)
+    ): View {
+        // Inflated rather than constructed: see fragment_compose_tab.xml for
+        // why a code-built ComposeView breaks inside ViewPager2.
+        val host = inflater.inflate(R.layout.fragment_compose_tab, container, false)
+            .findViewById<ComposeView>(R.id.compose_host)
+        return host.sfContent {
+            val state by model.state.collectAsState()
+            InsightsScreen(state = state, onPeriodChange = model::setPeriod)
+        }
     }
 
     override fun onResume() {
