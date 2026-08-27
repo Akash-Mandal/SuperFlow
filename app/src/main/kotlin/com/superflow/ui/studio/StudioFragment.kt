@@ -123,8 +123,10 @@ class StudioFragment : Fragment() {
             insets
         }
         host.sfContent {
-            val state by model.state.collectAsState()
-            StudioScreen(state = state, onAction = ::onAction)
+            StudioNightTheme {
+                val state by model.state.collectAsState()
+                StudioScreen(state = state, onAction = ::onAction)
+            }
         }
     }
 
