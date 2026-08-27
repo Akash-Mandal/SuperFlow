@@ -128,6 +128,12 @@ class ComposeTodayFragment : Fragment() {
                                     )
                             )
                         }
+                        PaletteAction("AI Memory") {
+                            paletteOpen.value = false
+                            startActivity(
+                                Intent(requireContext(), com.superflow.ui.memory.MemoryViewerActivity::class.java)
+                            )
+                        }
                     },
                 )
             }
