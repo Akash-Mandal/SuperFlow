@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -17,7 +16,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.superflow.R
-import com.superflow.data.Prefs
 import com.superflow.data.Repository
 import com.superflow.data.model.CapturedItem
 import com.superflow.data.model.JournalEntry
@@ -60,7 +58,6 @@ import kotlinx.coroutines.withContext
 class ComposeTodayFragment : Fragment() {
 
     private val model: TodayViewModel by viewModels()
-    private val prefs by lazy { Prefs.get(requireContext()) }
     private val repo by lazy { Repository.get(requireContext()) }
 
     // Shell-level UI state, owned here rather than in the shared ViewModel:
@@ -120,6 +117,16 @@ class ComposeTodayFragment : Fragment() {
                             paletteOpen.value = false
                             refreshInbox()
                             inboxOpen.value = true
+                        }
+                        PaletteAction("Replay today") {
+                            paletteOpen.value = false
+                            startActivity(
+                                Intent(requireContext(), com.superflow.ui.replay.DayReplayActivity::class.java)
+                                    .putExtra(
+                                        com.superflow.ui.replay.DayReplayActivity.EXTRA_DATE,
+                                        SfTime.format(repo.clock.today()),
+                                    )
+                            )
                         }
                     },
                 )
