@@ -140,6 +140,22 @@ class ComposeTodayFragment : Fragment() {
                                 Intent(requireContext(), com.superflow.ui.sprint.SprintBoardActivity::class.java)
                             )
                         }
+                        PaletteAction("Graduation") {
+                            paletteOpen.value = false
+                            viewLifecycleOwner.lifecycleScope.launch {
+                                val candidate = withContext(Dispatchers.IO) {
+                                    com.superflow.domain.Graduation.candidates(repo).firstOrNull()?.first
+                                }
+                                if (candidate != null) {
+                                    startActivity(
+                                        Intent(requireContext(), com.superflow.ui.graduation.GraduationActivity::class.java)
+                                            .putExtra(com.superflow.ui.graduation.GraduationActivity.EXTRA_HABIT_ID, candidate.id)
+                                    )
+                                } else {
+                                    view?.snack("No habit is ready to graduate yet — keep going.")
+                                }
+                            }
+                        }
                     },
                 )
             }
