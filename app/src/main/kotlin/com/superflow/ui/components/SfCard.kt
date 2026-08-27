@@ -12,14 +12,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.superflow.design.tokens.ElevationTint
 import com.superflow.ui.theme.SfTheme
 
 /**
@@ -80,8 +83,16 @@ fun SfCard(
     val scheme = MaterialTheme.colorScheme
     val highContrast = SfTheme.highContrast
 
+    val isDark = isSystemInDarkTheme()
+    val elevatedBase = scheme.surface
+    val elevatedTinted = run {
+        val baseArgb = elevatedBase.toArgb().toLong() and 0xFFFFFFFFL
+        val accentArgb = scheme.primary.toArgb().toLong() and 0xFFFFFFFFL
+        val tinted = ElevationTint.surfaceArgb(2f, baseArgb, accentArgb, isDark)
+        Color(tinted.toInt())
+    }
     val container = when (variant) {
-        SfCardVariant.Elevated -> scheme.surface
+        SfCardVariant.Elevated -> if (isDark) elevatedTinted else scheme.surface
         SfCardVariant.Filled -> scheme.surfaceContainer
         SfCardVariant.Outlined -> scheme.surface
         SfCardVariant.Accent -> scheme.primaryContainer

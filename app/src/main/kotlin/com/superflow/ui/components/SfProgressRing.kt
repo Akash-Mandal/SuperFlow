@@ -1,6 +1,11 @@
 package com.superflow.ui.components
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -60,6 +65,22 @@ fun SfProgressRing(
         label = "ringProgress",
     )
 
+    // Breath Ring idle (§1 "Breath Ring"): subtle 2% radius oscillation
+    // over 6s, paused while the ring is animating toward a new value.
+    // Disabled when motion is off - idle motion must never override an
+    // accessibility preference.
+    val breathTransition = rememberInfiniteTransition(label = "breath")
+    val breath by breathTransition.animateFloat(
+        initialValue = 0.98f,
+        targetValue = 1.02f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 6000, easing = androidx.compose.animation.core.LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "breathScale",
+    )
+    val breathScale = if (motion.enabled && done in 1 until total) breath else 1f
+
     val percent = (target * 100).roundToInt()
     val description = if (total <= 0) {
         "Nothing scheduled today"
@@ -70,6 +91,14 @@ fun SfProgressRing(
     Box(
         modifier = modifier
             .size(size.dp)
+            .then(
+                if (breathScale != 1f) Modifier.then(
+                    androidx.compose.ui.graphics.graphicsLayer {
+                        scaleX = breathScale
+                        scaleY = breathScale
+                    }
+                ) else Modifier
+            )
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .semantics {
                 contentDescription = description

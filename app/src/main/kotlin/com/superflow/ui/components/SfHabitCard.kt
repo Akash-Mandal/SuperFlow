@@ -3,6 +3,7 @@ package com.superflow.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
@@ -301,6 +302,11 @@ private fun SfCheckTarget(
         animationSpec = motion.tween(motion.quick),
         label = "checkRing",
     )
+    val bloom by animateFloatAsState(
+        targetValue = if (checked) 1f else 0f,
+        animationSpec = if (checked) motion.springSnappy() else snap(),
+        label = "bloom",
+    )
 
     Box(
         modifier = Modifier
@@ -324,6 +330,12 @@ private fun SfCheckTarget(
         Canvas(modifier = Modifier.size(26.dp)) {
             val radius = size.minDimension / 2f
 
+            if (bloom > 0.01f && bloom < 1f) {
+                drawCircle(
+                    color = colors.success.copy(alpha = (1f - bloom) * 0.18f),
+                    radius = radius * (1f + bloom * 0.9f),
+                )
+            }
             if (fill > 0f) {
                 drawCircle(color = colors.success, radius = radius * fill)
             }
