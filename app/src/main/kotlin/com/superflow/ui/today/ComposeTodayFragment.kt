@@ -134,6 +134,12 @@ class ComposeTodayFragment : Fragment() {
                                 Intent(requireContext(), com.superflow.ui.memory.MemoryViewerActivity::class.java)
                             )
                         }
+                        PaletteAction("Sprints") {
+                            paletteOpen.value = false
+                            startActivity(
+                                Intent(requireContext(), com.superflow.ui.sprint.SprintBoardActivity::class.java)
+                            )
+                        }
                     },
                 )
             }
