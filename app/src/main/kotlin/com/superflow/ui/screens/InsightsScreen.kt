@@ -33,6 +33,7 @@ import com.superflow.ui.components.SfBarChart
 import com.superflow.ui.components.SfCard
 import com.superflow.ui.components.SfCardVariant
 import com.superflow.ui.components.SfChip
+import com.superflow.ui.components.SfStatHero
 import com.superflow.ui.components.SfChipGroup
 import com.superflow.ui.components.SfHeatmap
 import com.superflow.ui.components.SfSectionHeader
@@ -120,6 +121,8 @@ fun InsightsScreen(
                 },
             )
         }
+
+        item(key = "heroStats") { HeroStatsRow(state = state, period = period) }
 
         item(key = "consistency") {
             ConsistencyCard(state = state, period = period)
@@ -266,6 +269,28 @@ private fun EnergyCard(pairs: List<Pair<Double, Double>>) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+@Composable
+private fun HeroStatsRow(state: InsightsUiState, period: Periods.Period) {
+    val windowed = Periods.window(state.daily, period)
+    if (!Periods.canClaim(windowed.size, Periods.MinSamples.COMPLETION_RATE)) return
+    val mean = windowed.average()
+    val series = windowed.map { (it * 100).toFloat() }
+    val half = windowed.size / 2
+    val firstMean = windowed.take(half).average().takeIf { !it.isNaN() } ?: 0.0
+    val secondMean = windowed.drop(half).average().takeIf { !it.isNaN() } ?: 0.0
+    val delta: Float? = if (firstMean > 0.01) ((secondMean - firstMean) / firstMean).toFloat() else null
+
+    SfCard(variant = SfCardVariant.Filled) {
+        SfStatHero(
+            value = "${ChartGeometry.percent(mean)}%",
+            label = "Average completion",
+            deltaFraction = delta,
+            comparisonLabel = if (delta != null) "vs first half of period" else null,
+            series = series,
+        )
     }
 }
 

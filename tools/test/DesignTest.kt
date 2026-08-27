@@ -1902,14 +1902,15 @@ fun main() {
         // The dual list must describe reality, or it is worse than nothing.
         check("studio is not listed as dual-implemented",
             Navigation.Tab.STUDIO !in Rendering.dualImplemented)
-        check("every dual-implemented screen is still on Views",
-            Rendering.dualImplemented.all {
-                Rendering.rendererFor(it) == Rendering.Renderer.VIEWS
-            })
+        // Alpha3 M2: every primary screen is on Compose, so the list is
+        // empty and the migration is complete. If this ever regresses - a
+        // tab flipped back to Views - both assertions fail loudly here.
+        eq("no screens remain dual-implemented",
+            Rendering.dualImplemented.size, 0)
         eq("no duplicates in the dual list",
             Rendering.dualImplemented.distinct().size, Rendering.dualImplemented.size)
 
-        eq("the migration is not finished yet", Rendering.migrationComplete, false)
+        eq("the migration is finished", Rendering.migrationComplete, true)
         check("and it finishes exactly when nothing is dual-implemented",
             Rendering.migrationComplete == Rendering.dualImplemented.isEmpty())
     }

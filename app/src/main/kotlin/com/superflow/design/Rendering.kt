@@ -23,10 +23,9 @@ package com.superflow.design
  * Blueprint and the AI engine (plan 11.4) and was written new — so there
  * was nothing to migrate and no fallback to keep.
  *
- * Today, Journey and Insights were Views. Alpha3 flipped Today to its
- * Compose implementation (every row type now renders in Compose, and CI's
- * emulator suite exercises it on two API levels). Journey and Insights
- * remain Views until their alpha3 redesigns land.
+ * All four primary screens now render through Compose (alpha3 M2); the View
+ * implementations of Today, Journey and Insights remain in the tree but
+ * nothing routes to them.
  *
  * Flipping a screen means: set its entry here to [Renderer.COMPOSE], run
  * the app, and delete the View implementation once it has been through a
@@ -38,8 +37,8 @@ object Rendering {
 
     /** Screens that have two implementations, and which one is live. */
     val today: Renderer = Renderer.COMPOSE
-    val journey: Renderer = Renderer.VIEWS
-    val insights: Renderer = Renderer.VIEWS
+    val journey: Renderer = Renderer.COMPOSE
+    val insights: Renderer = Renderer.COMPOSE
 
     /** Compose-only from the start; there is no View version to fall back to. */
     val studio: Renderer = Renderer.COMPOSE
@@ -62,15 +61,12 @@ object Rendering {
      * down, and a new entry appearing means someone added a second
      * implementation instead of replacing one.
      *
-     * Alpha3 M1: Today flipped to Compose once every [TodayRow] type had a
-     * Compose rendering and the emulator suite passed on it; its View
-     * implementation remains in the tree until the next release, per the
-     * migration rule above, but is no longer reachable from the shell.
+     * Alpha3 M2: empty. Today, Journey and Insights all render through
+     * Compose; the View implementations remain in the tree until they have
+     * been through a release, per the migration rule above, but nothing
+     * routes to them.
      */
-    val dualImplemented: List<Navigation.Tab> = listOf(
-        Navigation.Tab.JOURNEY,
-        Navigation.Tab.INSIGHTS,
-    )
+    val dualImplemented: List<Navigation.Tab> = emptyList()
 
     /** True once the migration is finished and this file can be deleted. */
     val migrationComplete: Boolean

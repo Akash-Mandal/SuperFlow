@@ -92,6 +92,10 @@ object SfTime {
     fun formatTime(time: LocalTime): String =
         String.format(Locale.US, "%02d:%02d", time.hour, time.minute)
 
+    /** Wall-clock label for an epoch-milli timestamp, e.g. "14:05". */
+    fun clockLabel(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+        formatTime(LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMs), zone).toLocalTime())
+
     fun isValidTime(text: String): Boolean = parseTime(text) != null
 
     fun minutesOfDay(text: String): Int = parseTime(text)?.let { it.hour * 60 + it.minute } ?: -1
