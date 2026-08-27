@@ -137,12 +137,18 @@ class TodayWidget : AppWidgetProvider() {
                 val db = com.superflow.data.db.SuperFlowDatabase.get(context).db
                 db.query("SELECT COUNT(*) FROM blueprint_auto_plan WHERE status='PENDING'").use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
             } catch (_: Exception) { 0 }
+            val inboxOpen = try { repo.openCaptureCount() } catch (_: Exception) { 0 }
             val content = WidgetLayout.content(
                 done = done,
                 total = total,
                 nextHabit = next?.let { it.tinyStart.ifBlank { it.title } },
                 timeOfDay = WidgetLayout.timeOfDay(repo.clock.nowTime().hour),
-            ).let { if (autoPending > 0) it.copy(subhead = it.subhead + " · $autoPending Auto Reinforce pending") else it }
+            ).let {
+                var c = it
+                if (autoPending > 0) c = c.copy(subhead = c.subhead + " · $autoPending Auto Reinforce pending")
+                if (inboxOpen > 0) c = c.copy(subhead = c.subhead + " · $inboxOpen in inbox")
+                c
+            }
 
             val views = when (size) {
                 WidgetLayout.Size.SMALL -> small(context, chrome, content, done, total)
