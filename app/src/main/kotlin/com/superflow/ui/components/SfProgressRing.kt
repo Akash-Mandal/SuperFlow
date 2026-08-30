@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.superflow.design.rememberIsLowEnd
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
@@ -67,20 +68,27 @@ fun SfProgressRing(
     )
 
     // Breath Ring idle (§1 "Breath Ring"): subtle 2% radius oscillation
-    // over 6s, paused while the ring is animating toward a new value.
-    // Disabled when motion is off - idle motion must never override an
-    // accessibility preference.
-    val breathTransition = rememberInfiniteTransition(label = "breath")
-    val breath by breathTransition.animateFloat(
-        initialValue = 0.98f,
-        targetValue = 1.02f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 6000, easing = androidx.compose.animation.core.LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "breathScale",
-    )
-    val breathScale = if (motion.enabled && done in 1 until total) breath else 1f
+    // over 6s. Disabled when motion is off or on low-end devices — idle
+    // motion that runs forever is the single most wasteful animation on a
+    // mid/low-end device, and the home feed stays composed offscreen in
+    // ViewPager2's cache even when not visible.
+    val isLowEnd = rememberIsLowEnd()
+    val shouldBreathe = motion.enabled && !isLowEnd && done in 1 until total
+    val breathScale = if (shouldBreathe) {
+        val breathTransition = rememberInfiniteTransition(label = "breath")
+        val breath by breathTransition.animateFloat(
+            initialValue = 0.98f,
+            targetValue = 1.02f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 6000, easing = androidx.compose.animation.core.LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "breathScale",
+        )
+        breath
+    } else {
+        1f
+    }
 
     val percent = (target * 100).roundToInt()
     val description = if (total <= 0) {

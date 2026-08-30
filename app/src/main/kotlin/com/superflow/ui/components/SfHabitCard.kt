@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import com.superflow.data.model.Level
 import com.superflow.design.Haptics
 import com.superflow.design.Space
+import com.superflow.design.rememberIsLowEnd
 import com.superflow.ui.common.SfHaptics
 import com.superflow.ui.theme.SfTheme
 import kotlin.math.abs
@@ -302,9 +303,10 @@ private fun SfCheckTarget(
         animationSpec = motion.tween(motion.quick),
         label = "checkRing",
     )
+    val isLowEnd = rememberIsLowEnd()
     val bloom by animateFloatAsState(
         targetValue = if (checked) 1f else 0f,
-        animationSpec = if (checked) motion.springSnappy() else snap(),
+        animationSpec = if (isLowEnd) snap() else if (checked) motion.springSnappy() else snap(),
         label = "bloom",
     )
 

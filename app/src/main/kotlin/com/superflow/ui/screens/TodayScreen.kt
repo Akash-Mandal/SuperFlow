@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import com.superflow.core.time.SfTime
 import com.superflow.data.model.Level
 import com.superflow.design.Space
+import com.superflow.design.rememberIsLowEnd
 import com.superflow.ui.components.SfCard
 import com.superflow.ui.components.SfCardVariant
 import com.superflow.ui.components.SfFlowLine
@@ -97,14 +98,20 @@ fun TodayScreen(
     modifier: Modifier = Modifier,
 ) {
     val motion = SfTheme.motion
+    val isLowEnd = rememberIsLowEnd()
+    val reduceMotion = isLowEnd || !motion.enabled
 
-    // The orchestrated entrance (§8.4). Runs once per load rather than on
-    // every recomposition, and is skipped entirely when motion is off -
-    // staggering content in is a flourish, and flourishes are the first
-    // thing to go when a user asks for less movement.
-    var entered by remember(state.loading) { mutableStateOf(!motion.enabled) }
-    LaunchedEffect(state.loading) {
-        if (!state.loading) entered = true
+    // The orchestrated entrance (§8.4). On low-end devices the list appears
+    // immediately — staggering 10 habit cards reads as lag, not choreography,
+    // and the AnimatedVisibility that hides rows until `entered` becomes the
+    // "elements disappear" bug the user reported.
+    var entered by remember(state.loading, reduceMotion) { mutableStateOf(reduceMotion) }
+    LaunchedEffect(state.loading, reduceMotion) {
+        if (reduceMotion) {
+            entered = true
+        } else if (!state.loading) {
+            entered = true
+        }
     }
 
     if (state.loading) {
@@ -115,6 +122,28 @@ fun TodayScreen(
         ) {
             Spacer(modifier = Modifier.height(Space.LG.dp))
             SfTodaySkeleton()
+        }
+        return
+    }
+
+    if (isLowEnd) {
+        LazyColumn(
+            modifier = modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = Space.BASE.dp,
+                end = Space.BASE.dp,
+                top = Space.SM.dp,
+                bottom = Space.XXXL.dp + Space.XL.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(Space.SM.dp),
+        ) {
+            todayRows(
+                state = state,
+                rows = state.rows,
+                entered = true,
+                onAction = onAction,
+                reduceMotion = true,
+            )
         }
         return
     }
@@ -137,6 +166,7 @@ fun TodayScreen(
                 rows = state.rows,
                 entered = entered,
                 onAction = onAction,
+                reduceMotion = reduceMotion,
             )
         }
     }
@@ -157,6 +187,7 @@ private fun LazyListScope.todayRows(
     rows: List<TodayRow>,
     entered: Boolean,
     onAction: (TodayAction) -> Unit,
+    reduceMotion: Boolean,
 ) {
     rows.forEachIndexed { index, row ->
         item(key = row.stableId, contentType = row::class.simpleName) {
@@ -166,6 +197,7 @@ private fun LazyListScope.todayRows(
                 index = index,
                 entered = entered,
                 onAction = onAction,
+                reduceMotion = reduceMotion,
             )
         }
     }
@@ -178,7 +210,26 @@ private fun TodayRowItem(
     index: Int,
     entered: Boolean,
     onAction: (TodayAction) -> Unit,
+    reduceMotion: Boolean,
 ) {
+    if (reduceMotion) {
+        when (row) {
+            is TodayRow.Progress -> ProgressBlock(state = state, row = row)
+            is TodayRow.IdentityCard -> IdentityBlock(row)
+            is TodayRow.Section -> SfSectionHeader(title = row.title)
+            is TodayRow.HabitRow -> HabitBlock(row, onAction)
+            is TodayRow.Empty -> EmptyBlock(row, onAction)
+            is TodayRow.Load -> LoadBlock(row)
+            is TodayRow.Returning -> ReturningBlock(row, onAction)
+            is TodayRow.Focus -> FocusBlock(row, onAction)
+            is TodayRow.Checkpoints -> EnergyBlock(row, onAction)
+            is TodayRow.GrowthPlanStatus -> GrowthBlock(row)
+            is TodayRow.Suggestion -> SuggestionBlock(row, onAction)
+            else -> Unit
+        }
+        return
+    }
+
     val motion = SfTheme.motion
 
     // The orchestrated sequence (§8.4): each row starts fractionally after

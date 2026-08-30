@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.superflow.design.Space
+import com.superflow.design.rememberIsLowEnd
 import com.superflow.ui.theme.SfTheme
 
 /**
@@ -50,14 +51,14 @@ fun SfStatHero(
     series: List<Float> = emptyList(),
 ) {
     val motion = SfTheme.motion
+    val isLowEndStat = rememberIsLowEnd()
 
-    // Entrance roll: the number fades up with the spring used across v3.
-    // Under reduced motion it simply appears.
-    var entered by remember { mutableStateOf(!motion.enabled) }
-    LaunchedEffect(motion.enabled) { entered = true }
+    // Entrance roll: on low-end the number appears immediately.
+    var entered by remember { mutableStateOf(!motion.enabled || isLowEndStat) }
+    LaunchedEffect(motion.enabled, isLowEndStat) { entered = true }
     val roll by animateFloatAsState(
         targetValue = if (entered) 1f else 0f,
-        animationSpec = if (motion.enabled) motion.springStandard() else snap(),
+        animationSpec = if (motion.enabled && !isLowEndStat) motion.springStandard() else snap(),
         label = "sfStatHeroRoll",
     )
 
@@ -131,9 +132,10 @@ fun SfSparkline(
     if (series.size < 2) return
     val strokeColor = MaterialTheme.colorScheme.primary
     val motion = SfTheme.motion
-    var progress by remember { mutableFloatStateOf(if (motion.enabled) 0f else 1f) }
-    LaunchedEffect(motion.enabled) {
-        if (!motion.enabled || progress >= 1f) return@LaunchedEffect
+    val isLowEnd = rememberIsLowEnd()
+    var progress by remember { mutableFloatStateOf(if (motion.enabled && !isLowEnd) 0f else 1f) }
+    LaunchedEffect(motion.enabled, isLowEnd) {
+        if (!motion.enabled || isLowEnd || progress >= 1f) return@LaunchedEffect
         var start = 0L
         val target = motion.fast.coerceAtLeast(1).toLong()
         while (progress < 1f) {
