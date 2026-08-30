@@ -206,6 +206,14 @@ class AppearanceFragment : Fragment() {
                         getString(R.string.high_contrast_sub),
                         prefs.highContrast,
                     ) { on -> applyAndRestart { prefs.setAppearance(highContrast = on) } },
+                    toggle(
+                        "Living accent",
+                        "Shifts accent hue with time of day",
+                        prefs.livingAccent,
+                    ) { on ->
+                        prefs.livingAccent = on
+                        activity?.recreate()
+                    },
                 )
             )
         )
