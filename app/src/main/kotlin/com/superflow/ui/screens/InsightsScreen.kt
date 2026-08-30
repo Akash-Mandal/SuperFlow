@@ -337,15 +337,15 @@ private fun BandsCard(bands: List<Analytics.ConsistencyBand>) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.width(28.dp),
                 )
+                val bg = MaterialTheme.colorScheme.surfaceVariant
+                val bandColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
+                val medianColor = MaterialTheme.colorScheme.primary
                 androidx.compose.foundation.Canvas(
                     modifier = Modifier.weight(1f).height(14.dp),
                 ) {
                     val w = size.width
                     val h = size.height
                     val trackH = h * 0.45f
-                    val bg = MaterialTheme.colorScheme.surfaceVariant
-                    val bandColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
-                    val medianColor = MaterialTheme.colorScheme.primary
                     // full 0-100 track
                     drawRoundRect(color = bg, topLeft = androidx.compose.ui.geometry.Offset(0f, h/2 - trackH/2), size = androidx.compose.ui.geometry.Size(w, trackH), cornerRadius = androidx.compose.ui.geometry.CornerRadius(trackH/2))
                     // p25-p75 band
@@ -393,16 +393,16 @@ private fun TimeOfDayCard(patterns: List<Analytics.TimeOfDayPattern>) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.width(64.dp),
                 )
+                val bg2 = MaterialTheme.colorScheme.surfaceVariant
+                val fill2 = MaterialTheme.colorScheme.primary
                 androidx.compose.foundation.Canvas(
                     modifier = Modifier.weight(1f).height(10.dp),
                 ) {
                     val w = size.width
                     val h = size.height
-                    val bg = MaterialTheme.colorScheme.surfaceVariant
-                    val fill = MaterialTheme.colorScheme.primary
-                    drawRoundRect(color = bg, topLeft = androidx.compose.ui.geometry.Offset(0f, h/2 - 5.dp.toPx()/2), size = androidx.compose.ui.geometry.Size(w, 5.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+                    drawRoundRect(color = bg2, topLeft = androidx.compose.ui.geometry.Offset(0f, h/2 - 5.dp.toPx()/2), size = androidx.compose.ui.geometry.Size(w, 5.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
                     val fw = (p.rate.coerceIn(0.0, 1.0) * w).toFloat()
-                    drawRoundRect(color = fill, topLeft = androidx.compose.ui.geometry.Offset(0f, h/2 - 5.dp.toPx()/2), size = androidx.compose.ui.geometry.Size(fw, 5.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+                    drawRoundRect(color = fill2, topLeft = androidx.compose.ui.geometry.Offset(0f, h/2 - 5.dp.toPx()/2), size = androidx.compose.ui.geometry.Size(fw, 5.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
                 }
                 Text(
                     text = if (p.hasEnoughData) "${ChartGeometry.percent(p.rate)}% · ${p.completions}/${p.opportunities}" else "— · ${p.completions}/${p.opportunities}",
