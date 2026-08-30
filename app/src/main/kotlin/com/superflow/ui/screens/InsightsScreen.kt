@@ -60,6 +60,7 @@ data class InsightsUiState(
     val perHabit: List<HabitConsistency> = emptyList(),
     /** Energy rating paired with that day's completion fraction. */
     val energyPairs: List<Pair<Double, Double>> = emptyList(),
+    val timeOfDay: List<com.superflow.domain.Analytics.TimeOfDayPattern> = emptyList(),
 )
 
 data class HabitConsistency(
@@ -129,6 +130,10 @@ fun InsightsScreen(
         val bands = androidx.compose.runtime.remember(state.daily) { Analytics.weeklyBands(state.daily) }
         if (bands.size >= 2) {
             item(key = "bands") { BandsCard(bands = bands) }
+        }
+
+        if (state.timeOfDay.any { it.hasEnoughData }) {
+            item(key = "timeOfDay") { TimeOfDayCard(patterns = state.timeOfDay) }
         }
 
         item(key = "consistency") {
@@ -350,6 +355,54 @@ private fun BandsCard(bands: List<Analytics.ConsistencyBand>) {
                 Text(
                     text = "${ChartGeometry.percent(b.mean)}%",
                     style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimeOfDayCard(patterns: List<Analytics.TimeOfDayPattern>) {
+    SfCard(variant = SfCardVariant.Filled) {
+        Text(
+            text = "When do you succeed?",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.semantics { heading() },
+        )
+        Spacer(modifier = Modifier.height(Space.SM.dp))
+        Text(
+            text = "Completion rate by time of day — based on cue times, not check-in times.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(Space.MD.dp))
+        patterns.forEach { p ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = Space.XS.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Space.SM.dp),
+            ) {
+                Text(
+                    text = p.bucket.label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(64.dp),
+                )
+                androidx.compose.foundation.Canvas(
+                    modifier = Modifier.weight(1f).height(10.dp),
+                ) {
+                    val w = size.width
+                    val h = size.height
+                    val bg = androidx.compose.ui.graphics.Color(0xFFD9DFD8)
+                    val fill = androidx.compose.ui.graphics.Color(0xFF3A7D5C)
+                    drawRoundRect(color = bg, topLeft = androidx.compose.ui.geometry.Offset(0f, h/2 - 5.dp.toPx()/2), size = androidx.compose.ui.geometry.Size(w, 5.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+                    val fw = (p.rate.coerceIn(0.0, 1.0) * w).toFloat()
+                    drawRoundRect(color = fill, topLeft = androidx.compose.ui.geometry.Offset(0f, h/2 - 5.dp.toPx()/2), size = androidx.compose.ui.geometry.Size(fw, 5.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+                }
+                Text(
+                    text = if (p.hasEnoughData) "${ChartGeometry.percent(p.rate)}% · ${p.completions}/${p.opportunities}" else "— · ${p.completions}/${p.opportunities}",
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
             }

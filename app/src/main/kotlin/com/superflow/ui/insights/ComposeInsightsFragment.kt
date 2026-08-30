@@ -17,6 +17,7 @@ import com.superflow.core.time.SfTime
 import com.superflow.data.Repository
 import com.superflow.design.HistoryStates
 import com.superflow.design.Periods
+import com.superflow.domain.Analytics
 import com.superflow.domain.Insights
 import com.superflow.ui.common.sfContent
 import com.superflow.ui.screens.HabitConsistency
@@ -142,6 +143,7 @@ class ComposeInsightsViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }.sortedByDescending { it.percent },
             energyPairs = energyPairs(days, daily),
+            timeOfDay = Analytics.timeOfDayPatterns(habits, checkIns, today),
         )
     }
 

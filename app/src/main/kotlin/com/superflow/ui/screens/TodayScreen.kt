@@ -376,6 +376,7 @@ private fun IdentityBlock(row: TodayRow.IdentityCard) {
 private fun HabitBlock(row: TodayRow.HabitRow, onAction: (TodayAction) -> Unit) {
     val item = row.item
     val habit = item.habit
+    val accent = habit.colorOverride?.let { androidx.compose.ui.graphics.Color(it) }
 
     SfHabitCard(
         title = habit.title,
@@ -384,6 +385,7 @@ private fun HabitBlock(row: TodayRow.HabitRow, onAction: (TodayAction) -> Unit) 
         done = item.done,
         skipped = item.skipped,
         missed = item.missed,
+        accentColor = accent,
         onClick = { onAction(TodayAction.OpenHabit(habit.id)) },
         onCheckIn = { level -> onAction(TodayAction.CheckIn(habit.id, level)) },
         onSkip = { onAction(TodayAction.Skip(habit.id)) },
