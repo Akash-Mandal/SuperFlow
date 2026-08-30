@@ -52,6 +52,7 @@ import com.superflow.data.model.Level
 import com.superflow.design.Space
 import com.superflow.ui.components.SfCard
 import com.superflow.ui.components.SfCardVariant
+import com.superflow.ui.components.SfFlowLine
 import com.superflow.ui.components.SfHabitCard
 import com.superflow.ui.components.SfProgressRing
 import com.superflow.ui.components.SfSectionHeader
@@ -338,6 +339,12 @@ private fun HabitBlock(row: TodayRow.HabitRow, onAction: (TodayAction) -> Unit) 
 @Composable
 private fun EmptyBlock(row: TodayRow.Empty, onAction: (TodayAction) -> Unit) {
     SfCard(variant = SfCardVariant.Filled) {
+        SfFlowLine(
+            modifier = Modifier.fillMaxWidth().height(24.dp),
+            progress = 0.52f,
+            hasMiss = false,
+        )
+        Spacer(modifier = Modifier.height(Space.SM.dp))
         Text(
             text = row.title,
             style = MaterialTheme.typography.titleMedium,

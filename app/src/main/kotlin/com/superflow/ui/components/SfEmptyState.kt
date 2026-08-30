@@ -24,9 +24,18 @@ fun SfEmptyState(
     body: String,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showFlowLine: Boolean = true,
 ) {
     SfCard(variant = SfCardVariant.Filled, modifier = modifier) {
+        if (showFlowLine) {
+            SfFlowLine(
+                modifier = Modifier.fillMaxWidth().height(28.dp),
+                progress = 0.72f,
+                hasMiss = false,
+            )
+            Spacer(modifier = Modifier.height(Space.SM.dp))
+        }
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -39,7 +48,12 @@ fun SfEmptyState(
                 modifier = Modifier.size(48.dp)
             )
             Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-            Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            Text(
+                body,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
             if (actionLabel != null && onAction != null) {
                 Spacer(Modifier.height(Space.SM.dp))
                 androidx.compose.material3.FilledTonalButton(onClick = onAction) { Text(actionLabel) }
