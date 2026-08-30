@@ -2,6 +2,7 @@ package com.superflow.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,7 +31,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.superflow.design.Space
-import com.superflow.design.rememberIsLowEnd
+import com.superflow.design.rememberShouldReduceMotion
 import com.superflow.ui.theme.SfTheme
 
 /**
@@ -51,14 +52,14 @@ fun SfStatHero(
     series: List<Float> = emptyList(),
 ) {
     val motion = SfTheme.motion
-    val isLowEndStat = rememberIsLowEnd()
+    val shouldReduceStat = rememberShouldReduceMotion()
 
-    // Entrance roll: on low-end the number appears immediately.
-    var entered by remember { mutableStateOf(!motion.enabled || isLowEndStat) }
-    LaunchedEffect(motion.enabled, isLowEndStat) { entered = true }
+    // Entrance roll: reduced motion shows number immediately.
+    var entered by remember { mutableStateOf(!motion.enabled || shouldReduceStat) }
+    LaunchedEffect(motion.enabled, shouldReduceStat) { entered = true }
     val roll by animateFloatAsState(
         targetValue = if (entered) 1f else 0f,
-        animationSpec = if (motion.enabled && !isLowEndStat) motion.springStandard() else snap(),
+        animationSpec = if (motion.enabled && !shouldReduceStat) motion.springStandard() else snap(),
         label = "sfStatHeroRoll",
     )
 
@@ -132,19 +133,16 @@ fun SfSparkline(
     if (series.size < 2) return
     val strokeColor = MaterialTheme.colorScheme.primary
     val motion = SfTheme.motion
-    val isLowEnd = rememberIsLowEnd()
-    var progress by remember { mutableFloatStateOf(if (motion.enabled && !isLowEnd) 0f else 1f) }
-    LaunchedEffect(motion.enabled, isLowEnd) {
-        if (!motion.enabled || isLowEnd || progress >= 1f) return@LaunchedEffect
-        var start = 0L
-        val target = motion.fast.coerceAtLeast(1).toLong()
-        while (progress < 1f) {
-            withFrameMillis { frame ->
-                if (start == 0L) start = frame
-                progress = ((frame - start).toFloat() / target).coerceIn(0f, 1f)
-            }
-        }
+    val shouldReduceSpark = rememberShouldReduceMotion()
+    var targetProgress by remember { mutableFloatStateOf(if (motion.enabled && !shouldReduceSpark) 0f else 1f) }
+    LaunchedEffect(motion.enabled, shouldReduceSpark) {
+        if (motion.enabled && !shouldReduceSpark) targetProgress = 1f
     }
+    val progress by animateFloatAsState(
+        targetValue = targetProgress,
+        animationSpec = if (shouldReduceSpark) snap() else tween(durationMillis = motion.fast.coerceAtLeast(1)),
+        label = "sparkProgress",
+    )
 
     Canvas(
         modifier = modifier

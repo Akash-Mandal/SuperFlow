@@ -22,6 +22,7 @@ import com.superflow.SuperFlowApp
 import com.superflow.data.Prefs
 import com.superflow.design.Catalog
 import com.superflow.design.Choice
+import com.superflow.design.Choice
 import com.superflow.design.Contrast
 import com.superflow.design.Haptics
 import com.superflow.design.IconVariants
@@ -216,6 +217,22 @@ class AppearanceFragment : Fragment() {
                     },
                 )
             )
+        )
+
+        container.addView(section("Performance"))
+        container.addView(
+            segmented(
+                "Performance mode",
+                listOf(
+                    Choice(Prefs.PERFORMANCE_AUTO, "auto", "Auto", "Detects device and chooses"),
+                    Choice(Prefs.PERFORMANCE_PERFORMANCE, "performance", "Performance", "Forces reduced motion everywhere"),
+                    Choice(Prefs.PERFORMANCE_QUALITY, "quality", "Quality", "Forces full visuals everywhere"),
+                ),
+                prefs.performanceMode,
+            ) { id ->
+                prefs.performanceMode = id
+                activity?.recreate()
+            }
         )
 
         container.addView(section("Custom hue (experimental)"))

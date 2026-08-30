@@ -51,7 +51,7 @@ import androidx.compose.ui.unit.dp
 import com.superflow.core.time.SfTime
 import com.superflow.data.model.Level
 import com.superflow.design.Space
-import com.superflow.design.rememberIsLowEnd
+import com.superflow.design.rememberShouldReduceMotion
 import com.superflow.ui.components.SfCard
 import com.superflow.ui.components.SfCardVariant
 import com.superflow.ui.components.SfFlowLine
@@ -98,8 +98,7 @@ fun TodayScreen(
     modifier: Modifier = Modifier,
 ) {
     val motion = SfTheme.motion
-    val isLowEnd = rememberIsLowEnd()
-    val reduceMotion = isLowEnd || !motion.enabled
+    val reduceMotion = rememberShouldReduceMotion() || !motion.enabled
 
     // The orchestrated entrance (§8.4). On low-end devices the list appears
     // immediately — staggering 10 habit cards reads as lag, not choreography,
@@ -126,7 +125,7 @@ fun TodayScreen(
         return
     }
 
-    if (isLowEnd) {
+    if (reduceMotion) {
         LazyColumn(
             modifier = modifier.fillMaxSize(),
             contentPadding = PaddingValues(

@@ -19,7 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.superflow.design.rememberIsLowEnd
+import com.superflow.design.rememberShouldReduceMotion
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
@@ -72,8 +72,8 @@ fun SfProgressRing(
     // motion that runs forever is the single most wasteful animation on a
     // mid/low-end device, and the home feed stays composed offscreen in
     // ViewPager2's cache even when not visible.
-    val isLowEnd = rememberIsLowEnd()
-    val shouldBreathe = motion.enabled && !isLowEnd && done in 1 until total
+    val shouldReduce = rememberShouldReduceMotion()
+    val shouldBreathe = motion.enabled && !shouldReduce && done in 1 until total
     val breathScale = if (shouldBreathe) {
         val breathTransition = rememberInfiniteTransition(label = "breath")
         val breath by breathTransition.animateFloat(

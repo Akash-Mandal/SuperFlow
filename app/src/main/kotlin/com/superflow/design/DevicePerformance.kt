@@ -21,26 +21,48 @@ import androidx.compose.ui.platform.LocalContext
 object DevicePerformance {
 
     @Volatile private var cachedLowEnd: Boolean? = null
+    @Volatile private var cachedMidEnd: Boolean? = null
 
     fun isLowEnd(context: Context): Boolean {
+        // Manual override wins over auto detection
+        val mode = com.superflow.data.Prefs.get(context).performanceMode
+        when (mode) {
+            com.superflow.data.Prefs.PERFORMANCE_PERFORMANCE -> return true
+            com.superflow.data.Prefs.PERFORMANCE_QUALITY -> return false
+        }
         cachedLowEnd?.let { return it }
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
         val lowRam = am?.isLowRamDevice == true
         val oldApi = Build.VERSION.SDK_INT < Build.VERSION_CODES.R
         val fewCores = Runtime.getRuntime().availableProcessors() <= 4
-        // Low-end only if low-RAM + (old or few cores). A modern 4-core mid-range
-        // is not low-end; a low-RAM Go device is.
         val result = lowRam && (oldApi || fewCores)
         cachedLowEnd = result
         return result
     }
 
     fun isMidEnd(context: Context): Boolean {
+        val mode = com.superflow.data.Prefs.get(context).performanceMode
+        when (mode) {
+            com.superflow.data.Prefs.PERFORMANCE_QUALITY -> return false
+            com.superflow.data.Prefs.PERFORMANCE_PERFORMANCE -> return true
+        }
         if (isLowEnd(context)) return false
+        cachedMidEnd?.let { return it }
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-        // Mid is low-RAM false but still constrained, or older API.
-        return (am?.isLowRamDevice == false && Runtime.getRuntime().availableProcessors() <= 6) ||
+        val result = (am?.isLowRamDevice == false && Runtime.getRuntime().availableProcessors() <= 6) ||
             Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+        cachedMidEnd = result
+        return result
+    }
+
+    /** True when motion should be reduced for performance, even on mid/high. */
+    fun shouldReduceMotion(context: Context): Boolean {
+        val mode = com.superflow.data.Prefs.get(context).performanceMode
+        when (mode) {
+            com.superflow.data.Prefs.PERFORMANCE_QUALITY -> return false
+            com.superflow.data.Prefs.PERFORMANCE_PERFORMANCE -> return true
+        }
+        return isLowEnd(context) || isMidEnd(context)
     }
 
     /** For tests / previews where no Context is available. */
@@ -61,4 +83,12 @@ fun rememberIsLowEnd(): Boolean {
 fun rememberIsMidEnd(): Boolean {
     val ctx = LocalContext.current
     return remember(ctx) { DevicePerformance.isMidEnd(ctx) }
+}
+
+@Composable
+fun rememberShouldReduceMotion(): Boolean {
+    val ctx = LocalContext.current
+    // Prefs can change at runtime via the toggle; re-read on each composition
+    // rather than caching, so switching modes takes effect without killing the process.
+    return DevicePerformance.shouldReduceMotion(ctx)
 }

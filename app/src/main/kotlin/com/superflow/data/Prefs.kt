@@ -49,7 +49,13 @@ class Prefs private constructor(context: Context) {
         const val PALETTE_OCEAN = 2
         const val PALETTE_DUSK = 3
         const val PALETTE_MONO = 4
-        const val PALETTE_COUNT = 5
+        const val PALETTE_TERRACOTTA = 5
+        const val PALETTE_AURORA = 6
+        const val PALETTE_COUNT = 7
+
+        const val PERFORMANCE_AUTO = 0
+        const val PERFORMANCE_PERFORMANCE = 1
+        const val PERFORMANCE_QUALITY = 2
 
         /** Dark-mode flavours. Only consulted when the app renders dark. */
         const val DARK_WARM = 0
@@ -207,6 +213,11 @@ class Prefs private constructor(context: Context) {
     var livingAccent: Boolean
         get() = bool("livingAccent", false)
         set(v) = setBool("livingAccent", v)
+
+    /** Performance tier override: Auto (detect), Performance (force low-end), Quality (force high-end). */
+    var performanceMode: Int
+        get() = num("performanceMode", PERFORMANCE_AUTO).coerceIn(0, 2)
+        set(v) = setNum("performanceMode", v.coerceIn(0, 2))
 
     /**
      * Counter bumped whenever a preference changes that can only take effect
