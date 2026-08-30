@@ -173,8 +173,12 @@ data class Habit(
     // Capacity fields
     val estimatedMinutes: Int = 5,
     val difficultyRating: Int = 3,             // 1=easy, 5=challenging
-    // Presentation
+    // Presentation (alpha3: per-habit overrides + personalization)
     val colorSeed: Int = 0,
+    val colorOverride: Int? = null,
+    val essential: Boolean = false,
+    val flexDays: Int = 0,
+    val quietHours: String? = null,
     val orderIndex: Int = 0,
     val status: Status = Status.ACTIVE,
     // Alpha2: a graduated habit is automatic — tracked weekly, not daily.

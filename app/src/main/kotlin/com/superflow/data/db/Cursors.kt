@@ -100,7 +100,12 @@ object Rows {
         stretchCount = c.int("stretchCount"), consecutiveStandards = c.int("consecutiveStandards"),
         estimatedMinutes = c.int("estimatedMinutes").coerceAtLeast(1),
         difficultyRating = c.int("difficultyRating").coerceIn(1, 5),
-        colorSeed = c.int("colorSeed"), orderIndex = c.int("orderIndex"),
+        colorSeed = c.int("colorSeed"),
+        colorOverride = try { c.intOrNull("colorOverride") } catch (_: Exception) { null },
+        essential = try { c.bool("essential") } catch (_: Exception) { false },
+        flexDays = try { c.int("flexDays") } catch (_: Exception) { 0 },
+        quietHours = try { c.strOrNull("quietHours") } catch (_: Exception) { null },
+        orderIndex = c.int("orderIndex"),
         status = Status.valueOf(c.str("status").ifBlank { "ACTIVE" }),
         graduated = c.bool("graduated"), graduatedAt = c.lngOrNull("graduatedAt"),
         createdAt = c.lng("createdAt")

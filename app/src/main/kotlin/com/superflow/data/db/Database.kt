@@ -23,7 +23,7 @@ class SuperFlowDatabase private constructor(context: Context) {
 
     companion object {
         const val NAME = "superflow.db"
-        const val VERSION = 6
+        const val VERSION = 7
         const val TAG = "SuperFlowDb"
 
         @Volatile private var instance: SuperFlowDatabase? = null
@@ -99,7 +99,8 @@ object Schema {
                 environmentPrepReminderTime TEXT, ladderHistory TEXT,
                 lastDifficultyRating INTEGER, stretchCount INTEGER, consecutiveStandards INTEGER,
                 estimatedMinutes INTEGER, difficultyRating INTEGER,
-                colorSeed INTEGER, orderIndex INTEGER, status TEXT,
+                colorSeed INTEGER, colorOverride INTEGER, essential INTEGER DEFAULT 0,
+                flexDays INTEGER DEFAULT 0, quietHours TEXT, orderIndex INTEGER, status TEXT,
                 graduated INTEGER, graduatedAt INTEGER, createdAt INTEGER)"""
         )
         db.execSQL("CREATE INDEX idx_habit_system ON habit(systemId)")
@@ -317,6 +318,7 @@ object Schema {
         if (old < 4) migrateToV4(db)
         if (old < 5) migrateToV5(db)
         if (old < 6) migrateToV6(db)
+        if (old < 7) migrateToV7(db)
     }
 
     /** v2: colour seeds, blueprint parent versions and the version table. */
@@ -555,6 +557,14 @@ object Schema {
      */
     private fun migrateToV6(db: SupportSQLiteDatabase) {
         guard(db, "v6 create captured_item") { createCapturedItem(db) }
+    }
+
+    /** v7: habit personalization (alpha3 F5.2): per-habit color, essential flag, flex budget, quiet hours. */
+    private fun migrateToV7(db: SupportSQLiteDatabase) {
+        addColumn(db, "habit", "ALTER TABLE habit ADD COLUMN colorOverride INTEGER")
+        addColumn(db, "habit", "ALTER TABLE habit ADD COLUMN essential INTEGER DEFAULT 0")
+        addColumn(db, "habit", "ALTER TABLE habit ADD COLUMN flexDays INTEGER DEFAULT 0")
+        addColumn(db, "habit", "ALTER TABLE habit ADD COLUMN quietHours TEXT")
     }
 
     private fun createCapturedItem(db: SupportSQLiteDatabase) {

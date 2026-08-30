@@ -304,7 +304,9 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         "lastDifficultyRating" to h.lastDifficultyRating,
         "stretchCount" to h.stretchCount, "consecutiveStandards" to h.consecutiveStandards,
         "estimatedMinutes" to h.estimatedMinutes, "difficultyRating" to h.difficultyRating,
-        "colorSeed" to h.colorSeed, "orderIndex" to h.orderIndex,
+        "colorSeed" to h.colorSeed, "colorOverride" to h.colorOverride,
+        "essential" to h.essential, "flexDays" to h.flexDays, "quietHours" to h.quietHours,
+        "orderIndex" to h.orderIndex,
         "status" to h.status.name,
         "graduated" to h.graduated, "graduatedAt" to h.graduatedAt,
         "createdAt" to h.createdAt
