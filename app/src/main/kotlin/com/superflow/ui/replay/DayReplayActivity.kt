@@ -25,7 +25,6 @@ import com.superflow.domain.DayReplay
 import com.superflow.ui.theme.SfThemeFromPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.time.LocalDate
 
 class DayReplayActivity : ComponentActivity() {
 

@@ -2,9 +2,7 @@ package com.superflow.ui.studio
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.isSystemInDarkTheme
 import com.superflow.data.Prefs
-import com.superflow.design.ThemeSelection
 import com.superflow.ui.theme.SfDarkVariant
 import com.superflow.ui.theme.SfDensityLevel
 import com.superflow.ui.theme.SfMotionLevel

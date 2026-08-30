@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.superflow.design.Space
 import com.superflow.domain.DayReplay
@@ -37,7 +38,7 @@ fun DayReplayScreen(
 }
 
 @Composable
-private fun accentFor(kind: DayReplay.EventKind) = when (kind) {
+private fun accentFor(kind: DayReplay.EventKind): Color = when (kind) {
     DayReplay.EventKind.CHECK_IN -> MaterialTheme.colorScheme.primary
     DayReplay.EventKind.MISS -> MaterialTheme.colorScheme.error
     DayReplay.EventKind.SKIP -> MaterialTheme.colorScheme.outline
