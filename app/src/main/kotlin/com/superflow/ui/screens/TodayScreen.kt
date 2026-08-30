@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -37,12 +38,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.superflow.core.time.SfTime
 import com.superflow.data.model.Level
 import com.superflow.design.Space
 import com.superflow.ui.components.SfCard
@@ -126,6 +131,7 @@ fun TodayScreen(
             verticalArrangement = Arrangement.spacedBy(SfTheme.density.cardGap.dp),
         ) {
             todayRows(
+                state = state,
                 rows = state.rows,
                 entered = entered,
                 onAction = onAction,
@@ -145,6 +151,7 @@ fun TodayScreen(
  * own LazyListScope.itemsIndexed, which does something different.
  */
 private fun LazyListScope.todayRows(
+    state: TodayUiState,
     rows: List<TodayRow>,
     entered: Boolean,
     onAction: (TodayAction) -> Unit,
@@ -152,6 +159,7 @@ private fun LazyListScope.todayRows(
     rows.forEachIndexed { index, row ->
         item(key = row.stableId, contentType = row::class.simpleName) {
             TodayRowItem(
+                state = state,
                 row = row,
                 index = index,
                 entered = entered,
@@ -163,6 +171,7 @@ private fun LazyListScope.todayRows(
 
 @Composable
 private fun TodayRowItem(
+    state: TodayUiState,
     row: TodayRow,
     index: Int,
     entered: Boolean,
@@ -183,7 +192,7 @@ private fun TodayRowItem(
             slideInVertically(motion.tween(motion.normal, delayMs = delay)) { it / 6 },
     ) {
         when (row) {
-            is TodayRow.Progress -> ProgressBlock(row)
+            is TodayRow.Progress -> ProgressBlock(state = state, row = row)
             is TodayRow.IdentityCard -> IdentityBlock(row)
             is TodayRow.Section -> SfSectionHeader(title = row.title)
             is TodayRow.HabitRow -> HabitBlock(row, onAction)
@@ -200,21 +209,88 @@ private fun TodayRowItem(
 }
 
 @Composable
-private fun ProgressBlock(row: TodayRow.Progress) {
-    Row(
+private fun ProgressBlock(state: TodayUiState, row: TodayRow.Progress) {
+    val scheme = MaterialTheme.colorScheme
+    val nextAction = remember(state.rows) {
+        state.rows.filterIsInstance<TodayRow.Focus>()
+            .firstOrNull()?.items?.firstOrNull { !it.done }?.title
+    }
+    val greetingText = when (state.greeting) {
+        com.superflow.core.time.Greeting.MORNING -> "Good morning"
+        com.superflow.core.time.Greeting.AFTERNOON -> "Good afternoon"
+        else -> "Good evening"
+    }
+    val dateLabel = try { SfTime.humanDay(state.date) } catch (_: Exception) { state.date.toString() }
+
+    val gradient = Brush.linearGradient(
+        colors = listOf(
+            scheme.primary.copy(alpha = 0.12f),
+            scheme.primaryContainer.copy(alpha = 0.18f),
+        ),
+    )
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = Space.SM.dp)
+            .clip(SfTheme.shapes.card)
+            .background(gradient)
+            .padding(Space.BASE.dp)
             .semantics { heading() },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Space.LG.dp),
     ) {
-        SfProgressRing(done = row.done, total = row.total)
         Text(
-            text = row.message,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            text = dateLabel,
+            style = MaterialTheme.typography.labelLarge,
+            color = scheme.onSurfaceVariant,
         )
+        Text(
+            text = greetingText,
+            style = MaterialTheme.typography.headlineSmall,
+            color = scheme.onSurface,
+        )
+        Spacer(modifier = Modifier.height(Space.MD.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Space.LG.dp),
+        ) {
+            SfProgressRing(done = row.done, total = row.total, size = 96, strokeWidth = 8)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (row.total <= 0) "A quiet day" else "${row.done} of ${row.total} done",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = scheme.onSurface,
+                )
+                Text(
+                    text = row.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (nextAction != null) {
+            Spacer(modifier = Modifier.height(Space.MD.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.small)
+                    .background(scheme.surface.copy(alpha = 0.72f))
+                    .clickable { /* focus card handles the action; this is affordance */ }
+                    .padding(horizontal = Space.SM.dp, vertical = Space.SM.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "Next: $nextAction",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "Focus",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = scheme.primary,
+                )
+            }
+        }
     }
 }
 
