@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.Icon
@@ -100,7 +101,7 @@ fun JourneyScreen(
         state.nodes.associateBy({ it.kind.key + ":" + it.id }, { it.title })
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize().statusBarsPadding()) {
         val maxContent = 600.dp
         val horizPad = if (maxWidth > maxContent) (maxWidth - maxContent) / 2 else 0.dp
         LazyColumn(

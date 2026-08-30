@@ -5,6 +5,8 @@ import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.view.WindowManager
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -74,13 +76,22 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        WindowCompat.setDecorFitsSystemWindows(window, false)
         // Overlays must be merged into the theme before any view inflates,
         // which means before super.onCreate.
         prefs = Prefs.get(this)
         SfTheme.apply(this, prefs)
         builtAtRevision = prefs.appearanceRevision
         super.onCreate(savedInstanceState)
+        // Edge-to-edge on every device, including Samsung with display cutouts.
+        // Must be after super.onCreate so the window is attached.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        try {
+            enableEdgeToEdge()
+        } catch (_: Exception) { }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
 
         if (!prefs.onboarded) {
             startActivity(Intent(this, OnboardingActivity::class.java))
@@ -92,6 +103,21 @@ class MainActivity : AppCompatActivity() {
         pager = findViewById(R.id.pager)
         bottomNav = findViewById(R.id.bottom_nav)
         rail = findViewById(R.id.nav_rail)
+
+        // Samsung + gesture nav: keep the bottom bar above the system nav bar
+        // and the rail clear of the status bar / cutout.
+        ViewCompat.setOnApplyWindowInsetsListener(bottomNav) { v, insets ->
+            val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            v.updatePadding(bottom = navBars.bottom)
+            insets
+        }
+        rail?.let { r ->
+            ViewCompat.setOnApplyWindowInsetsListener(r) { v, insets ->
+                val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+                v.updatePadding(top = bars.top, bottom = bars.bottom)
+                insets
+            }
+        }
 
         pager.isUserInputEnabled = false
         pager.offscreenPageLimit = 2
