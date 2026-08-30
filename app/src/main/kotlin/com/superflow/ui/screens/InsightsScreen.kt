@@ -339,9 +339,9 @@ private fun BandsCard(bands: List<Analytics.ConsistencyBand>) {
                     val w = size.width
                     val h = size.height
                     val trackH = h * 0.45f
-                    val bg = androidx.compose.ui.graphics.Color(0xFFD9DFD8)
-                    val bandColor = androidx.compose.ui.graphics.Color(0xFF3A7D5C).copy(alpha = 0.22f)
-                    val medianColor = androidx.compose.ui.graphics.Color(0xFF3A7D5C)
+                    val bg = MaterialTheme.colorScheme.surfaceVariant
+                    val bandColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
+                    val medianColor = MaterialTheme.colorScheme.primary
                     // full 0-100 track
                     drawRoundRect(color = bg, topLeft = androidx.compose.ui.geometry.Offset(0f, h/2 - trackH/2), size = androidx.compose.ui.geometry.Size(w, trackH), cornerRadius = androidx.compose.ui.geometry.CornerRadius(trackH/2))
                     // p25-p75 band
@@ -394,8 +394,8 @@ private fun TimeOfDayCard(patterns: List<Analytics.TimeOfDayPattern>) {
                 ) {
                     val w = size.width
                     val h = size.height
-                    val bg = androidx.compose.ui.graphics.Color(0xFFD9DFD8)
-                    val fill = androidx.compose.ui.graphics.Color(0xFF3A7D5C)
+                    val bg = MaterialTheme.colorScheme.surfaceVariant
+                    val fill = MaterialTheme.colorScheme.primary
                     drawRoundRect(color = bg, topLeft = androidx.compose.ui.geometry.Offset(0f, h/2 - 5.dp.toPx()/2), size = androidx.compose.ui.geometry.Size(w, 5.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
                     val fw = (p.rate.coerceIn(0.0, 1.0) * w).toFloat()
                     drawRoundRect(color = fill, topLeft = androidx.compose.ui.geometry.Offset(0f, h/2 - 5.dp.toPx()/2), size = androidx.compose.ui.geometry.Size(fw, 5.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))

@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -268,15 +269,15 @@ private fun ProgressBlock(state: TodayUiState, row: TodayRow.Progress) {
             .firstOrNull()?.items?.firstOrNull { !it.done }?.title
     }
     val greetingText = when (state.greeting) {
-        com.superflow.core.time.Greeting.MORNING -> "Good morning"
-        com.superflow.core.time.Greeting.AFTERNOON -> "Good afternoon"
-        else -> "Good evening"
+        com.superflow.core.time.Greeting.MORNING -> stringResource(R.string.good_morning)
+        com.superflow.core.time.Greeting.AFTERNOON -> stringResource(R.string.good_afternoon)
+        else -> stringResource(R.string.good_evening)
     }
     val dateLabel = try { SfTime.humanDay(state.date) } catch (_: Exception) { state.date.toString() }
 
     val context = LocalContext.current
-    val livingAccentOn = remember { com.superflow.data.Prefs.get(context).livingAccent }
-    val hour = remember { java.time.LocalTime.now().hour }
+    val livingAccentOn = com.superflow.data.Prefs.get(context).livingAccent
+    val hour = java.time.LocalTime.now().hour
     val accent = if (livingAccentOn) com.superflow.design.tokens.LivingAccent.shift(scheme.primary, hour) else scheme.primary
     val gradient = Brush.linearGradient(
         colors = listOf(
@@ -385,7 +386,7 @@ private fun HabitBlock(row: TodayRow.HabitRow, onAction: (TodayAction) -> Unit) 
         done = item.done,
         skipped = item.skipped,
         missed = item.missed,
-        accentColor = accent,
+        id = habit.id,
         onClick = { onAction(TodayAction.OpenHabit(habit.id)) },
         onCheckIn = { level -> onAction(TodayAction.CheckIn(habit.id, level)) },
         onSkip = { onAction(TodayAction.Skip(habit.id)) },

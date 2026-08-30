@@ -109,6 +109,16 @@ class Prefs private constructor(context: Context) {
     private fun floatNum(key: String, def: Float) = p.getFloat(key, def)
     private fun setFloatNum(key: String, v: Float) { p.edit().putFloat(key, v).apply(); bump() }
 
+    init {
+        if (p.contains("appLockPinHash") && !secrets.contains("appLockPinHash")) {
+            val hash = p.getString("appLockPinHash", "") ?: ""
+            if (hash.isNotBlank()) {
+                secrets.edit().putString("appLockPinHash", hash).apply()
+                p.edit().remove("appLockPinHash").apply()
+            }
+        }
+    }
+
     /* ------------------------------------------------------------- general */
 
     var onboarded: Boolean
@@ -564,10 +574,10 @@ class Prefs private constructor(context: Context) {
         get() = bool("appLockBiometric", true)
         set(v) = setBool("appLockBiometric", v)
 
-    /** SHA-256 hash of the PIN, or empty when no PIN is set. */
+    /** SHA-256 hash of the PIN, or empty when no PIN is set. Stored in secrets file excluded from backup. */
     var appLockPinHash: String
-        get() = str("appLockPinHash", "")
-        set(v) = setStr("appLockPinHash", v)
+        get() = secrets.getString("appLockPinHash", "") ?: ""
+        set(v) { secrets.edit().putString("appLockPinHash", v).apply(); bump() }
 
     /** Lock immediately on background, or after a short grace period (seconds). */
     var appLockGraceSeconds: Int

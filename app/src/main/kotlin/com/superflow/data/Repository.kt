@@ -131,13 +131,13 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     private fun query(sql: String, args: Array<Any?>? = null) =
         db.query(SimpleSQLiteQuery(sql, args))
 
-    private fun insert(table: String, values: android.content.ContentValues) = writeLock.withLock {
-        db.insert(table, android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE, values)
+    private fun insert(table: String, values: android.content.ContentValues) {
+        writeLock.withLock { db.insert(table, android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE, values) }
         invalidate()
     }
 
-    fun delete(table: String, where: String, args: Array<Any?>) = writeLock.withLock {
-        db.delete(table, where, args)
+    fun delete(table: String, where: String, args: Array<Any?>) {
+        writeLock.withLock { db.delete(table, where, args) }
         invalidate()
     }
 
@@ -324,10 +324,7 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         db.delete("obstacle", "habitId=?", arrayOf(id))
         db.delete("focus", "habitId=?", arrayOf(id))
         db.delete("evidence", "sourceHabitId=?", arrayOf(id))
-        // Flow steps reference habits by id but survive the habit's deletion;
-        // they are simply detached so a flow can outlive an edited habit.
         db.execSQL("UPDATE flowstep SET habitId=NULL WHERE habitId=?", arrayOf(id))
-        invalidate()
     }
 
     fun scheduleOf(habit: Habit): Schedule = Schedule(

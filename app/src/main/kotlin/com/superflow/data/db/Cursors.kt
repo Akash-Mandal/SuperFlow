@@ -1,6 +1,7 @@
 package com.superflow.data.db
 
 import android.database.Cursor
+import android.util.Log
 import com.superflow.data.model.*
 import com.superflow.util.objects
 import com.superflow.util.string
@@ -386,7 +387,10 @@ private fun parseEvolutionHistory(raw: String): List<IdentityEvolution> {
                 date = o.string("date")
             )
         }
-    } catch (_: Exception) { emptyList() }
+    } catch (e: Exception) {
+            Log.w("Cursors", "Failed to parse IdentityEvolutions: ${e.message}")
+            emptyList()
+        }
 }
 
 private fun parseGoalMilestones(raw: String): List<GoalMilestone> {
@@ -404,7 +408,10 @@ private fun parseGoalMilestones(raw: String): List<GoalMilestone> {
                 linkedHabitIds = linkedHabitIds
             )
         }
-    } catch (_: Exception) { emptyList() }
+    } catch (e: Exception) {
+            Log.w("Cursors", "Failed to parse GoalMilestones: ${e.message}")
+            emptyList()
+        }
 }
 
 private fun parseLadderEvolution(raw: String): List<LadderEvolution> {
@@ -419,7 +426,10 @@ private fun parseLadderEvolution(raw: String): List<LadderEvolution> {
                 date = o.string("date")
             )
         }
-    } catch (_: Exception) { emptyList() }
+    } catch (e: Exception) {
+            Log.w("Cursors", "Failed to parse LadderEvolutions: ${e.message}")
+            emptyList()
+        }
 }
 
 private fun parseContextTags(raw: String): List<String> {
@@ -431,8 +441,8 @@ private fun parseContextTags(raw: String): List<String> {
             if (s.isNotBlank()) s
             else arr.optJSONObject(i)?.optString("tag", "")?.takeIf { it.isNotBlank() }
         }
-    } catch (_: Exception) {
-        // Fallback: comma-separated
+    } catch (e: Exception) {
+        Log.w("Cursors", "Failed to parse ContextTags, falling back to CSV: ${e.message}")
         raw.split(",").map { it.trim() }.filter { it.isNotBlank() }
     }
 }
@@ -450,7 +460,10 @@ private fun parseReviewActionItems(raw: String): List<ReviewActionItem> {
                 outcome = o.optString("outcome", null)
             )
         }
-    } catch (_: Exception) { emptyList() }
+    } catch (e: Exception) {
+            Log.w("Cursors", "Failed to parse ReviewActionItems: ${e.message}")
+            emptyList()
+        }
 }
 
 private fun JSONArray.strings(): List<String> =

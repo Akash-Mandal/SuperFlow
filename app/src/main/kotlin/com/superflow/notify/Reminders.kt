@@ -359,12 +359,18 @@ object Reminders {
             context, id, Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val prefs = com.superflow.data.Prefs.get(context)
+        val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val notificationColor = try {
+            com.superflow.design.ColorRoles.schemeFor(prefs.palette, isDark).primary
+        } catch (_: Exception) { 0xFF3A7D5C.toInt() }
         val builder = NotificationCompat.Builder(context, channel)
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setSmallIcon(R.drawable.ic_bolt)
-            .setColor(0xFF3A7D5C.toInt())
+            .setColor(notificationColor)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(open)

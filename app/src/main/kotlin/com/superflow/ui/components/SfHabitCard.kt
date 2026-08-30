@@ -89,6 +89,7 @@ fun SfHabitCard(
     accentColor: Color? = null,
     swipeEnabled: Boolean = true,
     showHistory: Boolean = true,
+    id: String = title,
     onClick: (() -> Unit)? = null,
     onCheckIn: ((Level) -> Unit)? = null,
     onSkip: (() -> Unit)? = null,
@@ -106,7 +107,7 @@ fun SfHabitCard(
     val maxTravelPx = with(density) { 88.dp.toPx() }
     val triggerPx = with(density) { 56.dp.toPx() }
 
-    var offsetPx by remember(title) { mutableFloatStateOf(0f) }
+    var offsetPx by remember(id) { mutableFloatStateOf(0f) }
     val settledOffset by animateFloatAsState(
         targetValue = offsetPx,
         animationSpec = motion.spring(),
@@ -115,7 +116,7 @@ fun SfHabitCard(
 
     // Latches when the swipe passes the trigger, so the confirming tick
     // fires once per crossing rather than once per frame.
-    var armed by remember(title) { mutableStateOf(false) }
+    var armed by remember(id) { mutableStateOf(false) }
 
     val settled = done || skipped
     val defaultLevel = selectedLevel ?: levels.firstOrNull() ?: Level.STANDARD
