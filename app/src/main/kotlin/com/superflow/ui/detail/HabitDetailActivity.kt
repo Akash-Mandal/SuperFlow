@@ -301,6 +301,49 @@ class HabitDetailActivity : ScrollActivity() {
             }
         }
         personalBox.addView(quietView)
+
+        val colorLabel = TextView(this).apply {
+            text = "Accent color"
+            textSize = 13f
+            setPadding(dpi(4), dpi(12), dpi(4), dpi(4))
+        }
+        personalBox.addView(colorLabel)
+        val colorRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dpi(4), dpi(4), dpi(4), dpi(4))
+        }
+        val accentChoices: List<Pair<Int?, String>> = listOf(
+            null to "Default",
+            0xFF3A7D5C.toInt() to "Green",
+            0xFF4A90A4.toInt() to "Ocean",
+            0xFF7A5C9A.toInt() to "Dusk",
+            0xFFD18A3A.toInt() to "Terra",
+            0xFFB8545A.toInt() to "Rose",
+        )
+        for ((cInt, _) in accentChoices) {
+            val dot = View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dpi(32), dpi(32)).apply {
+                    setMargins(dpi(4), dpi(4), dpi(4), dpi(4))
+                }
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    if (cInt == null) {
+                        setColor(android.graphics.Color.TRANSPARENT)
+                        setStroke(dpi(2), android.graphics.Color.parseColor("#9E9E9E"))
+                    } else {
+                        setColor(cInt)
+                        if (h.colorOverride == cInt) setStroke(dpi(3), android.graphics.Color.WHITE)
+                    }
+                }
+                elevation = if (h.colorOverride == cInt) dpi(2).toFloat() else 0f
+                setOnClickListener {
+                    val v = if (cInt == null) "" else cInt.toString()
+                    exec("update_habit", jsonOf("habit" to h.id, "field" to "colorOverride", "value" to v))
+                }
+            }
+            colorRow.addView(dot)
+        }
+        personalBox.addView(colorRow)
         content.addView(personalCard)
 
         // Design

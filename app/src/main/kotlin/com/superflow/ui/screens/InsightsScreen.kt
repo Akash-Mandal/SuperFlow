@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.superflow.design.ChartGeometry
 import com.superflow.design.Periods
 import com.superflow.design.Space
+import com.superflow.domain.Analytics
 import com.superflow.ui.components.SfBar
 import com.superflow.ui.components.SfBarChart
 import com.superflow.ui.components.SfCard
@@ -124,6 +125,11 @@ fun InsightsScreen(
         }
 
         item(key = "heroStats") { HeroStatsRow(state = state, period = period) }
+
+        val bands = androidx.compose.runtime.remember(state.daily) { Analytics.weeklyBands(state.daily) }
+        if (bands.size >= 2) {
+            item(key = "bands") { BandsCard(bands = bands) }
+        }
 
         item(key = "consistency") {
             ConsistencyCard(state = state, period = period)
@@ -292,6 +298,62 @@ private fun HeroStatsRow(state: InsightsUiState, period: Periods.Period) {
             comparisonLabel = if (delta != null) "vs first half of period" else null,
             series = series,
         )
+    }
+}
+
+@Composable
+private fun BandsCard(bands: List<Analytics.ConsistencyBand>) {
+    SfCard(variant = SfCardVariant.Filled) {
+        Text(
+            text = "Weekly consistency bands",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.semantics { heading() },
+        )
+        Spacer(modifier = Modifier.height(Space.SM.dp))
+        Text(
+            text = "p25–p75 band with median. Stable bands mean stable weeks.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(Space.MD.dp))
+        bands.forEachIndexed { idx, b ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = Space.XS.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Space.SM.dp),
+            ) {
+                Text(
+                    text = "W${idx + 1}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(28.dp),
+                )
+                androidx.compose.foundation.Canvas(
+                    modifier = Modifier.weight(1f).height(14.dp),
+                ) {
+                    val w = size.width
+                    val h = size.height
+                    val trackH = h * 0.45f
+                    val bg = androidx.compose.ui.graphics.Color(0xFFD9DFD8)
+                    val bandColor = androidx.compose.ui.graphics.Color(0xFF3A7D5C).copy(alpha = 0.22f)
+                    val medianColor = androidx.compose.ui.graphics.Color(0xFF3A7D5C)
+                    // full 0-100 track
+                    drawRoundRect(color = bg, topLeft = androidx.compose.ui.geometry.Offset(0f, h/2 - trackH/2), size = androidx.compose.ui.geometry.Size(w, trackH), cornerRadius = androidx.compose.ui.geometry.CornerRadius(trackH/2))
+                    // p25-p75 band
+                    val left = (b.p25.coerceIn(0.0, 1.0) * w).toFloat()
+                    val right = (b.p75.coerceIn(0.0, 1.0) * w).toFloat()
+                    drawRoundRect(color = bandColor, topLeft = androidx.compose.ui.geometry.Offset(left, h/2 - trackH/2), size = androidx.compose.ui.geometry.Size((right - left).coerceAtLeast(4f), trackH), cornerRadius = androidx.compose.ui.geometry.CornerRadius(trackH/2))
+                    // median dot
+                    val mx = (b.median.coerceIn(0.0, 1.0) * w).toFloat()
+                    drawCircle(color = medianColor, radius = 4.dp.toPx(), center = androidx.compose.ui.geometry.Offset(mx, h/2))
+                }
+                Text(
+                    text = "${ChartGeometry.percent(b.mean)}%",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
     }
 }
 
