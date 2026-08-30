@@ -246,6 +246,62 @@ class HabitDetailActivity : ScrollActivity() {
         }
         content.addView(textCard("Which laws are working?", laws))
 
+        // Personalization (alpha3 F5.2)
+        content.addView(section("PERSONALIZATION"))
+        val personalCard = layoutInflater.inflate(R.layout.item_text_card, content, false)
+        personalCard.findViewById<TextView>(R.id.text_title).text = "Make it yours"
+        personalCard.findViewById<TextView>(R.id.text_body).text =
+            "Essential habits stay on Minimum Mode. Flex days let you miss without breaking a streak."
+        val personalBox = personalCard.findViewById<TextView>(R.id.text_title).parent as LinearLayout
+
+        val essentialSwitch = MaterialSwitch(this).apply {
+            text = "Essential — keep on hard days"
+            isChecked = h.essential
+            setOnCheckedChangeListener { _, checked ->
+                exec("update_habit", jsonOf("habit" to h.id, "field" to "essential", "value" to checked.toString()))
+            }
+        }
+        personalBox.addView(essentialSwitch)
+
+        val flexLabel = TextView(this).apply {
+            text = "Flex days per week"
+            textSize = 13f
+            setPadding(dpi(4), dpi(12), dpi(4), dpi(4))
+        }
+        personalBox.addView(flexLabel)
+        val flexGroup = ChipGroup(this).apply { isSingleSelection = true }
+        for (v in listOf(0, 1, 2)) {
+            val chip = Chip(this).apply {
+                text = if (v == 0) "Strict" else "$v flex"
+                isCheckable = true
+                isChecked = h.flexDays == v
+                setEnsureMinTouchTargetSize(false)
+                setOnClickListener {
+                    exec("update_habit", jsonOf("habit" to h.id, "field" to "flexDays", "value" to v.toString()))
+                }
+            }
+            flexGroup.addView(chip)
+        }
+        personalBox.addView(flexGroup)
+
+        val quietView = TextView(this).apply {
+            text = "Quiet hours: ${h.quietHours ?: "none — tap to set"}"
+            textSize = 14f
+            setPadding(dpi(4), dpi(16), dpi(4), dpi(4))
+            setOnClickListener {
+                com.superflow.ui.sheets.TextInputSheet.show(
+                    supportFragmentManager,
+                    title = "Quiet hours",
+                    hint = "22:00-07:00",
+                    value = h.quietHours ?: "",
+                ) { text ->
+                    exec("update_habit", jsonOf("habit" to h.id, "field" to "quietHours", "value" to text.trim()))
+                }
+            }
+        }
+        personalBox.addView(quietView)
+        content.addView(personalCard)
+
         // Design
         content.addView(section("THE DESIGN"))
         val design = buildString {

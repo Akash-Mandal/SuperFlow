@@ -2345,7 +2345,8 @@ object Capabilities {
         "benefit" to "", "temptationBundle" to "", "reframe" to "", "frictionPlan" to "",
         "environmentPrep" to "", "reward" to "", "recoveryPlan" to "", "unit" to "",
         "targetCount" to "", "mode" to "", "trackType" to "", "reminder" to "",
-        "protected" to "", "status" to ""
+        "protected" to "", "status" to "", "essential" to "", "flexDays" to "",
+        "quietHours" to "", "colorOverride" to ""
     )
 
     private fun applyField(h: Habit, field: String, value: String): Habit? = when (field.lowercase()) {
@@ -2372,6 +2373,17 @@ object Capabilities {
         "reminder", "reminderenabled" -> h.copy(reminderEnabled = value.equalsTrue())
         "protected", "protectedroutine" -> h.copy(protectedRoutine = value.equalsTrue())
         "status" -> runCatching { h.copy(status = Status.valueOf(value.uppercase())) }.getOrDefault(h)
+        "essential" -> h.copy(essential = value.equalsTrue())
+        "flexdays", "flex" -> h.copy(flexDays = value.toIntOrNull()?.coerceIn(0, 7) ?: h.flexDays)
+        "quiethours", "quiet" -> h.copy(quietHours = value.takeIf { it.isNotBlank() })
+        "coloroverride", "color" -> run {
+            val p = when {
+                value.isBlank() -> null
+                value.startsWith("#") -> value.removePrefix("#").toIntOrNull(16)
+                else -> value.toIntOrNull()
+            }
+            h.copy(colorOverride = p)
+        }
         else -> null
     }
 
