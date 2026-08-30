@@ -1,6 +1,6 @@
-package com.superflow.ui.blueprint
-
 @file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+package com.superflow.ui.blueprint
 
 
 import android.content.Intent

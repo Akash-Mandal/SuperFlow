@@ -1,6 +1,6 @@
-package com.superflow.ui.screens
-
 @file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+package com.superflow.ui.screens
 
 
 import androidx.compose.animation.core.LinearEasing

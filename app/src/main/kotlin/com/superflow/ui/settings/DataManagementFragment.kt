@@ -1,6 +1,6 @@
-package com.superflow.ui.settings
-
 @file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+package com.superflow.ui.settings
 
 
 import android.content.Intent

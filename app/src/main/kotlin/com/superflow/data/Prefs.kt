@@ -1,6 +1,6 @@
-package com.superflow.data
-
 @file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+package com.superflow.data
 
 
 import android.content.Context

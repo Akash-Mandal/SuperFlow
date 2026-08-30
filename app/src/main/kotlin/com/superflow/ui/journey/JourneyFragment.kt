@@ -1,6 +1,6 @@
-package com.superflow.ui.journey
-
 @file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+package com.superflow.ui.journey
 
 
 import android.content.Intent

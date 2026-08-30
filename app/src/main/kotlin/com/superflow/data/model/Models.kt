@@ -1,6 +1,6 @@
-package com.superflow.data.model
-
 @file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+package com.superflow.data.model
 
 
 import java.util.UUID
