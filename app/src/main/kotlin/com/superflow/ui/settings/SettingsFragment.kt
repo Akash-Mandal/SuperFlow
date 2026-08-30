@@ -1,5 +1,8 @@
 package com.superflow.ui.settings
 
+@file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater

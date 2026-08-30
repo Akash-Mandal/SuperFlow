@@ -1,3 +1,5 @@
+@file:Suppress("LargeClass", "TooManyFunctions", "LongParameterList", "HardcodedText")
+
 package com.superflow.domain
 
 import com.superflow.core.schedule.Recurrence

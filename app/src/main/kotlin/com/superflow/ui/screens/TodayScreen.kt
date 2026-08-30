@@ -49,6 +49,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.superflow.R
 import com.superflow.core.time.SfTime
 import com.superflow.data.model.Level
 import com.superflow.design.Space
@@ -336,13 +337,13 @@ private fun ProgressBlock(state: TodayUiState, row: TodayRow.Progress) {
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = "Next: $nextAction",
+                    text = stringResource(R.string.next_action, nextAction),
                     style = MaterialTheme.typography.bodyMedium,
                     color = scheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    text = "Focus",
+                    text = stringResource(R.string.focus),
                     style = MaterialTheme.typography.labelMedium,
                     color = scheme.primary,
                 )
@@ -447,7 +448,7 @@ private fun LoadBlock(row: TodayRow.Load) {
                 .background(tint, CircleShape),
         )
         Text(
-            text = "${row.habits} habits · ~${row.minutes} min today",
+            text = stringResource(R.string.daily_load, row.habits, row.minutes),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -461,7 +462,8 @@ private fun ReturningBlock(row: TodayRow.Returning, onAction: (TodayAction) -> U
         onClick = { row.habits.firstOrNull()?.let { onAction(TodayAction.OpenHabit(it.id)) } },
     ) {
         Text(
-            text = if (row.habits.size == 1) "Ready to return?" else "Ready to return? (${row.habits.size})",
+            text = if (row.habits.size == 1) stringResource(R.string.ready_to_return)
+            else stringResource(R.string.ready_to_return_count, row.habits.size),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
             modifier = Modifier.semantics { heading() },
@@ -484,7 +486,7 @@ private fun FocusBlock(row: TodayRow.Focus, onAction: (TodayAction) -> Unit) {
     SfCard(variant = SfCardVariant.Elevated) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Focus",
+                text = stringResource(R.string.focus),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier
                     .weight(1f)
@@ -530,10 +532,10 @@ private fun FocusBlock(row: TodayRow.Focus, onAction: (TodayAction) -> Unit) {
         Spacer(modifier = Modifier.height(Space.XS.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(Space.SM.dp)) {
             TextButton(onClick = { onAction(TodayAction.FocusAdd) }) {
-                Text("Add")
+                Text(stringResource(R.string.add))
             }
             TextButton(onClick = { onAction(TodayAction.FocusSuggest) }) {
-                Text("Suggest")
+                Text(stringResource(R.string.suggest))
             }
         }
     }
@@ -544,7 +546,7 @@ private fun FocusBlock(row: TodayRow.Focus, onAction: (TodayAction) -> Unit) {
 private fun EnergyBlock(row: TodayRow.Checkpoints, onAction: (TodayAction) -> Unit) {
     SfCard(variant = SfCardVariant.Filled) {
         Text(
-            text = "How is your energy right now?",
+            text = stringResource(R.string.how_is_energy),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.semantics { heading() },
         )

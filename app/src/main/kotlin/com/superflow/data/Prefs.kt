@@ -1,5 +1,8 @@
 package com.superflow.data
 
+@file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+
 import android.content.Context
 import android.content.SharedPreferences
 import com.superflow.design.Navigation

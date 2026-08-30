@@ -1,5 +1,8 @@
 package com.superflow.domain
 
+@file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+
 import com.superflow.core.schedule.Opportunities
 import com.superflow.core.schedule.Opportunity
 import com.superflow.core.schedule.OpportunityStatus

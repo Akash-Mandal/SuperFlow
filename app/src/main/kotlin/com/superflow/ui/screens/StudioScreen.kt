@@ -1,5 +1,8 @@
 package com.superflow.ui.screens
 
+@file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat

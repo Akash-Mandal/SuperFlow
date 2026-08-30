@@ -250,13 +250,13 @@ class HabitDetailActivity : ScrollActivity() {
         // Personalization (alpha3 F5.2)
         content.addView(section("PERSONALIZATION"))
         val personalCard = layoutInflater.inflate(R.layout.item_text_card, content, false)
-        personalCard.findViewById<TextView>(R.id.text_title).text = "Make it yours"
+        personalCard.findViewById<TextView>(R.id.text_title).text = getString(R.string.make_it_yours)
         personalCard.findViewById<TextView>(R.id.text_body).text =
             "Essential habits stay on Minimum Mode. Flex days let you miss without breaking a streak."
         val personalBox = personalCard.findViewById<TextView>(R.id.text_title).parent as LinearLayout
 
         val essentialSwitch = SwitchMaterial(this).apply {
-            text = "Essential — keep on hard days"
+            text = getString(R.string.essential_desc)
             isChecked = h.essential
             setOnCheckedChangeListener { _, checked ->
                 exec("update_habit", jsonOf("habit" to h.id, "field" to "essential", "value" to checked.toString()))
@@ -265,7 +265,7 @@ class HabitDetailActivity : ScrollActivity() {
         personalBox.addView(essentialSwitch)
 
         val flexLabel = TextView(this).apply {
-            text = "Flex days per week"
+            text = getString(R.string.flex_days_label)
             textSize = 13f
             setPadding(dpi(4), dpi(12), dpi(4), dpi(4))
         }
@@ -286,13 +286,13 @@ class HabitDetailActivity : ScrollActivity() {
         personalBox.addView(flexGroup)
 
         val quietView = TextView(this).apply {
-            text = "Quiet hours: ${h.quietHours ?: "none — tap to set"}"
+            text = getString(R.string.quiet_hours_label, h.quietHours ?: getString(R.string.quiet_hours_none))
             textSize = 14f
             setPadding(dpi(4), dpi(16), dpi(4), dpi(4))
             setOnClickListener {
                 com.superflow.ui.sheets.TextInputSheet.show(
                     supportFragmentManager,
-                    title = "Quiet hours",
+                    title = getString(R.string.quiet_hours),
                     hint = "22:00-07:00",
                     value = h.quietHours ?: "",
                 ) { text ->
@@ -303,7 +303,7 @@ class HabitDetailActivity : ScrollActivity() {
         personalBox.addView(quietView)
 
         val colorLabel = TextView(this).apply {
-            text = "Accent color"
+            text = getString(R.string.accent_color_label)
             textSize = 13f
             setPadding(dpi(4), dpi(12), dpi(4), dpi(4))
         }

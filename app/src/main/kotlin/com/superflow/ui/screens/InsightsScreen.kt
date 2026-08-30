@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -22,10 +24,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.superflow.R
 import com.superflow.design.ChartGeometry
 import com.superflow.design.Periods
 import com.superflow.design.Space
@@ -87,6 +91,7 @@ fun InsightsScreen(
     modifier: Modifier = Modifier,
 ) {
     val period = Periods.byId(state.periodId)
+    val bands = androidx.compose.runtime.remember(state.daily) { Analytics.weeklyBands(state.daily) }
 
     if (state.loading) {
         Column(
@@ -127,7 +132,6 @@ fun InsightsScreen(
 
         item(key = "heroStats") { HeroStatsRow(state = state, period = period) }
 
-        val bands = androidx.compose.runtime.remember(state.daily) { Analytics.weeklyBands(state.daily) }
         if (bands.size >= 2) {
             item(key = "bands") { BandsCard(bands = bands) }
         }
@@ -298,9 +302,9 @@ private fun HeroStatsRow(state: InsightsUiState, period: Periods.Period) {
     SfCard(variant = SfCardVariant.Filled) {
         SfStatHero(
             value = "${ChartGeometry.percent(mean)}%",
-            label = "Average completion",
+            label = stringResource(R.string.avg_completion),
             deltaFraction = delta,
-            comparisonLabel = if (delta != null) "vs first half of period" else null,
+            comparisonLabel = if (delta != null) stringResource(R.string.vs_first_half) else null,
             series = series,
         )
     }
@@ -310,13 +314,13 @@ private fun HeroStatsRow(state: InsightsUiState, period: Periods.Period) {
 private fun BandsCard(bands: List<Analytics.ConsistencyBand>) {
     SfCard(variant = SfCardVariant.Filled) {
         Text(
-            text = "Weekly consistency bands",
+            text = stringResource(R.string.weekly_bands_title),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.semantics { heading() },
         )
         Spacer(modifier = Modifier.height(Space.SM.dp))
         Text(
-            text = "p25–p75 band with median. Stable bands mean stable weeks.",
+            text = stringResource(R.string.weekly_bands_sub),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -366,13 +370,13 @@ private fun BandsCard(bands: List<Analytics.ConsistencyBand>) {
 private fun TimeOfDayCard(patterns: List<Analytics.TimeOfDayPattern>) {
     SfCard(variant = SfCardVariant.Filled) {
         Text(
-            text = "When do you succeed?",
+            text = stringResource(R.string.when_succeed_title),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.semantics { heading() },
         )
         Spacer(modifier = Modifier.height(Space.SM.dp))
         Text(
-            text = "Completion rate by time of day — based on cue times, not check-in times.",
+            text = stringResource(R.string.when_succeed_sub),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

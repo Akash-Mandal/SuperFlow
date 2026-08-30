@@ -1,5 +1,8 @@
 package com.superflow.ui.designer
 
+@file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper

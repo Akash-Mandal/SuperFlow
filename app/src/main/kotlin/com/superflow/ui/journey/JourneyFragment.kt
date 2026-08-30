@@ -1,5 +1,8 @@
 package com.superflow.ui.journey
 
+@file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater

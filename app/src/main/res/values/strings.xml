@@ -216,4 +216,42 @@
     <!-- Disclaimers -->
     <string name="disclaimer_attribution">SuperFlow is an independent project inspired by widely discussed behaviour-change principles. It is not affiliated with or endorsed by James Clear or the publishers of Atomic Habits.</string>
     <string name="disclaimer_care">SuperFlow is not a substitute for medical, mental-health, addiction or other professional care. If a behaviour feels unsafe, please reach out to a qualified person.</string>
+
+    <!-- Alpha3 polish — extracted hardcoded UI strings for i18n -->
+    <string name="next_action">Next: %1$s</string>
+    <string name="focus">Focus</string>
+    <string name="ready_to_return">Ready to return?</string>
+    <string name="ready_to_return_count">Ready to return? (%1$d)</string>
+    <string name="how_is_energy">How is your energy right now?</string>
+    <string name="daily_load">%1$d habits · ~%2$d min today</string>
+    <string name="suggest">Suggest</string>
+    <string name="add_action">Add</string>
+    <string name="remove_action">Remove %1$s</string>
+    <string name="weekly_bands_title">Weekly consistency bands</string>
+    <string name="weekly_bands_sub">p25–p75 band with median. Stable bands mean stable weeks.</string>
+    <string name="when_succeed_title">When do you succeed?</string>
+    <string name="when_succeed_sub">Completion rate by time of day — based on cue times, not check-in times.</string>
+    <string name="time_of_day_morning">Morning</string>
+    <string name="time_of_day_day">Day</string>
+    <string name="time_of_day_evening">Evening</string>
+    <string name="time_of_day_anytime">Anytime</string>
+    <string name="avg_completion">Average completion</string>
+    <string name="vs_first_half">vs first half of period</string>
+    <string name="graduated">Graduated</string>
+    <string name="in_maintenance">In maintenance</string>
+    <string name="make_it_yours">Make it yours</string>
+    <string name="essential_desc">Essential — keep on hard days</string>
+    <string name="flex_days_label">Flex days per week</string>
+    <string name="quiet_hours_label">Quiet hours: %1$s</string>
+    <string name="quiet_hours_none">none — tap to set</string>
+    <string name="accent_color_label">Accent color</string>
+    <string name="living_accent_title">Living accent</string>
+    <string name="living_accent_sub">Shifts accent hue with time of day</string>
+    <string name="performance_mode_title">Performance mode</string>
+    <string name="performance_auto">Auto</string>
+    <string name="performance_auto_detail">Detects device and chooses</string>
+    <string name="performance_performance">Performance</string>
+    <string name="performance_performance_detail">Forces reduced motion everywhere</string>
+    <string name="performance_quality">Quality</string>
+    <string name="performance_quality_detail">Forces full visuals everywhere</string>
 </resources>

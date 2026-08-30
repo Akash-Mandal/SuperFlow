@@ -1,5 +1,8 @@
 package com.superflow.ui.settings
 
+@file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -21,7 +24,6 @@ import com.superflow.R
 import com.superflow.SuperFlowApp
 import com.superflow.data.Prefs
 import com.superflow.design.Catalog
-import com.superflow.design.Choice
 import com.superflow.design.Choice
 import com.superflow.design.Contrast
 import com.superflow.design.Haptics

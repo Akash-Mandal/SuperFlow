@@ -1,5 +1,8 @@
 package com.superflow.ui.blueprint
 
+@file:Suppress("LargeClass", "TooManyFunctions", "HardcodedText")
+
+
 import android.content.Intent
 import android.view.View
 import android.widget.LinearLayout

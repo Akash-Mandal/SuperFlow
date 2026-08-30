@@ -369,6 +369,8 @@ object DataPolicy {
         "appLockTimeout" to prefs.appLockTimeout,
         "appLockBiometric" to prefs.appLockBiometric,
         "appLockGraceSeconds" to prefs.appLockGraceSeconds,
+        "livingAccent" to prefs.livingAccent,
+        "performanceMode" to prefs.performanceMode,
         "quietPerDay" to prefs.quietPerDay,
         "darkSchedule" to prefs.darkSchedule,
         "darkFrom" to prefs.darkFrom,
@@ -396,6 +398,8 @@ object DataPolicy {
         fun set(k: String): Set<String>? =
             if (json.has(k)) json.optJSONArray(k)?.strings()?.toSet() ?: emptySet() else null
 
+        bool("livingAccent")?.let { prefs.livingAccent = it }
+        int("performanceMode")?.let { prefs.performanceMode = it }
         int("themeMode")?.let { prefs.themeMode = it }
 
         // Appearance goes through setAppearance so the revision counter is
