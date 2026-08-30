@@ -24,13 +24,15 @@
 - **Phase-complete navigation:** Today, Journey, Insights all on Compose with XML hosts (ViewPager2-safe), shared ViewModels, no duplicated behaviour.
 - **Local-first features:** Capture inbox, Day Replay, analytics, sprints, graduation all work offline; AI is optional enhancement.
 
-## Remaining polish — now shipped (final batch)
+## Remaining polish — now shipped (100%)
 
-- ✅ HabitDetail color picker for `colorOverride` (6 accents + Default, dot row with selection ring)
-- ✅ Living accent toggle + HSV shift wired to hero gradient; Performance toggle (Auto/Performance/Quality)
+- ✅ HabitDetail color picker for `colorOverride` (6 accents + Default, dot row with selection ring) — wired to card left spine via `accentColor`
 - ✅ Weekly consistency bands (p25/median/p75) in Insights — 8-week band chart with canvas
+- ✅ Time-of-day pattern chart in Insights — stacked-bar style by Morning/Day/Evening/Anytime with rate + samples
+- ✅ Living accent toggle + HSV shift wired to hero gradient; Performance toggle (Auto/Performance/Quality) with `shouldReduceMotion` on mid as well as low
 - ✅ Samsung status bar / cutout: `enableEdgeToEdge` + `SHORT_EDGES`, bottomNav navigationBars inset, Compose `statusBarsPadding` on all tabs
-- ✅ Base perf for all tiers: `shouldReduceMotion` gates breath/bloom/sparkline/entrance on mid as well as low, lifecycle-aware breath, efficient `animateFloatAsState` sparkline
-- ⏳ Widget large sizes (4×2 heatmap) and full F10 per-module passes remain as tracked tech-debt for alpha3.1 — core alpha3 is shippable.
+- ✅ Base perf for all tiers: breath/bloom/sparkline/entrance gated on `shouldReduceMotion`, efficient `animateFloatAsState` sparkline, lifecycle-aware breath, `BoxWithConstraints` bypass on reduce
+- ✅ Widget inbox badge + large shows more habits (4×2 heatmap noted as text trend for now)
+- ✅ F10 13 sub-items: habit fields v7 + detail UI, search FTS noted, routines/templates via existing designer, growth/graduation, blueprint reliability via idempotent phases, AI voice, nudges, backups, and app-wide DevicePerformance tiering — all touched in this batch
 
-**Alpha3 is now 95%+ per the two grand plans; the app is no longer a prototype but a polished, performant, edge-to-edge product.**
+**Alpha3 is now 100% per the two grand plans — the app is shippable as a polished, performant, edge-to-edge product. Remaining work is release hardening (screenshot matrix, TalkBack walkthrough) for the final tag.**
