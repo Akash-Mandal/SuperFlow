@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -92,12 +93,10 @@ fun SfProgressRing(
         modifier = modifier
             .size(size.dp)
             .then(
-                if (breathScale != 1f) Modifier.then(
-                    androidx.compose.ui.graphics.graphicsLayer {
-                        scaleX = breathScale
-                        scaleY = breathScale
-                    }
-                ) else Modifier
+                if (breathScale != 1f) Modifier.graphicsLayer {
+                    scaleX = breathScale
+                    scaleY = breathScale
+                } else Modifier
             )
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .semantics {
