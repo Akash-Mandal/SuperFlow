@@ -203,6 +203,11 @@ class Prefs private constructor(context: Context) {
         get() = bool("highContrast", false)
         set(v) = setBool("highContrast", v)
 
+    /** Living accent shifts subtly with time of day (alpha3 §4.3). Off by default. */
+    var livingAccent: Boolean
+        get() = bool("livingAccent", false)
+        set(v) = setBool("livingAccent", v)
+
     /**
      * Counter bumped whenever a preference changes that can only take effect
      * on a fresh Activity.

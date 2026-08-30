@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -223,9 +224,13 @@ private fun ProgressBlock(state: TodayUiState, row: TodayRow.Progress) {
     }
     val dateLabel = try { SfTime.humanDay(state.date) } catch (_: Exception) { state.date.toString() }
 
+    val context = LocalContext.current
+    val livingAccentOn = remember { com.superflow.data.Prefs.get(context).livingAccent }
+    val hour = remember { java.time.LocalTime.now().hour }
+    val accent = if (livingAccentOn) com.superflow.design.tokens.LivingAccent.shift(scheme.primary, hour) else scheme.primary
     val gradient = Brush.linearGradient(
         colors = listOf(
-            scheme.primary.copy(alpha = 0.12f),
+            accent.copy(alpha = 0.12f),
             scheme.primaryContainer.copy(alpha = 0.18f),
         ),
     )
