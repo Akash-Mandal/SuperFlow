@@ -11,6 +11,7 @@ import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.superflow.AppBackground
 import com.superflow.R
 import com.superflow.core.time.SfTime
@@ -254,7 +255,7 @@ class HabitDetailActivity : ScrollActivity() {
             "Essential habits stay on Minimum Mode. Flex days let you miss without breaking a streak."
         val personalBox = personalCard.findViewById<TextView>(R.id.text_title).parent as LinearLayout
 
-        val essentialSwitch = MaterialSwitch(this).apply {
+        val essentialSwitch = SwitchMaterial(this).apply {
             text = "Essential — keep on hard days"
             isChecked = h.essential
             setOnCheckedChangeListener { _, checked ->
