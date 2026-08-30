@@ -130,6 +130,8 @@ object ColorRoles {
         ThemeSelection.PALETTE_DUSK_ID to Spec("sf_dusk_violet", "sf_dusk_rose", null),
         ThemeSelection.PALETTE_MONO_ID to
             Spec("sf_mono_stone", "sf_mono_stone", "sf_mono_stone", monoToned = true),
+        ThemeSelection.PALETTE_TERRACOTTA_ID to Spec("sf_amber", "sf_dusk_rose", "sf_forest_olive"),
+        ThemeSelection.PALETTE_AURORA_ID to Spec("sf_ocean_teal", "sf_dusk_violet", "sf_indigo"),
     )
 
     /** Palette ids that have a resolvable scheme. */

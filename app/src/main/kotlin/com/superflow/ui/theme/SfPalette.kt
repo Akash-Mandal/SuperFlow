@@ -29,7 +29,9 @@ enum class SfPalette(val id: Int, val label: String) {
     Forest(ThemeSelection.PALETTE_FOREST_ID, "Forest"),
     Ocean(ThemeSelection.PALETTE_OCEAN_ID, "Ocean"),
     Dusk(ThemeSelection.PALETTE_DUSK_ID, "Dusk"),
-    Mono(ThemeSelection.PALETTE_MONO_ID, "Mono");
+    Mono(ThemeSelection.PALETTE_MONO_ID, "Mono"),
+    Terracotta(ThemeSelection.PALETTE_TERRACOTTA_ID, "Terracotta"),
+    Aurora(ThemeSelection.PALETTE_AURORA_ID, "Aurora");
 
     companion object {
         /** Maps a stored preference value to a palette, defaulting to Calm. */

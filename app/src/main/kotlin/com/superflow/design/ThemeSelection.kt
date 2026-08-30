@@ -27,6 +27,8 @@ object ThemeSelection {
     const val PALETTE_OCEAN = "palette_ocean"
     const val PALETTE_DUSK = "palette_dusk"
     const val PALETTE_MONO = "palette_mono"
+    const val PALETTE_TERRACOTTA = "palette_terracotta"
+    const val PALETTE_AURORA = "palette_aurora"
     const val DARK_OLED = "dark_oled"
     const val DARK_MIDNIGHT = "dark_midnight"
     const val DENSITY_COMPACT = "density_compact"
@@ -41,6 +43,8 @@ object ThemeSelection {
     const val PALETTE_OCEAN_ID = 2
     const val PALETTE_DUSK_ID = 3
     const val PALETTE_MONO_ID = 4
+    const val PALETTE_TERRACOTTA_ID = 5
+    const val PALETTE_AURORA_ID = 6
 
     const val DARK_WARM_ID = 0
     const val DARK_OLED_ID = 1
@@ -78,6 +82,8 @@ object ThemeSelection {
             PALETTE_OCEAN_ID -> out.add(PALETTE_OCEAN)
             PALETTE_DUSK_ID -> out.add(PALETTE_DUSK)
             PALETTE_MONO_ID -> out.add(PALETTE_MONO)
+            PALETTE_TERRACOTTA_ID -> out.add(PALETTE_TERRACOTTA)
+            PALETTE_AURORA_ID -> out.add(PALETTE_AURORA)
             // Calm and any unrecognised value use the base theme.
         }
 
