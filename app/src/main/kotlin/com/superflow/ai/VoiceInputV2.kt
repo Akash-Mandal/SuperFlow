@@ -4,18 +4,24 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.MediaRecorder
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.core.content.ContextCompat
 import com.superflow.data.Prefs
+import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.File
+import java.io.FileInputStream
 import java.io.InputStreamReader
-import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlin.concurrent.thread
 
 /**
  * Multi-provider Speech-to-Text engine.
@@ -55,7 +61,7 @@ object VoiceInputV2 {
     fun availableProviders(context: Context): List<Provider> = buildList {
         if (SpeechRecognizer.isRecognitionAvailable(context)) add(Provider.PLATFORM)
         val prefs = Prefs.get(context)
-        if (prefs.whisperApiKey.isNotBlank()) add(Provider.WHISPER_API)
+        if (prefs.whisperApiKey.isNotBlank() || prefs.apiKey.isNotBlank()) add(Provider.WHISPER_API)
         if (File(context.filesDir, "whisper").exists()) add(Provider.WHISPER_LOCAL)
         // Vosk: check if models are installed
         if (File(context.filesDir, "vosk").exists()) add(Provider.VOSK)
@@ -177,8 +183,10 @@ class WhisperApiVoiceEngine(private val context: Context) : VoiceEngine {
 
     private val prefs = Prefs.get(context)
     private var listening = false
-    private var recording = false
-    private var audioData: java.io.ByteArrayOutputStream? = null
+    private var mediaRecorder: MediaRecorder? = null
+    private var audioFile: File? = null
+    private var currentCallbacks: VoiceInputV2.Callbacks? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun isListening(): Boolean = listening
 
@@ -188,25 +196,147 @@ class WhisperApiVoiceEngine(private val context: Context) : VoiceEngine {
             callbacks.onError("Microphone permission is required")
             return
         }
-        listening = true
-        callbacks.onReady()
 
-        // TODO: Implement actual audio recording with android.media.MediaRecorder
-        // and then send to Whisper API. For now, signal that this is a placeholder.
+        val key = prefs.whisperApiKey.ifBlank { prefs.apiKey }
+        if (key.isBlank()) {
+            callbacks.onError("Whisper API key or OpenAI API key is required")
+            return
+        }
 
-        // For a real implementation, we'd:
-        // 1. Start recording audio with MediaRecordr
-        // 2. On end: send to Whisper API endpoint
-        // 3. Parse response and return text
+        currentCallbacks = callbacks
+        val outputFile = File(context.cacheDir, "sf_whisper_${System.currentTimeMillis()}.m4a")
+        audioFile = outputFile
 
-        android.util.Log.d("SfSTT", "Whisper API provider selected — needs MediaRecorder integration")
-        callbacks.onResult("voice input via Whisper API")
-        listening = false
-        callbacks.onEnd()
+        runCatching {
+            @Suppress("DEPRECATION")
+            val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(context)
+            } else {
+                MediaRecorder()
+            }
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            recorder.setAudioSamplingRate(16000)
+            recorder.setAudioEncodingBitRate(64000)
+            recorder.setOutputFile(outputFile.absolutePath)
+            recorder.prepare()
+            recorder.start()
+            mediaRecorder = recorder
+            listening = true
+            callbacks.onReady()
+        }.onFailure { e ->
+            listening = false
+            mediaRecorder = null
+            audioFile?.delete()
+            audioFile = null
+            callbacks.onError("Failed to start audio recording: ${e.message ?: e.javaClass.simpleName}")
+        }
     }
 
     override fun stop() {
+        if (!listening) return
         listening = false
+        val callbacks = currentCallbacks
+        val file = audioFile
+        val recorder = mediaRecorder
+        mediaRecorder = null
+
+        runCatching {
+            recorder?.stop()
+            recorder?.release()
+        }.onFailure { e ->
+            recorder?.release()
+            file?.delete()
+            callbacks?.onError("Recording failed: ${e.message ?: e.javaClass.simpleName}")
+            callbacks?.onEnd()
+            return
+        }
+
+        if (file == null || !file.exists() || file.length() == 0L) {
+            file?.delete()
+            callbacks?.onError("No audio captured")
+            callbacks?.onEnd()
+            return
+        }
+
+        thread {
+            sendToWhisperApi(file, callbacks)
+        }
+    }
+
+    private fun sendToWhisperApi(file: File, callbacks: VoiceInputV2.Callbacks?) {
+        try {
+            val apiKey = prefs.whisperApiKey.ifBlank { prefs.apiKey }
+            var base = prefs.baseUrl.trim().trimEnd('/')
+            val endpoint = if (base.isBlank()) {
+                "https://api.openai.com/v1/audio/transcriptions"
+            } else {
+                if (base.endsWith("/audio/transcriptions")) base
+                else if (base.endsWith("/v1")) "$base/audio/transcriptions"
+                else "$base/v1/audio/transcriptions"
+            }
+
+            val boundary = "====SuperFlowWhisperBoundary${System.currentTimeMillis()}===="
+            val url = URL(endpoint)
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = prefs.requestTimeoutSec * 1000
+                readTimeout = prefs.requestTimeoutSec * 1000
+                doOutput = true
+                setRequestProperty("Authorization", "Bearer $apiKey")
+                setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+            }
+
+            conn.outputStream.use { out ->
+                out.write("--$boundary\r\n".toByteArray())
+                out.write("Content-Disposition: form-data; name=\"model\"\r\n\r\n".toByteArray())
+                out.write("whisper-1\r\n".toByteArray())
+
+                out.write("--$boundary\r\n".toByteArray())
+                out.write("Content-Disposition: form-data; name=\"file\"; filename=\"${file.name}\"\r\n".toByteArray())
+                out.write("Content-Type: audio/m4a\r\n\r\n".toByteArray())
+
+                FileInputStream(file).use { input ->
+                    input.copyTo(out)
+                }
+                out.write("\r\n".toByteArray())
+                out.write("--$boundary--\r\n".toByteArray())
+                out.flush()
+            }
+
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val responseText = BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { it.readText() }
+            conn.disconnect()
+
+            if (code in 200..299) {
+                val json = JSONObject(responseText)
+                val text = json.optString("text").trim()
+                mainHandler.post {
+                    if (text.isBlank()) {
+                        callbacks?.onError("Nothing was heard")
+                    } else {
+                        callbacks?.onResult(text)
+                    }
+                    callbacks?.onEnd()
+                }
+            } else {
+                val jsonErr = runCatching { JSONObject(responseText).optJSONObject("error")?.optString("message") }.getOrNull()
+                val errorMsg = jsonErr ?: responseText.take(200)
+                mainHandler.post {
+                    callbacks?.onError("Whisper API error ($code): $errorMsg")
+                    callbacks?.onEnd()
+                }
+            }
+        } catch (e: Exception) {
+            mainHandler.post {
+                callbacks?.onError("Whisper API network error: ${e.message ?: e.javaClass.simpleName}")
+                callbacks?.onEnd()
+            }
+        } finally {
+            file.delete()
+        }
     }
 }
 
