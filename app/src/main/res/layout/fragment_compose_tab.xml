@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Generic Compose tab host, matching the structure proven by Studio
-    (fragment_studio.xml): an inflated match_parent root whose ComposeView
-    fills what remains.
+    Generic Compose tab host: an inflated match_parent ComposeView.
 
     Why XML rather than constructing the ComposeView in code: a fragment view
     built programmatically reaches the shell without real layout params, and
@@ -10,15 +8,7 @@
     infinite height - which any LazyColumn rejects. Inflation through here
     keeps the params the shell expects.
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/compose_tab_root"
+<androidx.compose.ui.platform.ComposeView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/compose_host"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical">
-
-    <androidx.compose.ui.platform.ComposeView
-        android:id="@+id/compose_host"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-</LinearLayout>
+    android:layout_height="match_parent" />

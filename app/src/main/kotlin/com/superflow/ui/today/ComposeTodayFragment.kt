@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -78,19 +79,18 @@ class ComposeTodayFragment : Fragment() {
     ): View {
         // Inflated rather than constructed: see fragment_compose_tab.xml for
         // why a code-built ComposeView breaks inside ViewPager2.
-        val host = inflater.inflate(R.layout.fragment_compose_tab, container, false)
-            .findViewById<ComposeView>(R.id.compose_host)
+        val host = inflater.inflate(R.layout.fragment_compose_tab, container, false) as ComposeView
         return host.sfContent {
             val state by model.state.collectAsState()
 
-            Column(Modifier.statusBarsPadding()) {
+            Column(Modifier.statusBarsPadding().fillMaxSize()) {
                 TodayTopBar(
                     greeting = state.greeting,
                     openCaptures = inboxItems.value.count { it.state == com.superflow.data.model.CaptureState.OPEN },
                     onSearch = { paletteOpen.value = true },
                     onInbox = { refreshInbox(); inboxOpen.value = true },
                 )
-                TodayScreen(state = state, onAction = ::handle)
+                TodayScreen(state = state, onAction = ::handle, modifier = Modifier.weight(1f))
             }
 
             if (paletteOpen.value) {
