@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -103,17 +102,17 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier,
 ) {
     val step = state.step
-    BoxWithConstraints(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
+            .statusBarsPadding(),
+        contentAlignment = Alignment.TopCenter,
     ) {
-        val maxContent = Navigation.MAX_CONTENT_WIDTH.dp
-        val horizPad = if (maxWidth > maxContent) (maxWidth - maxContent) / 2 else 0.dp
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .widthIn(max = Navigation.MAX_CONTENT_WIDTH.dp)
                 .imePadding()
         ) {
         ProgressLine(step)
@@ -121,8 +120,7 @@ fun OnboardingScreen(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = horizPad),
+                .fillMaxWidth(),
             contentAlignment = Alignment.TopCenter,
         ) {
             val animate = SfTheme.motion.enabled
@@ -161,7 +159,7 @@ fun OnboardingScreen(
             }
         }
 
-            Footer(state = state, onAction = onAction, horizPad = horizPad)
+            Footer(state = state, onAction = onAction)
         }
     }
 }
@@ -203,13 +201,12 @@ private fun ProgressLine(step: OnboardingFlow.Step) {
 }
 
 @Composable
-private fun Footer(state: OnboardingUiState, onAction: (OnboardingAction) -> Unit, horizPad: androidx.compose.ui.unit.Dp = 0.dp) {
+private fun Footer(state: OnboardingUiState, onAction: (OnboardingAction) -> Unit) {
     val step = state.step
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = horizPad)
-            .navigationBarsPadding()
+                        .navigationBarsPadding()
             .imePadding()
             .padding(horizontal = Space.LG.dp, vertical = Space.MD.dp),
     ) {
