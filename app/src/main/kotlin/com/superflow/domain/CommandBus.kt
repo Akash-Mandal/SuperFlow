@@ -3,7 +3,6 @@ package com.superflow.domain
 import android.content.Context
 import com.superflow.data.Repository
 import com.superflow.data.model.AuditEntry
-import com.superflow.data.model.newId
 import com.superflow.core.time.SfTime
 import com.superflow.util.extractJson
 import com.superflow.util.jsonOf
