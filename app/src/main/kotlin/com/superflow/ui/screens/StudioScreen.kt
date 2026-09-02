@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -122,7 +123,7 @@ fun StudioScreen(
     onAction: (StudioAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(modifier = modifier.fillMaxSize().heightIn(max = 2000.dp)) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize().widthIn(max = 2000.dp).heightIn(max = 2000.dp)) {
         val maxContent = 600.dp
         val horizontalPad = if (maxWidth > maxContent) (maxWidth - maxContent) / 2 else 0.dp
         Column(
