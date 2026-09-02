@@ -154,8 +154,10 @@ class MilestoneWorker(
         val repo = Repository.get(applicationContext)
         val prefs = WorkPrefs.get(applicationContext)
         val today = repo.clock.today()
-        for (h in repo.habits()) {
-            val stats = Insights.forHabit(repo, h, today)
+        val snap = repo.snapshot()
+        val allStats = Insights.allStats(snap, repo, today)
+        for (stats in allStats) {
+            val h = stats.habit
             announce(prefs, h.id, "first", stats.repetitions >= 1,
                 "First repetition", "${h.title}: your first repetition is on the books.")
             announce(prefs, h.id, "run7", stats.bestRun >= 7,
