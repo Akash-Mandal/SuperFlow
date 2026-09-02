@@ -239,4 +239,46 @@ class CommandBusTest {
         assertEquals(Actor.AI, event.actor)
         assertEquals(res, event.result)
     }
+
+    @Test
+    fun `capability execution exception caught and formatted`() {
+        val repo = Repository.createForTest(testContext(), fixedClock)
+        val bus = CommandBus.get(testContext())
+        val throwingCap = Capability(
+            name = "failing_command",
+            summary = "Always throws exception",
+            args = emptyList(),
+            risk = Risk.LOW,
+            run = { throw IllegalStateException("Database error simulation") }
+        )
+        val ctx = Ctx(repo, JSONObject(), Actor.USER, null, bus)
+        val result = try {
+            throwingCap.run(ctx)
+        } catch (e: Exception) {
+            CommandResult.fail("${throwingCap.name} failed: ${e.message ?: e.javaClass.simpleName}")
+        }
+        assertFalse(result.ok)
+        assertEquals("failing_command failed: Database error simulation", result.message)
+    }
+
+    @Test
+    fun `capability execution exception without message uses simple class name`() {
+        val repo = Repository.createForTest(testContext(), fixedClock)
+        val bus = CommandBus.get(testContext())
+        val throwingCap = Capability(
+            name = "npe_command",
+            summary = "Throws exception with null message",
+            args = emptyList(),
+            risk = Risk.LOW,
+            run = { throw NullPointerException() }
+        )
+        val ctx = Ctx(repo, JSONObject(), Actor.USER, null, bus)
+        val result = try {
+            throwingCap.run(ctx)
+        } catch (e: Exception) {
+            CommandResult.fail("${throwingCap.name} failed: ${e.message ?: e.javaClass.simpleName}")
+        }
+        assertFalse(result.ok)
+        assertEquals("npe_command failed: NullPointerException", result.message)
+    }
 }
