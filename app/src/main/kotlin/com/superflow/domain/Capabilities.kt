@@ -1065,10 +1065,21 @@ object Capabilities {
             val prev = c.repo.focusFor(date)
             val rows = JSONArray()
             prev.forEach { rows.put(Serial.of(it)) }
+            val allHabits = c.repo.habits(true)
+            fun findHabitInMemory(queryText: String): Habit? {
+                val q = queryText.trim().lowercase()
+                if (q.isEmpty()) return null
+                allHabits.firstOrNull { it.title.lowercase() == q }?.let { return it }
+                allHabits.firstOrNull { it.title.lowercase().startsWith(q) }?.let { return it }
+                allHabits.firstOrNull { it.title.lowercase().contains(q) }?.let { return it }
+                allHabits.firstOrNull { q.contains(it.title.lowercase()) && it.title.length >= 3 }?.let { return it }
+                val candidates = allHabits.filter { it.title.length >= 3 }
+                return com.superflow.util.Fuzzy.bestMatch(q, candidates) { it.title.lowercase() }
+            }
             c.repo.runInTransaction {
                 c.repo.clearFocus(date)
                 titles.forEachIndexed { i, t ->
-                    val habit = c.repo.findHabit(t)
+                    val habit = findHabitInMemory(t)
                     c.repo.saveFocus(FocusItem(date = date, habitId = habit?.id, title = t, orderIndex = i))
                 }
             }
