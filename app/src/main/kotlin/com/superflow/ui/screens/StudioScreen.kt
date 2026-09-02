@@ -161,20 +161,23 @@ private fun StudioTranscript(
         }
     }
 
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = Space.MD.dp,
-            end = Space.MD.dp,
-            top = Space.MD.dp,
-            bottom = 88.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(SfTheme.density.cardGap.dp),
-    ) {
-        state.rows.forEach { row -> studioRow(row, state, onAction) }
-        if (state.typing) {
-            item(key = "typing") { TypingRow() }
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val lazyModifier = if (constraints.hasBoundedHeight) Modifier.fillMaxSize() else Modifier
+        LazyColumn(
+            state = listState,
+            modifier = lazyModifier,
+            contentPadding = PaddingValues(
+                start = Space.MD.dp,
+                end = Space.MD.dp,
+                top = Space.MD.dp,
+                bottom = 88.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(SfTheme.density.cardGap.dp),
+        ) {
+            state.rows.forEach { row -> studioRow(row, state, onAction) }
+            if (state.typing) {
+                item(key = "typing") { TypingRow() }
+            }
         }
     }
 }
