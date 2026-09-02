@@ -179,9 +179,6 @@
         <receiver android:name=".widget.TodayWidget" android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.superflow.widget.CHECK" />
-                <action android:name="com.superflow.widget.FOCUS" />
-                <action android:name="com.superflow.widget.REFRESH" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider"
                 android:resource="@xml/widget_today_info" />
