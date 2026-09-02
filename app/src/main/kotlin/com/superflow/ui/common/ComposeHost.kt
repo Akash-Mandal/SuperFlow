@@ -2,9 +2,15 @@ package com.superflow.ui.common
 
 import android.content.Context
 import android.view.ViewGroup
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.unit.dp
 import androidx.fragment.app.Fragment
 import com.superflow.ui.theme.SfThemeFromPrefs
 
@@ -55,7 +61,16 @@ fun ComposeView.sfContent(content: @Composable () -> Unit): ComposeView = apply 
     setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
     setContent {
         SfThemeFromPrefs {
-            content()
+            BoxWithConstraints {
+                val modifier = if (constraints.hasBoundedHeight) {
+                    Modifier
+                } else {
+                    Modifier.heightIn(max = LocalConfiguration.current.screenHeightDp.dp)
+                }
+                Box(modifier = modifier) {
+                    content()
+                }
+            }
         }
     }
 }
