@@ -1,6 +1,5 @@
 package com.superflow.security
 
-import android.content.Context
 import com.superflow.data.Prefs
 import java.security.MessageDigest
 import java.security.SecureRandom
