@@ -410,14 +410,15 @@ class WeeklySummaryWorker(
 
     private fun weekStats(repo: Repository): WeekSummary {
         val today = repo.clock.today()
+        val snap = repo.snapshot()
         var hits = 0
         var opportunities = 0
         var repetitions = 0
         var recoveries = 0
         var best: Pair<Habit, Int>? = null
 
-        for (h in repo.habits()) {
-            val series = Insights.seriesFor(repo, h, 7, today)
+        for (h in snap.habits.filter { it.status != com.superflow.data.model.Status.ARCHIVED }) {
+            val series = Insights.seriesFor(snap, repo, h, 7, today)
             val recurrence = Recurrence.decode(h.recurrenceRule)
             val (hh, oo) = if (recurrence is Recurrence.TimesPerWeek) {
                 Opportunities.quotaAdherence(series, recurrence.times)
