@@ -36,7 +36,7 @@ object Rendering {
     enum class Renderer { VIEWS, COMPOSE }
 
     /** Screens that have two implementations, and which one is live. */
-    val today: Renderer = Renderer.COMPOSE
+    val today: Renderer = Renderer.VIEWS
     val journey: Renderer = Renderer.COMPOSE
     val insights: Renderer = Renderer.COMPOSE
 
