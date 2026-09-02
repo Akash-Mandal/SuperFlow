@@ -162,7 +162,7 @@ private fun StudioTranscript(
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val lazyModifier = if (constraints.hasBoundedHeight) Modifier.fillMaxSize() else Modifier
+        val lazyModifier = if (constraints.hasBoundedHeight) Modifier.fillMaxSize() else Modifier.heightIn(max = 2000.dp)
         LazyColumn(
             state = listState,
             modifier = lazyModifier,
