@@ -462,47 +462,46 @@ object BackgroundWork {
             return
         }
 
-        val rollover = PeriodicWorkRequestBuilder<DailyRolloverWorker>(6, TimeUnit.HOURS)
-            .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(false).build())
-            .setInitialDelay(Duration.ofMinutes(15))
-            .build()
-        try {
-            manager.enqueueUniquePeriodicWork(
-                DailyRolloverWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, rollover
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not schedule daily rollover", e)
-        }
+        scheduleCoreWorkers(manager)
+        schedulePeriodicWorkers(manager)
+        scheduleBackupWorker(context, manager)
+    }
 
-        val refresh = PeriodicWorkRequestBuilder<ReminderRefreshWorker>(1, TimeUnit.DAYS)
-            .setConstraints(Constraints.Builder().build())
-            .build()
-        try {
-            manager.enqueueUniquePeriodicWork(
-                ReminderRefreshWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, refresh
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not schedule reminder refresh", e)
-        }
+    private fun scheduleCoreWorkers(manager: WorkManager) {
+        val unconstrained = Constraints.Builder().setRequiresBatteryNotLow(false).build()
 
-        val proactive = PeriodicWorkRequestBuilder<ProactiveAiWorker>(6, TimeUnit.HOURS)
-            .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(false).build())
-            .setInitialDelay(java.time.Duration.ofMinutes(30))
-            .build()
-        runCatching {
-            manager.enqueueUniquePeriodicWork(
-                ProactiveAiWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, proactive
-            )
-        }
-        val autoReinforce = PeriodicWorkRequestBuilder<AutoReinforceWorker>(6, TimeUnit.HOURS)
-            .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(false).build())
-            .build()
-        runCatching {
-            manager.enqueueUniquePeriodicWork(
-                AutoReinforceWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, autoReinforce
-            )
-        }
+        periodic<DailyRolloverWorker>(
+            manager = manager,
+            name = DailyRolloverWorker.NAME,
+            every = 6,
+            unit = TimeUnit.HOURS,
+            initialDelay = Duration.ofMinutes(15),
+            constraints = unconstrained
+        )
+        periodic<ReminderRefreshWorker>(
+            manager = manager,
+            name = ReminderRefreshWorker.NAME,
+            every = 1,
+            unit = TimeUnit.DAYS
+        )
+        periodic<ProactiveAiWorker>(
+            manager = manager,
+            name = ProactiveAiWorker.NAME,
+            every = 6,
+            unit = TimeUnit.HOURS,
+            initialDelay = Duration.ofMinutes(30),
+            constraints = unconstrained
+        )
+        periodic<AutoReinforceWorker>(
+            manager = manager,
+            name = AutoReinforceWorker.NAME,
+            every = 6,
+            unit = TimeUnit.HOURS,
+            constraints = unconstrained
+        )
+    }
 
+    private fun schedulePeriodicWorkers(manager: WorkManager) {
         // Milestones and the weekly review run daily; WorkManager de-duplicates
         // by unique name, and the workers themselves are idempotent.
         periodic<MilestoneWorker>(manager, MilestoneWorker.NAME, 12, TimeUnit.HOURS)
@@ -511,7 +510,10 @@ object BackgroundWork {
         periodic<WeeklySummaryWorker>(manager, WeeklySummaryWorker.NAME, 1, TimeUnit.DAYS)
         // Widget periodic refresh (every 30 minutes is the WorkManager minimum).
         periodic<WidgetRefreshWorker>(manager, WidgetRefreshWorker.NAME, 30, TimeUnit.MINUTES)
-        // Backup cadence is user-configurable; UPDATE replaces the prior schedule.
+    }
+
+    private fun scheduleBackupWorker(context: Context, manager: WorkManager) {
+        // Backup cadence is user-configurable; REPLACE replaces the prior schedule.
         val prefs = Prefs.get(context)
         if (prefs.autoBackupEnabled) {
             val days = when (prefs.autoBackupFrequency) {
@@ -519,27 +521,36 @@ object BackgroundWork {
                 BackupWorker.FREQ_3DAYS -> 3L
                 else -> 1L
             }
-            val backup = PeriodicWorkRequestBuilder<BackupWorker>(days, TimeUnit.DAYS)
-                .setConstraints(Constraints.Builder().build())
-                .build()
-            runCatching {
-                manager.enqueueUniquePeriodicWork(
-                    BackupWorker.NAME, ExistingPeriodicWorkPolicy.REPLACE, backup
-                )
-            }
+            periodic<BackupWorker>(
+                manager = manager,
+                name = BackupWorker.NAME,
+                every = days,
+                unit = TimeUnit.DAYS,
+                policy = ExistingPeriodicWorkPolicy.REPLACE
+            )
         } else {
             runCatching { manager.cancelUniqueWork(BackupWorker.NAME) }
         }
     }
 
     private inline fun <reified W : CoroutineWorker> periodic(
-        manager: WorkManager, name: String, every: Long, unit: TimeUnit
+        manager: WorkManager,
+        name: String,
+        every: Long,
+        unit: TimeUnit,
+        initialDelay: Duration? = null,
+        constraints: Constraints = Constraints.Builder().build(),
+        policy: ExistingPeriodicWorkPolicy = ExistingPeriodicWorkPolicy.KEEP
     ) {
-        val req = PeriodicWorkRequestBuilder<W>(every, unit)
-            .setConstraints(Constraints.Builder().build())
-            .build()
+        val builder = PeriodicWorkRequestBuilder<W>(every, unit)
+            .setConstraints(constraints)
+        if (initialDelay != null) {
+            builder.setInitialDelay(initialDelay)
+        }
         runCatching {
-            manager.enqueueUniquePeriodicWork(name, ExistingPeriodicWorkPolicy.KEEP, req)
+            manager.enqueueUniquePeriodicWork(name, policy, builder.build())
+        }.onFailure { e ->
+            Log.w(TAG, "Could not schedule $name", e)
         }
     }
 
