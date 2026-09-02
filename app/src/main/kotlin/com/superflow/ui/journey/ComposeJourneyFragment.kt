@@ -52,11 +52,13 @@ class ComposeJourneyFragment : Fragment() {
     ): View {
         // Inflated rather than constructed: see fragment_compose_tab.xml for
         // why a code-built ComposeView breaks inside ViewPager2.
-        val host = inflater.inflate(R.layout.fragment_compose_tab, container, false) as ComposeView
-        return host.sfContent {
+        val root = inflater.inflate(R.layout.fragment_compose_tab, container, false)
+        val host = root.findViewById<ComposeView>(R.id.compose_host)
+        host.sfContent {
             val rows by model.rows.collectAsState()
             JourneyScreen(state = stateFrom(rows), onAction = ::handle)
         }
+        return root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

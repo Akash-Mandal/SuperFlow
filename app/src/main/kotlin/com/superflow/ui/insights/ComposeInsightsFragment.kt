@@ -54,11 +54,13 @@ class ComposeInsightsFragment : Fragment() {
     ): View {
         // Inflated rather than constructed: see fragment_compose_tab.xml for
         // why a code-built ComposeView breaks inside ViewPager2.
-        val host = inflater.inflate(R.layout.fragment_compose_tab, container, false) as ComposeView
-        return host.sfContent {
+        val root = inflater.inflate(R.layout.fragment_compose_tab, container, false)
+        val host = root.findViewById<ComposeView>(R.id.compose_host)
+        host.sfContent {
             val state by model.state.collectAsState()
             InsightsScreen(state = state, onPeriodChange = model::setPeriod)
         }
+        return root
     }
 
     override fun onResume() {
