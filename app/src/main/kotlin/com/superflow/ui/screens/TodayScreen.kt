@@ -116,13 +116,18 @@ fun TodayScreen(
     }
 
     if (state.loading) {
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(horizontal = Space.BASE.dp),
+        LazyColumn(
+            modifier = modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = Space.BASE.dp,
+                end = Space.BASE.dp,
+                top = Space.LG.dp,
+                bottom = Space.XXXL.dp,
+            ),
         ) {
-            Spacer(modifier = Modifier.height(Space.LG.dp))
-            SfTodaySkeleton()
+            item {
+                SfTodaySkeleton()
+            }
         }
         return
     }
