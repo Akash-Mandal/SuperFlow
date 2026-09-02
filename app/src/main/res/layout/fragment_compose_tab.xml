@@ -1,14 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Generic Compose tab host: an inflated match_parent ComposeView.
-
-    Why XML rather than constructing the ComposeView in code: a fragment view
-    built programmatically reaches the shell without real layout params, and
-    inside ViewPager2 that path ends with the composition measured at
-    infinite height - which any LazyColumn rejects. Inflation through here
-    keeps the params the shell expects.
--->
 <androidx.compose.ui.platform.ComposeView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/compose_host"
     android:layout_width="match_parent"
-    android:layout_height="match_parent" />
+    android:layout_height="0dp" />
