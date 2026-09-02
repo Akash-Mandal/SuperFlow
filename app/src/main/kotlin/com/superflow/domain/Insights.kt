@@ -10,7 +10,6 @@ import com.superflow.core.schedule.Recurrence
 import com.superflow.core.time.SfTime
 import com.superflow.data.Repository
 import com.superflow.data.Repository.DataSnapshot
-import com.superflow.data.model.CheckIn
 import com.superflow.data.model.CheckInResult
 import com.superflow.data.model.Habit
 import com.superflow.data.model.HabitMode
