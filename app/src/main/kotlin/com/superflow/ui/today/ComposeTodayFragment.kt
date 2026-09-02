@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -83,7 +84,7 @@ class ComposeTodayFragment : Fragment() {
         return host.sfContent {
             val state by model.state.collectAsState()
 
-            Column(Modifier.statusBarsPadding().fillMaxSize()) {
+            Column(Modifier.statusBarsPadding().fillMaxWidth()) {
                 TodayTopBar(
                     greeting = state.greeting,
                     openCaptures = inboxItems.value.count { it.state == com.superflow.data.model.CaptureState.OPEN },

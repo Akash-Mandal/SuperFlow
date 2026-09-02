@@ -154,11 +154,11 @@ fun TodayScreen(
         return
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val maxContent = 600.dp
         val horizPad = if (maxWidth > maxContent) (maxWidth - maxContent) / 2 else 0.dp
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = horizPad),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = horizPad),
             contentPadding = PaddingValues(
                 start = Space.BASE.dp,
                 end = Space.BASE.dp,
