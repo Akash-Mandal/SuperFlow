@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -105,7 +106,7 @@ fun InsightsScreen(
         return
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize().statusBarsPadding()) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize().heightIn(max = 2000.dp).statusBarsPadding()) {
         val maxContent = 600.dp
         val horizPad = if (maxWidth > maxContent) (maxWidth - maxContent) / 2 else 0.dp
         LazyColumn(
