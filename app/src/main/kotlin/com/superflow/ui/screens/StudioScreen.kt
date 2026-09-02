@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -126,10 +127,11 @@ fun StudioScreen(
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize().widthIn(max = 2000.dp).heightIn(max = 2000.dp)) {
         val maxContent = 600.dp
-        val horizontalPad = if (maxWidth > maxContent) (maxWidth - maxContent) / 2 else 0.dp
-        val heightModifier = if (maxHeight == androidx.compose.ui.unit.Dp.Infinity) Modifier.heightIn(max = 2000.dp) else Modifier.fillMaxSize()
+        val horizontalPad = if (maxWidth != androidx.compose.ui.unit.Dp.Infinity && maxWidth > maxContent) (maxWidth - maxContent) / 2 else 0.dp
+        val widthModifier = if (maxWidth == androidx.compose.ui.unit.Dp.Infinity) Modifier.widthIn(max = 2000.dp) else Modifier.fillMaxWidth()
+        val heightModifier = if (maxHeight == androidx.compose.ui.unit.Dp.Infinity) Modifier.heightIn(max = 2000.dp) else Modifier.fillMaxHeight()
         Column(
-            modifier = heightModifier
+            modifier = widthModifier.then(heightModifier)
                 .padding(horizontal = horizontalPad)
         ) {
             Box(modifier = Modifier.weight(1f)) {
@@ -268,18 +270,20 @@ private fun QuickActionRow(
 ) {
     // The one place a horizontal scroll is right: these are shortcuts to
     // things you can also just type, so a chip past the edge costs nothing.
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(Space.SM.dp),
-    ) {
-        row.items.forEach { chip ->
-            AssistChip(
-                onClick = { onAction(StudioAction.Quick(chip.id)) },
-                label = { Text(chip.label) },
-                colors = AssistChipDefaults.assistChipColors(),
-            )
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val rowWidthModifier = if (maxWidth == androidx.compose.ui.unit.Dp.Infinity) Modifier.widthIn(max = 2000.dp) else Modifier.fillMaxWidth()
+        Row(
+            modifier = rowWidthModifier
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(Space.SM.dp),
+        ) {
+            row.items.forEach { chip ->
+                AssistChip(
+                    onClick = { onAction(StudioAction.Quick(chip.id)) },
+                    label = { Text(chip.label) },
+                    colors = AssistChipDefaults.assistChipColors(),
+                )
+            }
         }
     }
 }
