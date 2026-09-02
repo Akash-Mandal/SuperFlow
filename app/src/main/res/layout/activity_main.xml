@@ -1,16 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    The shell (plan 10.2).
-
-    Both navigation surfaces are inflated and exactly one is shown, chosen at
-    runtime by Navigation.placementFor from the real window size. Inflating
-    both is cheaper than swapping layouts on a fold or rotation, and it keeps
-    the ViewPager2 - and therefore every fragment's state - alive across the
-    change, which is the whole reason a foldable user notices nothing.
-
-    The rail sits outside the CoordinatorLayout so the bottom bar's scroll
-    behaviour and the rail's fixed position do not fight over insets.
--->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
