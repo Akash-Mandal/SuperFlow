@@ -3,11 +3,13 @@ package com.superflow.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -90,7 +92,9 @@ fun SfHeatmap(
     val gridHeight = 7 * (cellSize + gap) - gap
 
     Column(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.horizontalScroll(scroll)) {
+        androidx.compose.foundation.layout.BoxWithConstraints {
+            val scrollWidthModifier = if (maxWidth == androidx.compose.ui.unit.Dp.Infinity) Modifier.widthIn(max = 2000.dp) else Modifier.fillMaxWidth()
+            Column(modifier = scrollWidthModifier.horizontalScroll(scroll)) {
             Canvas(
                 modifier = Modifier
                     .width(gridWidth.dp)
@@ -161,6 +165,7 @@ fun SfHeatmap(
                     )
                 }
             }
+        }
         }
 
         val chosen = states.getOrNull(selected)
