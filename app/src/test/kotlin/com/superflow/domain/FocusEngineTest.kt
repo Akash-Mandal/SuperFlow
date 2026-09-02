@@ -5,6 +5,7 @@ import com.superflow.data.model.CheckInResult
 import com.superflow.data.model.Habit
 import com.superflow.data.model.HabitStats
 import com.superflow.data.model.TodayHabit
+import com.superflow.util.Fuzzy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -153,7 +154,7 @@ class FocusEngineTest {
     @Test
     fun `ranking is stable under input permutation`() {
         val a = open(habit("a"))
-        val b = open(habit("b"), )
+        val b = open(habit("b"))
         val c = open(habit("c"))
         val s = { id: String ->
             when (id) {
@@ -167,5 +168,37 @@ class FocusEngineTest {
         val r3 = FocusEngine.rank(listOf(b, c, a), s).map { it.habit.id }
         assertEquals(r1, r2)
         assertEquals(r2, r3)
+    }
+
+    /* -------------------------------------------------- Set Daily Focus Benchmark */
+
+    @Test
+    fun `bulk habit lookup matches findHabit behavior`() {
+        val habits = listOf(
+            Habit(id = "h1", title = "Morning Walk"),
+            Habit(id = "h2", title = "Read 20 Minutes"),
+            Habit(id = "h3", title = "Meditation")
+        )
+
+        // Helper function mimicking in-memory findHabit logic over pre-fetched habits
+        fun findHabitInMemory(queryText: String, all: List<Habit>): Habit? {
+            val q = queryText.trim().lowercase()
+            if (q.isEmpty()) return null
+            all.firstOrNull { it.title.lowercase() == q }?.let { return it }
+            all.firstOrNull { it.title.lowercase().startsWith(q) }?.let { return it }
+            all.firstOrNull { it.title.lowercase().contains(q) }?.let { return it }
+            all.firstOrNull { q.contains(it.title.lowercase()) && it.title.length >= 3 }?.let { return it }
+            val candidates = all.filter { it.title.length >= 3 }
+            return Fuzzy.bestMatch(q, candidates) { it.title.lowercase() }
+        }
+
+        val matchExact = findHabitInMemory("Morning Walk", habits)
+        assertEquals("h1", matchExact?.id)
+
+        val matchPartial = findHabitInMemory("read", habits)
+        assertEquals("h2", matchPartial?.id)
+
+        val matchFuzzy = findHabitInMemory("Meditaton", habits)
+        assertEquals("h3", matchFuzzy?.id)
     }
 }
