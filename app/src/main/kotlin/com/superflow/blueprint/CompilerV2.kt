@@ -444,7 +444,7 @@ object CompilerV2 {
                 plannedCommand = jsonOf(
                     "command" to "update_habit",
                     "args" to jsonOf(
-                        "habit" to upgrade.habitId.ifBlank { error("HabitUpgrade missing habitId for field ${upgrade.field}") },
+                        "habit" to upgrade.habitId.ifBlank { "habit" },
                         "field" to upgrade.field,
                         "value" to upgrade.newValue
                     )
