@@ -1,141 +1,51 @@
 package com.superflow.ai
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
-import androidx.core.content.ContextCompat
 
 /**
- * Voice control via the platform SpeechRecognizer.
+ * Voice control facade delegating to [VoiceInputV2].
  *
- * Speech is transcribed to text and then handled by exactly the same command
- * path as typing, so voice never gains capabilities the keyboard lacks.
+ * Speech is transcribed to text through [VoiceInputV2]'s multi-provider engine
+ * (Platform, Whisper API, Local, Vosk) and then handled by the exact same
+ * command path as typing.
  */
 class VoiceInput(private val context: Context) {
 
-    interface Callbacks {
-        fun onReady() {}
-        fun onPartial(text: String) {}
-        fun onResult(text: String)
-        fun onError(message: String)
-        fun onVolume(rms: Float) {}
-        fun onEnd() {}
-    }
+    interface Callbacks : VoiceInputV2.Callbacks
 
-    private var recognizer: SpeechRecognizer? = null
-    private var listening = false
+    private var engine: VoiceEngine? = null
 
     companion object {
         fun isAvailable(context: Context): Boolean =
-            SpeechRecognizer.isRecognitionAvailable(context)
+            VoiceInputV2.availableProviders(context).isNotEmpty()
 
         fun hasPermission(context: Context): Boolean =
-            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                    PackageManager.PERMISSION_GRANTED
+            VoiceInputV2.hasPermission(context)
 
         /**
-         * An intent that opens the system voice-input settings, so a user on a
-         * de-Googled device without a recogniser can install/enable one (#2).
+         * An intent that opens the system voice-input settings.
          */
         fun settingsIntent(): Intent = Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS)
 
-        const val PERMISSION = Manifest.permission.RECORD_AUDIO
+        const val PERMISSION = VoiceInputV2.PERMISSION
     }
 
-    fun isListening(): Boolean = listening
+    fun isListening(): Boolean = engine?.isListening() ?: false
 
-    fun start(callbacks: Callbacks) {
-        if (listening) return
-        if (!isAvailable(context)) {
-            callbacks.onError(
-                "No speech recogniser found. On de-Googled devices, install or enable a " +
-                        "voice-input provider (e.g. a system speech engine), then grant " +
-                        "microphone permission."
-            )
-            return
-        }
-        if (!hasPermission(context)) {
-            callbacks.onError("Microphone permission is required")
-            return
-        }
+    fun start(callbacks: VoiceInputV2.Callbacks) {
         stop()
-        recognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-            setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {
-                    listening = true
-                    callbacks.onReady()
-                }
-
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) = callbacks.onVolume(rmsdB)
-                override fun onBufferReceived(buffer: ByteArray?) {}
-
-                override fun onEndOfSpeech() {
-                    listening = false
-                    callbacks.onEnd()
-                }
-
-                override fun onError(error: Int) {
-                    listening = false
-                    callbacks.onError(describe(error))
-                    callbacks.onEnd()
-                }
-
-                override fun onResults(results: Bundle?) {
-                    listening = false
-                    val text = results
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull()
-                        .orEmpty()
-                    if (text.isBlank()) callbacks.onError("Nothing was heard")
-                    else callbacks.onResult(text)
-                    callbacks.onEnd()
-                }
-
-                override fun onPartialResults(partialResults: Bundle?) {
-                    partialResults
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull()
-                        ?.let { if (it.isNotBlank()) callbacks.onPartial(it) }
-                }
-
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
+        runCatching {
+            val vEngine = VoiceInputV2.create(context)
+            engine = vEngine
+            vEngine.start(callbacks)
+        }.onFailure { e ->
+            callbacks.onError(e.message ?: "Failed to start voice engine")
         }
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-        }
-        runCatching { recognizer?.startListening(intent) }
-            .onFailure { callbacks.onError("Could not start listening") }
     }
 
     fun stop() {
-        listening = false
-        runCatching {
-            recognizer?.stopListening()
-            recognizer?.destroy()
-        }
-        recognizer = null
-    }
-
-    private fun describe(error: Int): String = when (error) {
-        SpeechRecognizer.ERROR_AUDIO -> "Audio recording problem"
-        SpeechRecognizer.ERROR_CLIENT -> "Recognition client error"
-        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is required"
-        SpeechRecognizer.ERROR_NETWORK -> "Network problem"
-        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timed out"
-        SpeechRecognizer.ERROR_NO_MATCH -> "I did not catch that"
-        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recogniser is busy"
-        SpeechRecognizer.ERROR_SERVER -> "Recognition server error"
-        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech heard"
-        else -> "Speech recognition failed"
+        runCatching { engine?.stop() }
+        engine = null
     }
 }
