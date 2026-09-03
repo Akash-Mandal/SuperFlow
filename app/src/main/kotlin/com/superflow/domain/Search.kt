@@ -86,14 +86,40 @@ object Search {
 
     /** Exact match first, then prefix, then contains, then fuzzy. */
     fun relevance(query: String, vararg fields: String): Float {
-        val lower = fields.filter { it.isNotBlank() }.map { it.lowercase() }
-        if (lower.isEmpty()) return 0f
+        if (fields.isEmpty() || query.isEmpty()) return 0f
+
+        var hasPrefix = false
+        var hasContains = false
+        var hasQueryContains = false
+        var minFuzzy = Int.MAX_VALUE
+
+        for (i in fields.indices) {
+            val f = fields[i]
+            if (f.isBlank()) continue
+            val lowerF = f.lowercase()
+
+            if (lowerF == query) {
+                return 1.0f // exact match: early return immediately
+            }
+            if (lowerF.startsWith(query)) {
+                hasPrefix = true
+            } else if (!hasPrefix && lowerF.contains(query)) {
+                hasContains = true
+            } else if (!hasPrefix && !hasContains && query.contains(lowerF) && lowerF.length > 3) {
+                hasQueryContains = true
+            } else if (!hasPrefix && !hasContains && !hasQueryContains) {
+                val dist = Fuzzy.levenshtein(query, lowerF)
+                if (dist < minFuzzy) {
+                    minFuzzy = dist
+                }
+            }
+        }
+
         return when {
-            lower.any { it == query } -> 1.0f
-            lower.any { it.startsWith(query) } -> 0.8f
-            lower.any { it.contains(query) } -> 0.5f
-            lower.any { query.contains(it) && it.length > 3 } -> 0.3f
-            lower.minOf { Fuzzy.levenshtein(query, it) } < 3 -> 0.2f
+            hasPrefix -> 0.8f
+            hasContains -> 0.5f
+            hasQueryContains -> 0.3f
+            minFuzzy < 3 -> 0.2f
             else -> 0f
         }
     }
