@@ -14,10 +14,6 @@ name: CI
 #                  and targetSdk API levels.
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
