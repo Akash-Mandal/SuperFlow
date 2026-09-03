@@ -6,24 +6,38 @@ package com.superflow.util
  */
 object Fuzzy {
 
+    private const val DEFAULT_BUFFER_SIZE = 128
+    // Thread-local buffers to make Levenshtein calculations allocation-free for typical strings.
+    private val bufferThreadLocal = object : ThreadLocal<Pair<IntArray, IntArray>>() {
+        override fun initialValue(): Pair<IntArray, IntArray> {
+            return IntArray(DEFAULT_BUFFER_SIZE) to IntArray(DEFAULT_BUFFER_SIZE)
+        }
+    }
+
     /**
      * Classic Wagner–Fischer Levenshtein distance.
      *
-     * Uses the two-row O(min(m,n)) memory variant. Returns 0 for equal
-     * strings and the edit count otherwise.
+     * Uses the two-row O(min(m,n)) memory variant with thread-local buffer reuse.
+     * Returns 0 for equal strings and the edit count otherwise.
      */
     fun levenshtein(a: String, b: String): Int {
         if (a == b) return 0
         if (a.isEmpty()) return b.length
         if (b.isEmpty()) return a.length
 
-        // Keep the shorter string in the inner row to use less memory.
-        val (s, t) = if (a.length <= b.length) a to b else b to a
+        // Keep the shorter string in the inner row to use less memory and fewer iterations.
+        val s = if (a.length <= b.length) a else b
+        val t = if (a.length <= b.length) b else a
         val n = s.length
         val m = t.length
 
-        var prev = IntArray(n + 1) { it }
-        var curr = IntArray(n + 1)
+        val (b1, b2) = bufferThreadLocal.get()!!
+        var prev = if (n + 1 <= b1.size) b1 else IntArray(n + 1)
+        var curr = if (n + 1 <= b2.size) b2 else IntArray(n + 1)
+
+        for (i in 0..n) {
+            prev[i] = i
+        }
 
         for (j in 1..m) {
             curr[0] = j
@@ -46,10 +60,13 @@ object Fuzzy {
      * ranking candidates and for a confidence threshold.
      */
     fun similarity(a: String, b: String): Double {
-        val (s, t) = a.lowercase() to b.lowercase()
-        if (s == t) return 1.0
-        val maxLen = maxOf(s.length, t.length)
+        if (a == b) return 1.0
+        if (a.equals(b, ignoreCase = true)) return 1.0
+        val maxLen = maxOf(a.length, b.length)
         if (maxLen == 0) return 1.0
+        val s = a.lowercase()
+        val t = b.lowercase()
+        if (s == t) return 1.0
         return 1.0 - levenshtein(s, t).toDouble() / maxLen
     }
 
