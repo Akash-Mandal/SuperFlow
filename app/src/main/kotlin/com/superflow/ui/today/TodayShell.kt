@@ -77,13 +77,10 @@ fun TodayTopBar(
                 }
             }
         }
-        IconButton(
-            onClick = onSearch,
-            modifier = Modifier.semantics { contentDescription = "Search" },
-        ) {
+        IconButton(onClick = onSearch) {
             Icon(
                 painter = painterResource(R.drawable.ic_search),
-                contentDescription = null,
+                contentDescription = "Search",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
