@@ -47,7 +47,7 @@ class InfoButton @JvmOverloads constructor(
         icon = ImageView(context).apply {
             setImageResource(R.drawable.ic_info)
             val size = (20 * resources.displayMetrics.density).toInt()
-            layoutParams = LinearLayout.LayoutParams(size, size).apply {
+            layoutParams = LayoutParams(size, size).apply {
                 marginStart = (4 * resources.displayMetrics.density).toInt()
             }
             alpha = 0.6f
