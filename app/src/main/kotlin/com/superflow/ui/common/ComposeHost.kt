@@ -41,10 +41,16 @@ fun Fragment.sfComposeView(content: @Composable () -> Unit): ComposeView =
         // added, and ViewPager2's generated defaults are wrap-content - which
         // measures the composition with infinite height and crashes any
         // LazyColumn inside. Every tab fills its page; say so explicitly.
-        layoutParams = ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT,
-        )
+        val existing = layoutParams
+        if (existing == null) {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+        } else {
+            existing.width = ViewGroup.LayoutParams.MATCH_PARENT
+            existing.height = ViewGroup.LayoutParams.MATCH_PARENT
+        }
     }
 
 fun Context.sfComposeView(content: @Composable () -> Unit): ComposeView =
@@ -58,10 +64,16 @@ fun Context.sfComposeView(content: @Composable () -> Unit): ComposeView =
  * it, none of which survive being swapped out for a fresh instance.
  */
 fun ComposeView.sfContent(content: @Composable () -> Unit): ComposeView = apply {
-    layoutParams = ViewGroup.LayoutParams(
-        ViewGroup.LayoutParams.MATCH_PARENT,
-        ViewGroup.LayoutParams.MATCH_PARENT,
-    )
+    val existing = layoutParams
+    if (existing == null) {
+        layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+        )
+    } else {
+        existing.width = ViewGroup.LayoutParams.MATCH_PARENT
+        existing.height = ViewGroup.LayoutParams.MATCH_PARENT
+    }
     setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
     setContent {
         SfThemeFromPrefs {
