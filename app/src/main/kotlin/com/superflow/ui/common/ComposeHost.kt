@@ -50,6 +50,7 @@ fun Fragment.sfComposeView(content: @Composable () -> Unit): ComposeView =
         } else {
             existing.width = ViewGroup.LayoutParams.MATCH_PARENT
             existing.height = ViewGroup.LayoutParams.MATCH_PARENT
+            layoutParams = existing
         }
     }
 
@@ -73,6 +74,7 @@ fun ComposeView.sfContent(content: @Composable () -> Unit): ComposeView = apply 
     } else {
         existing.width = ViewGroup.LayoutParams.MATCH_PARENT
         existing.height = ViewGroup.LayoutParams.MATCH_PARENT
+        layoutParams = existing
     }
     setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
     setContent {
