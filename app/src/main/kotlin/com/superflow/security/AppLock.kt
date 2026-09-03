@@ -27,10 +27,10 @@ object AppLock {
     fun validPin(pin: String): Boolean = pin.length in MIN_PIN..MAX_PIN && pin.all { it.isDigit() }
 
     fun hashPin(pin: String): String {
-        val salt = SALT_PREFIX.toByteArray()
+        val salt = SALT_PREFIX.toByteArray(Charsets.UTF_8)
         val digest = MessageDigest.getInstance("SHA-256")
         digest.update(salt)
-        digest.update(pin.toByteArray())
+        digest.update(pin.toByteArray(Charsets.UTF_8))
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
@@ -41,12 +41,14 @@ object AppLock {
         return true
     }
 
-    fun checkPin(prefs: Prefs, pin: String): Boolean =
-        prefs.appLockPinHash.isNotBlank() &&
+    fun checkPin(prefs: Prefs, pin: String): Boolean {
+        if (!validPin(pin)) return false
+        return prefs.appLockPinHash.isNotBlank() &&
                 MessageDigest.isEqual(
-                    prefs.appLockPinHash.toByteArray(),
-                    hashPin(pin).toByteArray()
+                    prefs.appLockPinHash.toByteArray(Charsets.UTF_8),
+                    hashPin(pin).toByteArray(Charsets.UTF_8)
                 )
+    }
 
     fun clearPin(prefs: Prefs) {
         prefs.appLockPinHash = ""
