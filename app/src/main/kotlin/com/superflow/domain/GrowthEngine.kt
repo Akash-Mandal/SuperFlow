@@ -52,11 +52,21 @@ object GrowthEngine {
         val recoveries = stats.recoveries
         val missesInARow = stats.missesInARow
 
+        val trailing7Days = SfTime.lastDays(7, today).map { SfTime.format(it) }.toSet()
+        val energyLogsInWindow = repo.energyLogs().filter { it.date in trailing7Days }
+        val averageEnergy = if (energyLogsInWindow.isNotEmpty()) {
+            energyLogsInWindow.map { it.energy.toDouble() }.average()
+        } else null
+
+        val energyEligible = phase.metrics.minEnergy == 0 ||
+                (averageEnergy != null && averageEnergy >= phase.metrics.minEnergy)
+
         val decision = when {
             consistency >= phase.metrics.minConsistency &&
                     recoveries >= phase.metrics.minRecoveries &&
                     missesInARow <= phase.metrics.maxMissesInARow &&
-                    plan.weeksInCurrentPhase() >= plan.upgradePolicy.minWeeksInPhase ->
+                    plan.weeksInCurrentPhase() >= plan.upgradePolicy.minWeeksInPhase &&
+                    energyEligible ->
                 if (plan.currentPhaseIndex < plan.phases.lastIndex) UpgradeDecision.UPGRADE
                 else UpgradeDecision.HOLD  // Already at max phase
 
@@ -78,7 +88,7 @@ object GrowthEngine {
             repetitions = stats.repetitions,
             misses = missesInARow,
             recoveries = recoveries,
-            averageEnergy = null, // TODO: from energy logs
+            averageEnergy = averageEnergy,
             decision = decision,
             date = SfTime.format(today)
         )
