@@ -3,6 +3,14 @@ package com.superflow.domain
 import com.superflow.data.model.*
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import android.database.Cursor
+import android.database.MatrixCursor
+import androidx.sqlite.db.SupportSQLiteDatabase
+import com.superflow.core.time.FixedClock
+import com.superflow.data.Repository
+import java.lang.reflect.Proxy
+import java.time.Instant
+import java.time.LocalDate
 import org.junit.Test
 
 /**
@@ -201,5 +209,245 @@ class GrowthTest {
         assertEquals(5, templates.size)
         assertTrue(templates.any { it.first == "morning_routine" })
         assertTrue(templates.any { it.first == "evening_wind_down" })
+    }
+
+    private fun createMapCursor(rows: List<Map<String, Any?>>): Cursor {
+        var rowIndex = -1
+        val columns = if (rows.isNotEmpty()) rows[0].keys.toList() else emptyList()
+
+        return Proxy.newProxyInstance(
+            Cursor::class.java.classLoader,
+            arrayOf(Cursor::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "moveToNext" -> {
+                    rowIndex++
+                    rowIndex < rows.size
+                }
+                "getColumnIndex" -> {
+                    val name = args[0] as String
+                    columns.indexOf(name)
+                }
+                "isNull" -> {
+                    val idx = args[0] as Int
+                    if (idx < 0 || idx >= columns.size) true
+                    else rows[rowIndex][columns[idx]] == null
+                }
+                "getString" -> {
+                    val idx = args[0] as Int
+                    if (idx < 0 || idx >= columns.size) ""
+                    else rows[rowIndex][columns[idx]]?.toString() ?: ""
+                }
+                "getInt" -> {
+                    val idx = args[0] as Int
+                    if (idx < 0 || idx >= columns.size) 0
+                    else {
+                        val v = rows[rowIndex][columns[idx]]
+                        when (v) {
+                            is Boolean -> if (v) 1 else 0
+                            is Number -> v.toInt()
+                            else -> 0
+                        }
+                    }
+                }
+                "getLong" -> {
+                    val idx = args[0] as Int
+                    if (idx < 0 || idx >= columns.size) 0L
+                    else {
+                        val v = rows[rowIndex][columns[idx]]
+                        when (v) {
+                            is Boolean -> if (v) 1L else 0L
+                            is Number -> v.toLong()
+                            else -> 0L
+                        }
+                    }
+                }
+                "getDouble" -> {
+                    val idx = args[0] as Int
+                    if (idx < 0 || idx >= columns.size) 0.0
+                    else {
+                        val v = rows[rowIndex][columns[idx]]
+                        (v as? Number)?.toDouble() ?: 0.0
+                    }
+                }
+                "close" -> null
+                else -> null
+            }
+        } as Cursor
+    }
+
+    private fun createHabitCursor(habits: List<Habit>): Cursor {
+        val rows = habits.map { h ->
+            mapOf(
+                "id" to h.id, "systemId" to h.systemId, "identityId" to h.identityId,
+                "title" to h.title, "mode" to h.mode.name, "trackType" to h.trackType.name,
+                "targetCount" to h.targetCount, "unit" to h.unit,
+                "cueTime" to h.cueTime, "cuePlace" to h.cuePlace,
+                "anchorHabitId" to h.anchorHabitId, "anchorText" to h.anchorText,
+                "benefit" to h.benefit, "temptationBundle" to h.temptationBundle,
+                "reframe" to h.reframe, "tinyStart" to h.tinyStart,
+                "minimumVersion" to h.minimumVersion, "standardVersion" to h.standardVersion,
+                "stretchVersion" to h.stretchVersion, "frictionPlan" to h.frictionPlan,
+                "environmentPrep" to h.environmentPrep, "reward" to h.reward,
+                "recoveryPlan" to h.recoveryPlan, "recurrenceRule" to h.recurrenceRule,
+                "scheduleVersion" to h.scheduleVersion, "startDate" to h.startDate,
+                "endDate" to h.endDate, "reminderEnabled" to h.reminderEnabled,
+                "protectedRoutine" to h.protectedRoutine, "rewardSatisfaction" to h.rewardSatisfaction,
+                "rewardLastRated" to h.rewardLastRated, "reframeHelpful" to h.reframeHelpful,
+                "bundleEffectiveness" to h.bundleEffectiveness, "frictionPlanActive" to h.frictionPlanActive,
+                "environmentPrepReminderTime" to h.environmentPrepReminderTime,
+                "ladderHistory" to "", "lastDifficultyRating" to h.lastDifficultyRating,
+                "stretchCount" to h.stretchCount, "consecutiveStandards" to h.consecutiveStandards,
+                "estimatedMinutes" to h.estimatedMinutes, "difficultyRating" to h.difficultyRating,
+                "colorSeed" to h.colorSeed, "colorOverride" to h.colorOverride,
+                "essential" to h.essential, "flexDays" to h.flexDays,
+                "quietHours" to h.quietHours, "orderIndex" to h.orderIndex,
+                "status" to h.status.name, "graduated" to h.graduated,
+                "graduatedAt" to h.graduatedAt, "createdAt" to h.createdAt
+            )
+        }
+        return createMapCursor(rows)
+    }
+
+    private fun createEnergyCursor(energyLogs: List<EnergyLog>): Cursor {
+        val rows = energyLogs.map { e ->
+            mapOf(
+                "id" to e.id, "date" to e.date, "checkpoint" to e.checkpoint.name,
+                "energy" to e.energy, "note" to e.note, "createdAt" to e.createdAt
+            )
+        }
+        return createMapCursor(rows)
+    }
+
+    private fun createFakeRepository(
+        habit: Habit,
+        energyLogs: List<EnergyLog> = emptyList()
+    ): Repository {
+        val unsafeClass = Class.forName("sun.misc.Unsafe")
+        val field = unsafeClass.getDeclaredField("theUnsafe")
+        field.isAccessible = true
+        val unsafe = field.get(null)
+        val allocateMethod = unsafeClass.getMethod("allocateInstance", Class::class.java)
+        val repo = allocateMethod.invoke(unsafe, Repository::class.java) as Repository
+
+        val clockField = Repository::class.java.getDeclaredField("clock")
+        clockField.isAccessible = true
+        clockField.set(repo, FixedClock(Instant.parse("2026-08-20T10:00:00Z")))
+
+        val dbProxy = Proxy.newProxyInstance(
+            SupportSQLiteDatabase::class.java.classLoader,
+            arrayOf(SupportSQLiteDatabase::class.java)
+        ) { _, method, args ->
+            if (method.name == "query") {
+                val queryObj = args[0]
+                val sql = if (queryObj is String) queryObj else {
+                    val sqlField = queryObj.javaClass.getDeclaredField("query")
+                    sqlField.isAccessible = true
+                    sqlField.get(queryObj) as String
+                }
+
+                when {
+                    sql.contains("FROM habit") -> createHabitCursor(listOf(habit))
+                    sql.contains("FROM energy") -> createEnergyCursor(energyLogs)
+                    else -> createMapCursor(emptyList())
+                }
+            } else if (method.name == "insert") {
+                1L
+            } else if (method.name == "delete") {
+                0
+            } else if (method.returnType == java.lang.Long.TYPE) {
+                0L
+            } else if (method.returnType == java.lang.Integer.TYPE) {
+                0
+            } else if (method.returnType == java.lang.Boolean.TYPE) {
+                true
+            } else {
+                null
+            }
+        } as SupportSQLiteDatabase
+
+        val sfDbAllocate = unsafeClass.getMethod("allocateInstance", Class::class.java)
+        val superFlowDb = sfDbAllocate.invoke(unsafe, com.superflow.data.db.SuperFlowDatabase::class.java) as com.superflow.data.db.SuperFlowDatabase
+
+        val helperField = com.superflow.data.db.SuperFlowDatabase::class.java.getDeclaredField("helper")
+        helperField.isAccessible = true
+        val helperProxy = Proxy.newProxyInstance(
+            androidx.sqlite.db.SupportSQLiteOpenHelper::class.java.classLoader,
+            arrayOf(androidx.sqlite.db.SupportSQLiteOpenHelper::class.java)
+        ) { _, helperMethod, _ ->
+            if (helperMethod.name == "getWritableDatabase" || helperMethod.name == "getReadableDatabase") {
+                dbProxy
+            } else null
+        }
+        helperField.set(superFlowDb, helperProxy)
+
+        val dbField = Repository::class.java.getDeclaredField("database")
+        dbField.isAccessible = true
+        dbField.set(repo, superFlowDb)
+
+        val revisionField = Repository::class.java.getDeclaredField("_revision")
+        revisionField.isAccessible = true
+        revisionField.set(repo, kotlinx.coroutines.flow.MutableStateFlow(0L))
+
+        val lockField = Repository::class.java.getDeclaredField("writeLock")
+        lockField.isAccessible = true
+        lockField.set(repo, java.util.concurrent.locks.ReentrantLock())
+
+        return repo
+    }
+
+    @Test
+    fun `evaluateWeekly calculates trailing 7-day average energy`() {
+        InsightsCache.invalidate()
+        val habit = Habit(id = "h1", title = "Read", startDate = "2026-08-01")
+        val plan = GrowthEngine.generateGrowthPlan(habit)
+        val today = LocalDate.of(2026, 8, 20)
+
+        val logs = listOf(
+            EnergyLog(date = "2026-08-20", checkpoint = Checkpoint.MORNING, energy = 4),
+            EnergyLog(date = "2026-08-19", checkpoint = Checkpoint.EVENING, energy = 2),
+            EnergyLog(date = "2026-08-10", checkpoint = Checkpoint.MORNING, energy = 5)
+        )
+        val repo = createFakeRepository(habit, energyLogs = logs)
+
+        val snapshot = GrowthEngine.evaluateWeekly(plan, repo, today)
+        assertEquals(3.0, snapshot.averageEnergy!!, 0.01)
+
+        InsightsCache.invalidate()
+        val emptyRepo = createFakeRepository(habit, energyLogs = emptyList())
+        val emptySnapshot = GrowthEngine.evaluateWeekly(plan, emptyRepo, today)
+        assertEquals(null, emptySnapshot.averageEnergy)
+    }
+
+    @Test
+    fun `evaluateWeekly enforces minEnergy in PhaseMetrics`() {
+        InsightsCache.invalidate()
+        val habit = Habit(id = "h1", title = "Read", startDate = "2026-08-01")
+        var plan = GrowthEngine.generateGrowthPlan(habit)
+        val today = LocalDate.of(2026, 8, 20)
+
+        val updatedPhases = plan.phases.toMutableList()
+        updatedPhases[0] = updatedPhases[0].copy(
+            metrics = PhaseMetrics(minConsistency = 0, minEnergy = 4, maxMissesInARow = 999)
+        )
+        plan = plan.copy(
+            phases = updatedPhases,
+            upgradePolicy = plan.upgradePolicy.copy(minWeeksInPhase = 0)
+        )
+
+        val lowEnergyLogs = listOf(
+            EnergyLog(date = "2026-08-20", checkpoint = Checkpoint.MORNING, energy = 2)
+        )
+        val lowRepo = createFakeRepository(habit, energyLogs = lowEnergyLogs)
+        val lowSnapshot = GrowthEngine.evaluateWeekly(plan, lowRepo, today)
+        assertEquals(UpgradeDecision.HOLD, lowSnapshot.decision)
+
+        InsightsCache.invalidate()
+        val highEnergyLogs = listOf(
+            EnergyLog(date = "2026-08-20", checkpoint = Checkpoint.MORNING, energy = 4)
+        )
+        val highRepo = createFakeRepository(habit, energyLogs = highEnergyLogs)
+        val highSnapshot = GrowthEngine.evaluateWeekly(plan, highRepo, today)
+        assertEquals(UpgradeDecision.UPGRADE, highSnapshot.decision)
     }
 }
