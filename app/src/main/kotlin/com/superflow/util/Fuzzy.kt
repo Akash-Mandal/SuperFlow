@@ -95,18 +95,35 @@ object Fuzzy {
     ): T? {
         val q = query.trim().lowercase()
         if (q.isEmpty() || candidates.isEmpty()) return null
+        val qLen = q.length
         val fixed = threshold >= 0
         var best: T? = null
         var bestScore = Double.NEGATIVE_INFINITY
+
         for (c in candidates) {
-            val title = key(c).lowercase()
-            if (title.isEmpty()) continue
-            val score = similarity(q, title)
+            val rawTitle = key(c)
+            if (rawTitle.isEmpty()) continue
+            val title = rawTitle.lowercase()
+            val tLen = title.length
+
+            // Early length bound pruning:
+            // Levenshtein distance is at least |qLen - tLen|.
+            // Max allowed distance to qualify for score > bestScore or required threshold is capped by length difference.
+            val maxLen = maxOf(qLen, tLen)
+            val minPossibleDist = Math.abs(qLen - tLen)
+            val maxPossibleScore = 1.0 - minPossibleDist.toDouble() / maxLen
             val required = if (fixed) threshold
-            else maxOf(minThreshold, 1.0 - 2.0 / maxOf(q.length, title.length))
+            else maxOf(minThreshold, 1.0 - 2.0 / maxLen)
+
+            if (maxPossibleScore < required || maxPossibleScore <= bestScore) {
+                continue
+            }
+
+            val score = similarity(q, title)
             if (score >= required && score > bestScore) {
                 bestScore = score
                 best = c
+                if (bestScore == 1.0) break // Exact match found, cannot improve
             }
         }
         return best
