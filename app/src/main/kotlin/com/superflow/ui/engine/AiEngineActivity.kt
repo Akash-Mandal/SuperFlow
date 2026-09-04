@@ -81,7 +81,10 @@ class AiEngineActivity : ScrollActivity() {
         }
         content.addView(fc)
 
-        val profileChips = ChipGroup(this).apply { isSingleSelection = true }
+        val profileChips = ChipGroup(this).apply {
+            isSingleSelection = true
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
         listOf(
             Prefs.PROFILE_FULL to "Full Control",
             Prefs.PROFILE_GUIDED to "Guided",
@@ -140,7 +143,10 @@ class AiEngineActivity : ScrollActivity() {
         val headersField = field("Custom headers (one per line: Name: Value)", prefs.customHeaders, lines = 2)
 
         // Provider presets
-        val presetChips = ChipGroup(this).apply { isSingleSelection = false }
+        val presetChips = ChipGroup(this).apply {
+            isSingleSelection = false
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
         listOf(
             "OpenAI" to Pair("https://api.openai.com", "gpt-4o"),
             "Anthropic" to Pair("https://api.anthropic.com", "claude-sonnet-4-20250514"),
@@ -215,7 +221,10 @@ class AiEngineActivity : ScrollActivity() {
             }
         }
         val modeHolder = modeCard.findViewById<TextView>(R.id.text_title).parent as? LinearLayout ?: modeCard as LinearLayout
-        val modeChips = ChipGroup(this).apply { isSingleSelection = true }
+        val modeChips = ChipGroup(this).apply {
+            isSingleSelection = true
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
         listOf("default" to "Default", "intermediate" to "Intermediate", "advanced" to "Advanced")
             .forEach { (value, label) ->
                 modeChips.addView(Chip(this).apply {
@@ -291,7 +300,10 @@ class AiEngineActivity : ScrollActivity() {
             infoView("timeout")?.let { content.addView(it) }
 
             // Response format — useful for Blueprint Studio
-            val fmtChipsInt = ChipGroup(this).apply { isSingleSelection = true }
+            val fmtChipsInt = ChipGroup(this).apply {
+                isSingleSelection = true
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            }
             listOf("auto" to "Auto", "json" to "JSON mode", "text" to "Plain text").forEach { (v, l) ->
                 fmtChipsInt.addView(Chip(this).apply {
                     text = l; isCheckable = true
@@ -378,7 +390,10 @@ class AiEngineActivity : ScrollActivity() {
             infoView("stop_sequences")?.let { content.addView(it) }
 
             // Response format
-            val fmtChips = ChipGroup(this).apply { isSingleSelection = true }
+            val fmtChips = ChipGroup(this).apply {
+                isSingleSelection = true
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            }
             listOf("auto" to "Auto", "json" to "JSON mode", "text" to "Plain text").forEach { (v, l) ->
                 fmtChips.addView(Chip(this).apply {
                     text = l; isCheckable = true
@@ -660,7 +675,10 @@ class AiEngineActivity : ScrollActivity() {
         })
 
         // STT provider
-        val sttChips = ChipGroup(this).apply { isSingleSelection = true }
+        val sttChips = ChipGroup(this).apply {
+            isSingleSelection = true
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
         listOf("platform" to "Android (Google)", "whisper_api" to "Whisper API",
             "whisper_local" to "Whisper local", "vosk" to "Vosk offline").forEach { (v, l) ->
             sttChips.addView(Chip(this).apply {
@@ -834,7 +852,10 @@ class AiEngineActivity : ScrollActivity() {
         val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
         card.findViewById<TextView>(R.id.text_title).text = title
         card.findViewById<TextView>(R.id.text_body).visible(false)
-        val chips = ChipGroup(this).apply { isSingleSelection = true }
+        val chips = ChipGroup(this).apply {
+            isSingleSelection = true
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
         options.forEach { (label, value) ->
             chips.addView(Chip(this).apply {
                 text = label
