@@ -110,7 +110,7 @@ class HabitDetailActivity : ScrollActivity() {
         val body = todayCard.findViewById<TextView>(R.id.text_body)
         if (today == null) {
             body.visible(false)
-            val chips = ChipGroup(this)
+            val chips = ChipGroup(this).apply { layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT) }
             Level.values().forEach { level ->
                 chips.addView(Chip(this).apply {
                     text = level.label
@@ -256,6 +256,7 @@ class HabitDetailActivity : ScrollActivity() {
         val personalBox = personalCard.findViewById<TextView>(R.id.text_title).parent as LinearLayout
 
         val essentialSwitch = SwitchMaterial(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             text = getString(R.string.essential_desc)
             isChecked = h.essential
             setOnCheckedChangeListener { _, checked ->
@@ -265,12 +266,16 @@ class HabitDetailActivity : ScrollActivity() {
         personalBox.addView(essentialSwitch)
 
         val flexLabel = TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             text = getString(R.string.flex_days_label)
             textSize = 13f
             setPadding(dpi(4), dpi(12), dpi(4), dpi(4))
         }
         personalBox.addView(flexLabel)
-        val flexGroup = ChipGroup(this).apply { isSingleSelection = true }
+        val flexGroup = ChipGroup(this).apply {
+            isSingleSelection = true
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
         for (v in listOf(0, 1, 2)) {
             val chip = Chip(this).apply {
                 text = if (v == 0) "Strict" else "$v flex"
@@ -286,6 +291,7 @@ class HabitDetailActivity : ScrollActivity() {
         personalBox.addView(flexGroup)
 
         val quietView = TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             text = getString(R.string.quiet_hours_label, h.quietHours ?: getString(R.string.quiet_hours_none))
             textSize = 14f
             setPadding(dpi(4), dpi(16), dpi(4), dpi(4))
@@ -303,6 +309,7 @@ class HabitDetailActivity : ScrollActivity() {
         personalBox.addView(quietView)
 
         val colorLabel = TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             text = getString(R.string.accent_color_label)
             textSize = 13f
             setPadding(dpi(4), dpi(12), dpi(4), dpi(4))
@@ -310,6 +317,7 @@ class HabitDetailActivity : ScrollActivity() {
         personalBox.addView(colorLabel)
         val colorRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             setPadding(dpi(4), dpi(4), dpi(4), dpi(4))
         }
         val accentChoices: List<Pair<Int?, String>> = listOf(
