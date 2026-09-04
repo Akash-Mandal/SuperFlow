@@ -45,6 +45,7 @@ class PlanTomorrowSheet : BottomSheetDialogFragment() {
 
         if (candidates.isEmpty()) {
             TextView(requireContext()).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
                 text = "No habits are scheduled for tomorrow yet."
                 setPadding(0, resources.getDimensionPixelSize(R.dimen.space_m), 0, 0)
                 list.addView(this)
