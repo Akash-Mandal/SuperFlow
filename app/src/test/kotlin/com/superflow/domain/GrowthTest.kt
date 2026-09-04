@@ -2,6 +2,7 @@ package com.superflow.domain
 
 import com.superflow.data.model.*
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import android.database.Cursor
 import android.database.MatrixCursor
@@ -449,5 +450,35 @@ class GrowthTest {
         val highRepo = createFakeRepository(habit, energyLogs = highEnergyLogs)
         val highSnapshot = GrowthEngine.evaluateWeekly(plan, highRepo, today)
         assertEquals(UpgradeDecision.UPGRADE, highSnapshot.decision)
+    }
+
+    @Test
+    fun `evaluateWeekly calculates average energy over trailing 7-day window`() {
+        InsightsCache.invalidate()
+        val habit = Habit(id = "h1", title = "Exercise", tinyStart = "1 pushup", standardVersion = "20 pushups")
+        val plan = GrowthEngine.generateGrowthPlan(habit)
+        val today = LocalDate.of(2026, 8, 26)
+        val logs = listOf(
+            EnergyLog(date = "2026-08-25", checkpoint = Checkpoint.MORNING, energy = 4),
+            EnergyLog(date = "2026-08-26", checkpoint = Checkpoint.EVENING, energy = 2),
+            EnergyLog(date = "2026-08-10", checkpoint = Checkpoint.MORNING, energy = 5)
+        )
+        val repo = createFakeRepository(habit, energyLogs = logs)
+        val snapshot = GrowthEngine.evaluateWeekly(plan, repo, today)
+        assertEquals(3.0, snapshot.averageEnergy!!, 0.001)
+    }
+
+    @Test
+    fun `evaluateWeekly returns null average energy when no logs in window`() {
+        InsightsCache.invalidate()
+        val habit = Habit(id = "h1", title = "Exercise", tinyStart = "1 pushup", standardVersion = "20 pushups")
+        val plan = GrowthEngine.generateGrowthPlan(habit)
+        val today = LocalDate.of(2026, 8, 26)
+        val logs = listOf(
+            EnergyLog(date = "2026-08-10", checkpoint = Checkpoint.MORNING, energy = 5)
+        )
+        val repo = createFakeRepository(habit, energyLogs = logs)
+        val snapshot = GrowthEngine.evaluateWeekly(plan, repo, today)
+        assertNull(snapshot.averageEnergy)
     }
 }
