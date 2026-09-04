@@ -1,9 +1,20 @@
 package com.superflow.domain
 
+import android.database.Cursor
+import androidx.sqlite.db.SupportSQLiteDatabase
+import com.superflow.core.time.FixedClock
+import com.superflow.core.time.SuperFlowClock
+import com.superflow.data.Repository
+import com.superflow.data.db.SuperFlowDatabase
 import com.superflow.data.model.*
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.lang.reflect.Proxy
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Core Growth Systems: nested-field serialization round-trips, ladder text,
@@ -201,5 +212,238 @@ class GrowthTest {
         assertEquals(5, templates.size)
         assertTrue(templates.any { it.first == "morning_routine" })
         assertTrue(templates.any { it.first == "evening_wind_down" })
+    }
+
+    @Test
+    fun evaluateWeeklyCalculatesAverageEnergyFromEnergyLogsInPast7Days() {
+        val fixedDate = LocalDate.of(2026, 8, 26)
+        val habit = Habit(id = "h1", title = "Exercise", tinyStart = "1 pushup", standardVersion = "20 pushups")
+        val energyLogs = listOf(
+            EnergyLog(date = "2026-08-25", checkpoint = Checkpoint.MORNING, energy = 4),
+            EnergyLog(date = "2026-08-26", checkpoint = Checkpoint.EVENING, energy = 2),
+            EnergyLog(date = "2026-08-10", checkpoint = Checkpoint.MORNING, energy = 5)
+        )
+        val repo = createFakeRepository(
+            clock = FixedClock(fixedDate.atStartOfDay(ZoneId.of("UTC")).toInstant(), ZoneId.of("UTC")),
+            habits = listOf(habit),
+            energyLogs = energyLogs
+        )
+
+        val plan = GrowthEngine.generateGrowthPlan(habit)
+        val snapshot = GrowthEngine.evaluateWeekly(plan, repo, fixedDate)
+        assertEquals(3.0, snapshot.averageEnergy!!, 0.001)
+    }
+
+    @Test
+    fun evaluateWeeklyReturnsNullAverageEnergyWhenNoEnergyLogsExistInPast7Days() {
+        val fixedDate = LocalDate.of(2026, 8, 26)
+        val habit = Habit(id = "h1", title = "Exercise", tinyStart = "1 pushup", standardVersion = "20 pushups")
+        val energyLogs = listOf(
+            EnergyLog(date = "2026-08-10", checkpoint = Checkpoint.MORNING, energy = 5)
+        )
+        val repo = createFakeRepository(
+            clock = FixedClock(fixedDate.atStartOfDay(ZoneId.of("UTC")).toInstant(), ZoneId.of("UTC")),
+            habits = listOf(habit),
+            energyLogs = energyLogs
+        )
+
+        val plan = GrowthEngine.generateGrowthPlan(habit)
+        val snapshot = GrowthEngine.evaluateWeekly(plan, repo, fixedDate)
+        assertNull(snapshot.averageEnergy)
+    }
+
+    /* ---------------------------------------------------- Repository helper */
+
+    private fun createFakeRepository(
+        clock: SuperFlowClock = FixedClock(Instant.parse("2026-08-26T10:00:00Z")),
+        habits: List<Habit> = emptyList(),
+        energyLogs: List<EnergyLog> = emptyList()
+    ): Repository {
+        val unsafeClass = Class.forName("sun.misc.Unsafe")
+        val field = unsafeClass.getDeclaredField("theUnsafe")
+        field.isAccessible = true
+        val unsafe = field.get(null)
+        val allocateMethod = unsafeClass.getMethod("allocateInstance", Class::class.java)
+        val repo = allocateMethod.invoke(unsafe, Repository::class.java) as Repository
+
+        val clockField = Repository::class.java.getDeclaredField("clock")
+        clockField.isAccessible = true
+        clockField.set(repo, clock)
+
+        val writeLockField = Repository::class.java.getDeclaredField("writeLock")
+        writeLockField.isAccessible = true
+        writeLockField.set(repo, java.util.concurrent.locks.ReentrantLock())
+
+        val revisionField = Repository::class.java.getDeclaredField("_revision")
+        revisionField.isAccessible = true
+        revisionField.set(repo, kotlinx.coroutines.flow.MutableStateFlow(0L))
+
+        val dbProxy = Proxy.newProxyInstance(
+            SupportSQLiteDatabase::class.java.classLoader,
+            arrayOf(SupportSQLiteDatabase::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "query" -> {
+                    val queryObj = args[0]
+                    val sqlField = queryObj.javaClass.getDeclaredField("query")
+                    sqlField.isAccessible = true
+                    val sql = sqlField.get(queryObj) as String
+
+                    when {
+                        sql.contains("FROM habit") -> createHabitCursor(habits)
+                        sql.contains("FROM energy") -> createEnergyCursor(energyLogs)
+                        else -> createEmptyCursor()
+                    }
+                }
+                "beginTransaction", "setTransactionSuccessful", "endTransaction" -> null
+                "insert" -> 1L
+                "delete" -> 1
+                "execSQL" -> null
+                else -> null
+            }
+        } as SupportSQLiteDatabase
+
+        val superFlowDb = createSuperFlowDatabase(dbProxy)
+
+        val dbField = Repository::class.java.getDeclaredField("database")
+        dbField.isAccessible = true
+        dbField.set(repo, superFlowDb)
+
+        return repo
+    }
+
+    private fun createSuperFlowDatabase(dbProxy: SupportSQLiteDatabase): SuperFlowDatabase {
+        val unsafeClass = Class.forName("sun.misc.Unsafe")
+        val field = unsafeClass.getDeclaredField("theUnsafe")
+        field.isAccessible = true
+        val unsafe = field.get(null)
+        val allocateMethod = unsafeClass.getMethod("allocateInstance", Class::class.java)
+        val sfDb = allocateMethod.invoke(unsafe, SuperFlowDatabase::class.java) as SuperFlowDatabase
+
+        val helperClass = Class.forName("androidx.sqlite.db.SupportSQLiteOpenHelper")
+        val helperProxy = Proxy.newProxyInstance(
+            helperClass.classLoader,
+            arrayOf(helperClass)
+        ) { _, method, _ ->
+            if (method.name == "getWritableDatabase" || method.name == "getReadableDatabase") {
+                dbProxy
+            } else null
+        }
+
+        val helperField = SuperFlowDatabase::class.java.getDeclaredField("helper")
+        helperField.isAccessible = true
+        helperField.set(sfDb, helperProxy)
+
+        return sfDb
+    }
+
+    private fun createEmptyCursor(): Cursor = createMapCursor(emptyList())
+
+    private fun createHabitCursor(habits: List<Habit>): Cursor {
+        val rows = habits.map { h ->
+            mapOf(
+                "id" to h.id, "systemId" to h.systemId, "identityId" to h.identityId,
+                "title" to h.title, "mode" to h.mode.name, "trackType" to h.trackType.name,
+                "targetCount" to h.targetCount, "unit" to h.unit,
+                "cueTime" to h.cueTime, "cuePlace" to h.cuePlace,
+                "anchorHabitId" to h.anchorHabitId, "anchorText" to h.anchorText,
+                "benefit" to h.benefit, "temptationBundle" to h.temptationBundle,
+                "reframe" to h.reframe, "tinyStart" to h.tinyStart,
+                "minimumVersion" to h.minimumVersion, "standardVersion" to h.standardVersion,
+                "stretchVersion" to h.stretchVersion, "frictionPlan" to h.frictionPlan,
+                "environmentPrep" to h.environmentPrep, "reward" to h.reward,
+                "recoveryPlan" to h.recoveryPlan, "recurrenceRule" to h.recurrenceRule,
+                "scheduleVersion" to h.scheduleVersion, "startDate" to h.startDate,
+                "endDate" to h.endDate, "reminderEnabled" to h.reminderEnabled,
+                "protectedRoutine" to h.protectedRoutine, "rewardSatisfaction" to h.rewardSatisfaction,
+                "rewardLastRated" to h.rewardLastRated, "reframeHelpful" to h.reframeHelpful,
+                "bundleEffectiveness" to h.bundleEffectiveness, "frictionPlanActive" to h.frictionPlanActive,
+                "environmentPrepReminderTime" to h.environmentPrepReminderTime,
+                "ladderHistory" to "", "lastDifficultyRating" to h.lastDifficultyRating,
+                "stretchCount" to h.stretchCount, "consecutiveStandards" to h.consecutiveStandards,
+                "estimatedMinutes" to h.estimatedMinutes, "difficultyRating" to h.difficultyRating,
+                "colorSeed" to h.colorSeed, "colorOverride" to h.colorOverride,
+                "essential" to h.essential, "flexDays" to h.flexDays,
+                "quietHours" to h.quietHours, "orderIndex" to h.orderIndex,
+                "status" to h.status.name, "graduated" to h.graduated,
+                "graduatedAt" to h.graduatedAt, "createdAt" to h.createdAt
+            )
+        }
+        return createMapCursor(rows)
+    }
+
+    private fun createEnergyCursor(energyLogs: List<EnergyLog>): Cursor {
+        val rows = energyLogs.map { e ->
+            mapOf(
+                "id" to e.id, "date" to e.date, "checkpoint" to e.checkpoint.name,
+                "energy" to e.energy, "note" to e.note, "createdAt" to e.createdAt
+            )
+        }
+        return createMapCursor(rows)
+    }
+
+    private fun createMapCursor(rows: List<Map<String, Any?>>): Cursor {
+        var rowIndex = -1
+        val columns = if (rows.isNotEmpty()) rows[0].keys.toList() else emptyList()
+
+        return Proxy.newProxyInstance(
+            Cursor::class.java.classLoader,
+            arrayOf(Cursor::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "moveToNext" -> {
+                    rowIndex++
+                    rowIndex < rows.size
+                }
+                "getColumnIndex" -> {
+                    val name = args[0] as String
+                    columns.indexOf(name)
+                }
+                "isNull" -> {
+                    val idx = args[0] as Int
+                    if (idx < 0 || idx >= columns.size) true
+                    else rows[rowIndex][columns[idx]] == null
+                }
+                "getString" -> {
+                    val idx = args[0] as Int
+                    if (idx < 0 || idx >= columns.size) ""
+                    else rows[rowIndex][columns[idx]]?.toString() ?: ""
+                }
+                "getInt" -> {
+                    val idx = args[0] as Int
+                    if (idx < 0 || idx >= columns.size) 0
+                    else {
+                        val v = rows[rowIndex][columns[idx]]
+                        when (v) {
+                            is Boolean -> if (v) 1 else 0
+                            is Number -> v.toInt()
+                            else -> 0
+                        }
+                    }
+                }
+                "getLong" -> {
+                    val idx = args[0] as Int
+                    if (idx < 0 || idx >= columns.size) 0L
+                    else {
+                        val v = rows[rowIndex][columns[idx]]
+                        when (v) {
+                            is Boolean -> if (v) 1L else 0L
+                            is Number -> v.toLong()
+                            else -> 0L
+                        }
+                    }
+                }
+                "getDouble" -> {
+                    val idx = args[0] as Int
+                    if (idx < 0 || idx >= columns.size) 0.0
+                    else {
+                        val v = rows[rowIndex][columns[idx]]
+                        (v as? Number)?.toDouble() ?: 0.0
+                    }
+                }
+                "close" -> null
+                else -> null
+            }
+        } as Cursor
     }
 }
