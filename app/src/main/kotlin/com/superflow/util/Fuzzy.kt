@@ -62,11 +62,11 @@ object Fuzzy {
     fun similarity(a: String, b: String): Double {
         if (a == b) return 1.0
         if (a.equals(b, ignoreCase = true)) return 1.0
-        val maxLen = maxOf(a.length, b.length)
-        if (maxLen == 0) return 1.0
         val s = a.lowercase()
         val t = b.lowercase()
         if (s == t) return 1.0
+        val maxLen = maxOf(s.length, t.length)
+        if (maxLen == 0) return 1.0
         return 1.0 - levenshtein(s, t).toDouble() / maxLen
     }
 
