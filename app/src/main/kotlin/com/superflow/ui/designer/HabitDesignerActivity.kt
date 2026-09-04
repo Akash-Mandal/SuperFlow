@@ -513,6 +513,7 @@ class HabitDesignerActivity : AppCompatActivity() {
 
     private fun hint(text: String) {
         stepContent.addView(TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             this.text = text
             setTextAppearance(R.style.Text_SuperFlow_BodyMedium)
             alpha = 0.7f
