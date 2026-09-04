@@ -9,8 +9,8 @@ object Fuzzy {
     /**
      * Classic Wagner–Fischer Levenshtein distance.
      *
-     * Uses the two-row O(min(m,n)) memory variant. Returns 0 for equal
-     * strings and the edit count otherwise.
+     * Uses two flat IntArray buffers to avoid array allocations per row.
+     * Returns 0 for equal strings and the edit count otherwise.
      */
     fun levenshtein(a: String, b: String): Int {
         if (a == b) return 0
@@ -46,10 +46,14 @@ object Fuzzy {
      * ranking candidates and for a confidence threshold.
      */
     fun similarity(a: String, b: String): Double {
-        val (s, t) = a.lowercase() to b.lowercase()
-        if (s == t) return 1.0
+        if (a.isEmpty() && b.isEmpty()) return 1.0
+        if (a.equals(b, ignoreCase = true)) return 1.0
+
+        val s = a.lowercase()
+        val t = b.lowercase()
         val maxLen = maxOf(s.length, t.length)
         if (maxLen == 0) return 1.0
+
         return 1.0 - levenshtein(s, t).toDouble() / maxLen
     }
 
@@ -78,18 +82,35 @@ object Fuzzy {
     ): T? {
         val q = query.trim().lowercase()
         if (q.isEmpty() || candidates.isEmpty()) return null
+        val qLen = q.length
         val fixed = threshold >= 0
         var best: T? = null
         var bestScore = Double.NEGATIVE_INFINITY
+
         for (c in candidates) {
-            val title = key(c).lowercase()
-            if (title.isEmpty()) continue
-            val score = similarity(q, title)
+            val rawTitle = key(c)
+            if (rawTitle.isEmpty()) continue
+            val title = rawTitle.lowercase()
+            val tLen = title.length
+
+            // Early length bound pruning:
+            // Levenshtein distance is at least |qLen - tLen|.
+            // Max allowed distance to qualify for score > bestScore or required threshold is capped by length difference.
+            val maxLen = maxOf(qLen, tLen)
+            val minPossibleDist = Math.abs(qLen - tLen)
+            val maxPossibleScore = 1.0 - minPossibleDist.toDouble() / maxLen
             val required = if (fixed) threshold
-            else maxOf(minThreshold, 1.0 - 2.0 / maxOf(q.length, title.length))
+            else maxOf(minThreshold, 1.0 - 2.0 / maxLen)
+
+            if (maxPossibleScore < required || maxPossibleScore <= bestScore) {
+                continue
+            }
+
+            val score = similarity(q, title)
             if (score >= required && score > bestScore) {
                 bestScore = score
                 best = c
+                if (bestScore == 1.0) break // Exact match found, cannot improve
             }
         }
         return best
