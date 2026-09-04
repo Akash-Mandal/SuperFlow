@@ -81,6 +81,12 @@ object GrowthEngine {
             else -> UpgradeDecision.HOLD
         }
 
+        val windowDays = SfTime.lastDays(7, today).map { SfTime.format(it) }.toSet()
+        val recentEnergyLogs = repo.energyLogs().filter { it.date in windowDays }
+        val averageEnergy = if (recentEnergyLogs.isNotEmpty()) {
+            recentEnergyLogs.map { it.energy }.average()
+        } else null
+
         val snapshot = WeeklySnapshot(
             weekNumber = plan.weeksSinceStart() + 1,
             phaseIndex = plan.currentPhaseIndex,
