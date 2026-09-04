@@ -46,15 +46,14 @@ object Fuzzy {
      * ranking candidates and for a confidence threshold.
      */
     fun similarity(a: String, b: String): Double {
-        val sLen = a.length
-        val tLen = b.length
-        if (sLen == 0 && tLen == 0) return 1.0
-        val maxLen = maxOf(sLen, tLen)
-        if (maxLen == 0) return 1.0
+        if (a.isEmpty() && b.isEmpty()) return 1.0
         if (a.equals(b, ignoreCase = true)) return 1.0
 
         val s = a.lowercase()
         val t = b.lowercase()
+        val maxLen = maxOf(s.length, t.length)
+        if (maxLen == 0) return 1.0
+
         return 1.0 - levenshtein(s, t).toDouble() / maxLen
     }
 
