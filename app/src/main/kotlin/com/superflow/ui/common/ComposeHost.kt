@@ -65,16 +65,11 @@ fun Context.sfComposeView(content: @Composable () -> Unit): ComposeView =
  * it, none of which survive being swapped out for a fresh instance.
  */
 fun ComposeView.sfContent(content: @Composable () -> Unit): ComposeView = apply {
-    val existing = layoutParams
-    if (existing == null) {
+    if (layoutParams == null) {
         layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
         )
-    } else {
-        existing.width = ViewGroup.LayoutParams.MATCH_PARENT
-        existing.height = ViewGroup.LayoutParams.MATCH_PARENT
-        layoutParams = existing
     }
     setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
     setContent {
