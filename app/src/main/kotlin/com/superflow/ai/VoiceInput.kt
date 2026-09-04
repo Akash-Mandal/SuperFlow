@@ -35,6 +35,18 @@ class VoiceInput(private val context: Context) {
 
     fun start(callbacks: VoiceInputV2.Callbacks) {
         stop()
+        if (!isAvailable(context)) {
+            callbacks.onError(
+                "No speech recogniser found. On de-Googled devices, install or enable a " +
+                        "voice-input provider (e.g. a system speech engine), then grant " +
+                        "microphone permission."
+            )
+            return
+        }
+        if (!hasPermission(context)) {
+            callbacks.onError("Microphone permission is required")
+            return
+        }
         runCatching {
             val vEngine = VoiceInputV2.create(context)
             engine = vEngine
