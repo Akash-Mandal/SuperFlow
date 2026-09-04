@@ -404,7 +404,7 @@ private fun parseGoalMilestones(raw: String): List<GoalMilestone> {
                 id = o.string("id"),
                 title = o.string("title"),
                 achieved = o.optBoolean("achieved", false),
-                achievedDate = o.optString("achievedDate", null),
+                achievedDate = if (o.has("achievedDate") && !o.isNull("achievedDate")) o.optString("achievedDate") else null,
                 linkedHabitIds = linkedHabitIds
             )
         }
@@ -455,9 +455,9 @@ private fun parseReviewActionItems(raw: String): List<ReviewActionItem> {
                 id = o.string("id"),
                 text = o.string("text"),
                 completed = o.optBoolean("completed", false),
-                completedDate = o.optString("completedDate", null),
-                linkedCommand = o.optString("linkedCommand", null),
-                outcome = o.optString("outcome", null)
+                completedDate = if (o.has("completedDate") && !o.isNull("completedDate")) o.optString("completedDate") else null,
+                linkedCommand = if (o.has("linkedCommand") && !o.isNull("linkedCommand")) o.optString("linkedCommand") else null,
+                outcome = if (o.has("outcome") && !o.isNull("outcome")) o.optString("outcome") else null
             )
         }
     } catch (e: Exception) {
