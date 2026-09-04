@@ -136,6 +136,25 @@ fun <T> SfCommandPalette(
                         Spacer(modifier = Modifier.height(Space.SM.dp))
                         quickActions()
                     }
+                } else if (results.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Space.BASE.dp, vertical = Space.XL.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = "No matching items",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(Space.XXS.dp))
+                        Text(
+                            text = "Try searching for habits, goals, or actions",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        )
+                    }
                 }
 
                 LazyColumn(
