@@ -84,7 +84,7 @@ object Search {
         return results.sortedByDescending { it.relevance }
     }
 
-    /** Exact match first, then prefix, then contains, then fuzzy. */
+    /** Exact match first, then prefix, then contains, then fuzzy. Optimized single-pass zero-allocation search. */
     fun relevance(query: String, vararg fields: String): Float {
         if (fields.isEmpty() || query.isEmpty()) return 0f
 
