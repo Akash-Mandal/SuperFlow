@@ -41,12 +41,16 @@ object AppLock {
         return true
     }
 
-    fun checkPin(prefs: Prefs, pin: String): Boolean =
-        prefs.appLockPinHash.isNotBlank() &&
-                MessageDigest.isEqual(
-                    prefs.appLockPinHash.toByteArray(),
-                    hashPin(pin).toByteArray()
-                )
+    // Dummy hash used for constant-time comparison when no PIN is configured
+    private val DUMMY_HASH = "0".repeat(64).toByteArray()
+
+    fun checkPin(prefs: Prefs, pin: String): Boolean {
+        val storedHash = prefs.appLockPinHash
+        val candidateHash = hashPin(pin).toByteArray()
+        val storedBytes = if (storedHash.isNotBlank()) storedHash.toByteArray() else DUMMY_HASH
+        val matches = MessageDigest.isEqual(storedBytes, candidateHash)
+        return storedHash.isNotBlank() && matches
+    }
 
     fun clearPin(prefs: Prefs) {
         prefs.appLockPinHash = ""
