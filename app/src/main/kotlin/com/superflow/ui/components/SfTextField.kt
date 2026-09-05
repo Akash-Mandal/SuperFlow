@@ -131,7 +131,7 @@ fun SfTextField(
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
                 )
-                if (showCounter && maxLength != null) {
+                if (showCounter) {
                     Text(
                         text = "${value.length}/$maxLength",
                         style = SfTheme.type.data,

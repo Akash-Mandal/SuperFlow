@@ -33,7 +33,7 @@ class AutoReinforceWorker(context: Context, params: WorkerParameters) : Coroutin
                 if (prefs.autoReinforceMode == "propose") {
                     try {
                         db.execSQL("INSERT OR REPLACE INTO proactive_suggestion VALUES (?,?,?,?,?,?,?,?)",
-                            arrayOf(java.util.UUID.randomUUID().toString(), "GROWTH", "Auto Reinforce ready: phase $week — apply ${p["whatJson"]?.let { JSONObject(it).optString("command") }}", "MEDIUM", p["whatJson"] ?: "", null, 0, 0, System.currentTimeMillis()))
+                            arrayOf<Any?>(java.util.UUID.randomUUID().toString(), "GROWTH", "Auto Reinforce ready: phase $week — apply ${p["whatJson"]?.let { JSONObject(it).optString("command") }}", "MEDIUM", p["whatJson"] ?: "", null, 0, 0, System.currentTimeMillis()))
                     } catch (_: Exception) {}
                     continue
                 }
@@ -41,7 +41,7 @@ class AutoReinforceWorker(context: Context, params: WorkerParameters) : Coroutin
                     val what = JSONObject(p["whatJson"] ?: continue)
                     val cmd = what.optString("command"); val args = what.optJSONObject("args") ?: JSONObject()
                     val res = bus.execute(cmd, args, Actor.SYSTEM)
-                    if (res.ok) db.execSQL("UPDATE blueprint_auto_plan SET status='APPLIED', appliedAt=? WHERE id=?", arrayOf(System.currentTimeMillis(), p["id"]))
+                    if (res.ok) db.execSQL("UPDATE blueprint_auto_plan SET status='APPLIED', appliedAt=? WHERE id=?", arrayOf<Any?>(System.currentTimeMillis(), p["id"]))
                     else db.execSQL("UPDATE blueprint_auto_plan SET status='FAILED' WHERE id=?", arrayOf(p["id"]))
                 } catch (e: Exception) { Log.w("AutoReinforce", "apply failed", e) }
             }
