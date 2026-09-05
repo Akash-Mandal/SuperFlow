@@ -34,6 +34,10 @@ class InfoButton @JvmOverloads constructor(
 ) : LinearLayout(context, attrs, defStyle) {
 
     var title: String = ""
+        set(value) {
+            field = value
+            updateAccessibilityLabel()
+        }
     var description: String = ""
 
     private val icon: ImageView
@@ -51,11 +55,17 @@ class InfoButton @JvmOverloads constructor(
                 marginStart = (4 * resources.displayMetrics.density).toInt()
             }
             alpha = 0.6f
-            contentDescription = "Info"
         }
         addView(icon)
 
+        updateAccessibilityLabel()
         setOnClickListener { show() }
+    }
+
+    private fun updateAccessibilityLabel() {
+        val label = if (title.isNotBlank()) "Info: $title" else "Info"
+        contentDescription = label
+        icon.contentDescription = label
     }
 
     fun show() {
