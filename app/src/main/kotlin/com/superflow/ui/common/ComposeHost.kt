@@ -41,16 +41,11 @@ fun Fragment.sfComposeView(content: @Composable () -> Unit): ComposeView =
         // added, and ViewPager2's generated defaults are wrap-content - which
         // measures the composition with infinite height and crashes any
         // LazyColumn inside. Every tab fills its page; say so explicitly.
-        val existing = layoutParams
-        if (existing == null) {
+        if (layoutParams == null) {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
             )
-        } else {
-            existing.width = ViewGroup.LayoutParams.MATCH_PARENT
-            existing.height = ViewGroup.LayoutParams.MATCH_PARENT
-            layoutParams = existing
         }
     }
 
