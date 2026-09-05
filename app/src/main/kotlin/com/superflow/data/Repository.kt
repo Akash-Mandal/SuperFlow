@@ -847,7 +847,7 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
 
     fun touchMemory(id: String) {
         db.execSQL("UPDATE ai_memory SET last_accessed=?, access_count=access_count+1 WHERE id=?",
-            arrayOf(System.currentTimeMillis(), id))
+            arrayOf<Any?>(System.currentTimeMillis(), id))
         invalidate()
     }
 

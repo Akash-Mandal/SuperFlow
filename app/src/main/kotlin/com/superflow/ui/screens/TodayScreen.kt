@@ -231,7 +231,6 @@ private fun TodayRowItem(
             is TodayRow.Checkpoints -> EnergyBlock(row, onAction)
             is TodayRow.GrowthPlanStatus -> GrowthBlock(row)
             is TodayRow.Suggestion -> SuggestionBlock(row, onAction)
-            else -> Unit
         }
         return
     }
@@ -262,7 +261,6 @@ private fun TodayRowItem(
             is TodayRow.Checkpoints -> EnergyBlock(row, onAction)
             is TodayRow.GrowthPlanStatus -> GrowthBlock(row)
             is TodayRow.Suggestion -> SuggestionBlock(row, onAction)
-            else -> Unit
         }
     }
 }

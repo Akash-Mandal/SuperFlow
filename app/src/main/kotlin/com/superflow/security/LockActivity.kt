@@ -60,6 +60,7 @@ class LockActivity : AppCompatActivity() {
         }
     }
 
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
         // Do not allow bypassing the lock with back.
         super.onBackPressed()

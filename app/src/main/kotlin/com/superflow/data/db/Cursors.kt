@@ -5,6 +5,7 @@ import android.util.Log
 import com.superflow.data.model.*
 import com.superflow.util.objects
 import com.superflow.util.string
+import com.superflow.util.stringOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -404,7 +405,7 @@ private fun parseGoalMilestones(raw: String): List<GoalMilestone> {
                 id = o.string("id"),
                 title = o.string("title"),
                 achieved = o.optBoolean("achieved", false),
-                achievedDate = o.optString("achievedDate", null),
+                achievedDate = o.stringOrNull("achievedDate"),
                 linkedHabitIds = linkedHabitIds
             )
         }
@@ -455,9 +456,9 @@ private fun parseReviewActionItems(raw: String): List<ReviewActionItem> {
                 id = o.string("id"),
                 text = o.string("text"),
                 completed = o.optBoolean("completed", false),
-                completedDate = o.optString("completedDate", null),
-                linkedCommand = o.optString("linkedCommand", null),
-                outcome = o.optString("outcome", null)
+                completedDate = o.stringOrNull("completedDate"),
+                linkedCommand = o.stringOrNull("linkedCommand"),
+                outcome = o.stringOrNull("outcome")
             )
         }
     } catch (e: Exception) {
