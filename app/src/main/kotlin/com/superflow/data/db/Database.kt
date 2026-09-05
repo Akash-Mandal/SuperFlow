@@ -39,8 +39,8 @@ class SuperFlowDatabase private constructor(context: Context) {
             .name(NAME)
             .callback(object : SupportSQLiteOpenHelper.Callback(VERSION) {
                 override fun onCreate(db: SupportSQLiteDatabase) = Schema.create(db)
-                override fun onUpgrade(db: SupportSQLiteDatabase, old: Int, new: Int) =
-                    Schema.upgrade(db, old, new)
+                override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) =
+                    Schema.upgrade(db, oldVersion, newVersion)
                 override fun onConfigure(db: SupportSQLiteDatabase) {
                     db.setForeignKeyConstraintsEnabled(false)
                     // Idempotent and cheap; applied before any read/write.

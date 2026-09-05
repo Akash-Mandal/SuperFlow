@@ -475,7 +475,7 @@ class BlueprintActivity : ScrollActivity() {
                         for (req in auto) {
                             try {
                                 db.execSQL("INSERT OR REPLACE INTO blueprint_auto_plan VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                                    arrayOf(java.util.UUID.randomUUID().toString(), p.id, idx + 1, req.plannedCommand ?: "{}", "WEEK:${ph.weekStart}", ph.focusArea, "ADD", null, "PENDING", System.currentTimeMillis(), null))
+                                    arrayOf<Any?>(java.util.UUID.randomUUID().toString(), p.id, idx + 1, req.plannedCommand ?: "{}", "WEEK:${ph.weekStart}", ph.focusArea, "ADD", null, "PENDING", System.currentTimeMillis(), null))
                             } catch (_: Exception) {}
                         }
                     }
@@ -564,7 +564,7 @@ class BlueprintActivity : ScrollActivity() {
             if (repo.flows().isEmpty() && applied >= 2) {
                 val db2 = com.superflow.data.db.SuperFlowDatabase.get(this@BlueprintActivity).db
                 db2.execSQL("INSERT OR IGNORE INTO proactive_suggestion VALUES (?,?,?,?,?,?,?,?)",
-                    arrayOf(java.util.UUID.randomUUID().toString(), "GROWTH", "Blueprint created ${applied} habits — consider generating a Routine/Flow to chain them. Ask Studio: 'create a morning flow with my new habits' or apply via Flows.", "MEDIUM", """{"command":"create_flow","args":{"title":"Morning Flow"}}""", null, 0, 0, System.currentTimeMillis()))
+                    arrayOf<Any?>(java.util.UUID.randomUUID().toString(), "GROWTH", "Blueprint created ${applied} habits — consider generating a Routine/Flow to chain them. Ask Studio: 'create a morning flow with my new habits' or apply via Flows.", "MEDIUM", """{"command":"create_flow","args":{"title":"Morning Flow"}}""", null, 0, 0, System.currentTimeMillis()))
             }
         } catch (_: Exception) {}
 
