@@ -4,6 +4,7 @@ import com.superflow.data.model.*
 import com.superflow.domain.Serial
 import com.superflow.util.jsonArrayOf
 import com.superflow.util.jsonOf
+import com.superflow.util.stringOrNull
 import com.superflow.util.strings
 import org.json.JSONArray
 import org.json.JSONObject
@@ -391,7 +392,7 @@ object DataPolicy {
      * Import preferences from an export. Does NOT import secrets.
      */
     fun importPreferences(prefs: Prefs, json: JSONObject) {
-        fun str(k: String) = if (json.has(k)) json.optString(k) else null
+        fun str(k: String) = json.stringOrNull(k)
         fun bool(k: String) = if (json.has(k)) json.optBoolean(k) else null
         fun int(k: String) = if (json.has(k)) json.optInt(k) else null
         fun num(k: String) = if (json.has(k)) json.optDouble(k).toFloat() else null

@@ -60,7 +60,7 @@ class Agent private constructor(context: Context) {
      */
     private fun acquireCloudSlot(): Boolean = synchronized(rateLock) {
         val now = System.currentTimeMillis()
-        while (cloudCallTimes.isNotEmpty() && now - cloudCallTimes.peekFirst() > WINDOW_MS) {
+        while (cloudCallTimes.isNotEmpty() && now - cloudCallTimes.peekFirst()!! > WINDOW_MS) {
             cloudCallTimes.pollFirst()
         }
         if (cloudCallTimes.size >= MAX_CALLS_PER_MINUTE) false
