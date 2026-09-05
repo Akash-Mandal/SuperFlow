@@ -18,7 +18,8 @@ object Fuzzy {
         if (b.isEmpty()) return a.length
 
         // Keep the shorter string in the inner row to use less memory.
-        val (s, t) = if (a.length <= b.length) a to b else b to a
+        val s = if (a.length <= b.length) a else b
+        val t = if (a.length <= b.length) b else a
         val n = s.length
         val m = t.length
 
@@ -46,7 +47,9 @@ object Fuzzy {
      * ranking candidates and for a confidence threshold.
      */
     fun similarity(a: String, b: String): Double {
-        val (s, t) = a.lowercase() to b.lowercase()
+        if (a.equals(b, ignoreCase = true)) return 1.0
+        val s = a.lowercase()
+        val t = b.lowercase()
         if (s == t) return 1.0
         val maxLen = maxOf(s.length, t.length)
         if (maxLen == 0) return 1.0

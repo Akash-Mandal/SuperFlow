@@ -1,0 +1,3 @@
+## 2026-08-26 - Single-Pass Lazy Evaluation for Multi-Field Search Relevance
+**Learning:** Evaluated search scoring functions like `Search.relevance` that take `vararg fields` often allocate intermediate collections via `filter` and `map` on every record. Iterating over fields in a single pass with early returns (e.g. `1.0f` on exact match) and guarding expensive calculations like Levenshtein distance (`maxScore < 0.2f`) avoids garbage collection overhead and multi-pass field scans.
+**Action:** In search or filtering paths over large datasets, evaluate fields lazily in a single loop and skip expensive fuzzy/edit-distance functions when a higher relevance threshold is already satisfied.

@@ -84,17 +84,26 @@ object Search {
         return results.sortedByDescending { it.relevance }
     }
 
-    /** Exact match first, then prefix, then contains, then fuzzy. */
+    /** Exact match first, then prefix, then contains, then fuzzy. Optimized single-pass zero-allocation search. */
     fun relevance(query: String, vararg fields: String): Float {
-        val lower = fields.filter { it.isNotBlank() }.map { it.lowercase() }
-        if (lower.isEmpty()) return 0f
-        return when {
-            lower.any { it == query } -> 1.0f
-            lower.any { it.startsWith(query) } -> 0.8f
-            lower.any { it.contains(query) } -> 0.5f
-            lower.any { query.contains(it) && it.length > 3 } -> 0.3f
-            lower.minOf { Fuzzy.levenshtein(query, it) } < 3 -> 0.2f
-            else -> 0f
+        if (fields.isEmpty() || query.isEmpty()) return 0f
+        var maxScore = 0f
+        for (i in fields.indices) {
+            val field = fields[i]
+            if (field.isBlank()) continue
+            val lower = field.lowercase()
+            val score = when {
+                lower == query -> return 1.0f
+                lower.startsWith(query) -> 0.8f
+                lower.contains(query) -> 0.5f
+                query.contains(lower) && lower.length > 3 -> 0.3f
+                maxScore < 0.2f && Fuzzy.levenshtein(query, lower) < 3 -> 0.2f
+                else -> 0f
+            }
+            if (score > maxScore) {
+                maxScore = score
+            }
         }
+        return maxScore
     }
 }
