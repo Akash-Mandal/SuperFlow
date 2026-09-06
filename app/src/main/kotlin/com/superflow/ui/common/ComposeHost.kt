@@ -58,10 +58,12 @@ fun Context.sfComposeView(content: @Composable () -> Unit): ComposeView =
  * it, none of which survive being swapped out for a fresh instance.
  */
 fun ComposeView.sfContent(content: @Composable () -> Unit): ComposeView = apply {
-    layoutParams = ViewGroup.LayoutParams(
-        ViewGroup.LayoutParams.MATCH_PARENT,
-        ViewGroup.LayoutParams.MATCH_PARENT,
-    )
+    if (layoutParams == null) {
+        layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+        )
+    }
     setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
     setContent {
         SfThemeFromPrefs {
