@@ -99,15 +99,19 @@ class Agent private constructor(context: Context) {
         // Cancelled mid-flight: the user's message stays (it was sent), but the
         // late result is dropped instead of landing as a confusing reply.
         // Anything already executed remains real — and undoable from Activity.
-        if (stopped.get()) return outcome.copy(reply = "Stopped.")
-        val final = if (images.isNotEmpty() && outcome.route == "local") {
+        // (No `return` here: withContext's lambda forbids it; branch instead.)
+        val final = if (stopped.get()) {
+            outcome.copy(reply = "Stopped.")
+        } else if (images.isNotEmpty() && outcome.route == "local") {
             outcome.copy(
                 reply = outcome.reply +
                     "\n\nNote: I can't see attached images in local mode — " +
                     "connect a Cloud Main Brain in Settings › AI Engine to analyse them."
             )
         } else outcome
-        bus.repo.saveMessage(AiMessage(role = "assistant", text = final.reply, meta = final.route))
+        if (!stopped.get()) {
+            bus.repo.saveMessage(AiMessage(role = "assistant", text = final.reply, meta = final.route))
+        }
         final
     }
 

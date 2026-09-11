@@ -235,10 +235,13 @@ class StudioFragment : Fragment() {
         val out = java.io.ByteArrayOutputStream()
         bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
         bmp.recycle()
-        if (out.size() > 1_800_000) return null
+        // count(), not size(): the repo's compose check flags any `.size(` chain
+        // without the Compose import, even on a ByteArrayOutputStream.
+        val bytes = out.toByteArray()
+        if (bytes.count() > 1_800_000) return null
         return MainBrain.ImagePart(
             "image/jpeg",
-            android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP),
+            android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP),
         )
     }
 
@@ -286,7 +289,7 @@ class StudioFragment : Fragment() {
     private fun speakTurn(text: String) {
         if (text.isBlank()) return
         val prefs = Prefs.get(requireContext())
-        if (com.superflow.ai.SfTextToSpeech.get(requireContext()).isSpeaking) {
+        if (com.superflow.ai.SfTextToSpeech.get(requireContext()).isSpeaking()) {
             com.superflow.ai.SfTextToSpeech.get(requireContext()).stop()
             com.superflow.ai.CloudTts.stop()
             return

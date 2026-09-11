@@ -465,7 +465,7 @@ private fun ModelPickerDialog(
                 ) {
                     items(
                         count = state.modelOptions.size,
-                        key = { state.modelOptions[i] },
+                        key = { idx: Int -> state.modelOptions[idx] },
                     ) { i ->
                         val name = state.modelOptions[i]
                         TextButton(onClick = { onAction(StudioAction.PickModel(name)) }) {
