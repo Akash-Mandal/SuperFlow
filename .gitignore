@@ -12,6 +12,8 @@ out/
 !app/debug.keystore
 local.properties
 .gradle/
+__pycache__/
+*.pyc
 
 # Toolchain and vendored Android libraries (fetched separately, see docs/BUILD.md)
 toolchain/
