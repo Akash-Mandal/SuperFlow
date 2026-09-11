@@ -148,8 +148,12 @@ class PlatformVoiceEngine(private val context: Context) : VoiceEngine {
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
         }
+        val lang = try {
+            com.superflow.data.Prefs.get(context).sttLanguage.ifBlank { java.util.Locale.getDefault().toLanguageTag() }
+        } catch (_: Exception) { java.util.Locale.getDefault().toLanguageTag() }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
@@ -291,7 +295,12 @@ class WhisperApiVoiceEngine(private val context: Context) : VoiceEngine {
             conn.outputStream.use { out ->
                 out.write("--$boundary\r\n".toByteArray())
                 out.write("Content-Disposition: form-data; name=\"model\"\r\n\r\n".toByteArray())
-                out.write("whisper-1\r\n".toByteArray())
+                out.write("${prefs.sttModel.ifBlank { "whisper-1" }}\r\n".toByteArray())
+                if (prefs.sttLanguage.isNotBlank()) {
+                    out.write("--$boundary\r\n".toByteArray())
+                    out.write("Content-Disposition: form-data; name=\"language\"\r\n\r\n".toByteArray())
+                    out.write("${prefs.sttLanguage}\r\n".toByteArray())
+                }
 
                 out.write("--$boundary\r\n".toByteArray())
                 out.write("Content-Disposition: form-data; name=\"file\"; filename=\"${file.name}\"\r\n".toByteArray())

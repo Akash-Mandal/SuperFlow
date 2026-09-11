@@ -85,19 +85,33 @@ class Agent private constructor(context: Context) {
 
     /* ----------------------------------------------------------------- entry */
 
-    suspend fun send(userText: String): Outcome = withContext(Dispatchers.IO) {
+    suspend fun send(
+        userText: String,
+        images: List<MainBrain.ImagePart> = emptyList(),
+    ): Outcome = withContext(Dispatchers.IO) {
         resume()
         bus.repo.saveMessage(AiMessage(role = "user", text = userText))
         val outcome = try {
-            handle(userText)
+            handle(userText, images)
         } catch (e: Exception) {
             Outcome("Something went wrong: ${e.message ?: e.javaClass.simpleName}", error = e.message)
         }
-        bus.repo.saveMessage(AiMessage(role = "assistant", text = outcome.reply, meta = outcome.route))
-        outcome
+        // Cancelled mid-flight: the user's message stays (it was sent), but the
+        // late result is dropped instead of landing as a confusing reply.
+        // Anything already executed remains real — and undoable from Activity.
+        if (stopped.get()) return outcome.copy(reply = "Stopped.")
+        val final = if (images.isNotEmpty() && outcome.route == "local") {
+            outcome.copy(
+                reply = outcome.reply +
+                    "\n\nNote: I can't see attached images in local mode — " +
+                    "connect a Cloud Main Brain in Settings › AI Engine to analyse them."
+            )
+        } else outcome
+        bus.repo.saveMessage(AiMessage(role = "assistant", text = final.reply, meta = final.route))
+        final
     }
 
-    private fun handle(userText: String): Outcome {
+    private fun handle(userText: String, images: List<MainBrain.ImagePart> = emptyList()): Outcome {
         // 1. Local Coordinator: deterministic, offline, instant.
         val plan = Coordinator.interpret(userText, bus.repo)
         if (plan != null && plan.confidence >= 0.8) {
@@ -120,7 +134,7 @@ class Agent private constructor(context: Context) {
                 .filter { it.role == "user" || it.role == "assistant" }
                 .takeLast(prefs.conversationHistoryLimit)
                 .map { it.role to it.text }
-            val reply = MainBrain.chat(prefs, system, history, userText)
+            val reply = MainBrain.chat(prefs, system, history, userText, images)
             if (reply.ok) return interpretCloud(reply.text)
             val fb = fallback(userText, plan)
             return fb.copy(error = reply.error, route = "local-fallback")

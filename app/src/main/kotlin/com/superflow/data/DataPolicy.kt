@@ -355,6 +355,14 @@ object DataPolicy {
         "ttsSpeechRate" to prefs.ttsSpeechRate,
         "ttsPitch" to prefs.ttsPitch,
         "sttProvider" to prefs.sttProvider,
+        "sttModel" to prefs.sttModel,
+        "sttLanguage" to prefs.sttLanguage,
+        "ttsProvider" to prefs.ttsProvider,
+        "ttsModel" to prefs.ttsModel,
+        "ttsVoice" to prefs.ttsVoice,
+        "ttsAutoRead" to prefs.ttsAutoRead,
+        "sysPromptPreset" to prefs.systemPromptPreset,
+        "customVoiceStyle" to prefs.customVoiceStyle,
         "proactiveAi" to prefs.proactiveAi,
         "proactiveNotifications" to prefs.proactiveNotifications,
         "displayName" to prefs.displayName,
@@ -501,6 +509,14 @@ object DataPolicy {
         int("ttsSpeechRate")?.let { prefs.ttsSpeechRate = it }
         int("ttsPitch")?.let { prefs.ttsPitch = it }
         str("sttProvider")?.let { prefs.sttProvider = it }
+        str("sttModel")?.let { prefs.sttModel = it }
+        str("sttLanguage")?.let { prefs.sttLanguage = it }
+        str("ttsProvider")?.let { prefs.ttsProvider = it }
+        str("ttsModel")?.let { prefs.ttsModel = it }
+        str("ttsVoice")?.let { prefs.ttsVoice = it }
+        bool("ttsAutoRead")?.let { prefs.ttsAutoRead = it }
+        str("sysPromptPreset")?.let { prefs.systemPromptPreset = it }
+        str("customVoiceStyle")?.let { prefs.customVoiceStyle = it }
         bool("proactiveAi")?.let { prefs.proactiveAi = it }
         bool("proactiveNotifications")?.let { prefs.proactiveNotifications = it }
         str("displayName")?.let { prefs.displayName = it }

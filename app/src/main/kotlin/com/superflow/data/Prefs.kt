@@ -733,6 +733,19 @@ class Prefs private constructor(context: Context) {
         get() = str("sysPromptSuffix", "")
         set(v) = setStr("sysPromptSuffix", v)
 
+    /** Built-in Main Brain personality id (see SystemPromptPresets). */
+    var systemPromptPreset: String
+        get() = str("sysPromptPreset", "coach")
+        set(v) = setStr("sysPromptPreset", v)
+
+    /**
+     * AI-created coaching voice (replaces the preset style section, keeps the
+     * shared tool contract and safety core). Empty = use the preset.
+     */
+    var customVoiceStyle: String
+        get() = str("customVoiceStyle", "")
+        set(v) = setStr("customVoiceStyle", v)
+
     /* ---- Budget ---- */
 
     var unlimitedBudget: Boolean
@@ -829,6 +842,36 @@ class Prefs private constructor(context: Context) {
     var whisperApiKey: String
         get() = secrets.getString("whisperApiKey", "") ?: ""
         set(v) { secrets.edit().putString("whisperApiKey", v).apply(); bump() }
+
+    /** Speech-to-text model for the Whisper API provider. */
+    var sttModel: String
+        get() = str("sttModel", "whisper-1")
+        set(v) = setStr("sttModel", v)
+
+    /** BCP-47 language for STT (e.g. "en-US"), blank = system default. */
+    var sttLanguage: String
+        get() = str("sttLanguage", "")
+        set(v) = setStr("sttLanguage", v)
+
+    /** TTS provider: "system" (Android TTS) or "openai" (cloud voice). */
+    var ttsProvider: String
+        get() = str("ttsProvider", "system")
+        set(v) = setStr("ttsProvider", v)
+
+    /** Cloud TTS model (OpenAI-compatible). */
+    var ttsModel: String
+        get() = str("ttsModel", "tts-1")
+        set(v) = setStr("ttsModel", v)
+
+    /** Voice: Android voice name, or cloud voice (alloy, echo, fable, onyx, nova, shimmer). */
+    var ttsVoice: String
+        get() = str("ttsVoice", "")
+        set(v) = setStr("ttsVoice", v)
+
+    /** Read new assistant replies aloud automatically. */
+    var ttsAutoRead: Boolean
+        get() = bool("ttsAutoRead", false)
+        set(v) = setBool("ttsAutoRead", v)
 
     var proactiveAi: Boolean
         get() = bool("proactiveAi", true)

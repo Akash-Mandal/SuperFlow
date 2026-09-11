@@ -28,9 +28,7 @@ class SfTextToSpeech(private val context: Context) {
         tts = TextToSpeech(context) { status ->
             initialized = status == TextToSpeech.SUCCESS
             if (initialized) {
-                tts?.language = Locale.getDefault()
-                tts?.setSpeechRate((prefs.ttsSpeechRate / 100f).coerceIn(0.5f, 2.0f))
-                tts?.setPitch((prefs.ttsPitch / 100f).coerceIn(0.5f, 2.0f))
+                applySettings()
 
                 // Listen for utterance completion
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -49,6 +47,28 @@ class SfTextToSpeech(private val context: Context) {
             }
         }
     }
+
+    /**
+     * Re-read rate/pitch/voice from prefs and apply to the live engine.
+     * Sliders write prefs; without this the running engine never notices.
+     */
+    fun applySettings() {
+        if (!initialized) return
+        tts?.language = Locale.getDefault()
+        tts?.setSpeechRate((prefs.ttsSpeechRate / 100f).coerceIn(0.5f, 2.0f))
+        tts?.setPitch((prefs.ttsPitch / 100f).coerceIn(0.5f, 2.0f))
+        val want = prefs.ttsVoice
+        if (want.isNotBlank()) {
+            try {
+                tts?.voices?.firstOrNull { it.name == want }?.let { tts?.voice = it }
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** Installed voices, for the settings picker. */
+    fun voices(): List<String> = try {
+        tts?.voices?.map { it.name }?.sorted() ?: emptyList()
+    } catch (_: Exception) { emptyList() }
 
     /**
      * Speak the given text. Designed for short utterances (AI replies, confirmations).
