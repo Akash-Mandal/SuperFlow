@@ -32,12 +32,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,13 +47,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -84,6 +89,12 @@ data class StudioUiState(
     val placeholder: String = "",
     val canSend: Boolean = false,
     val foldExpanded: Boolean = false,
+    val attachments: List<StudioModel.Attachment> = emptyList(),
+    val voiceEnabled: Boolean = true,
+    val modelName: String = "",
+    val showModelPicker: Boolean = false,
+    val modelOptions: List<String> = emptyList(),
+    val modelsLoading: Boolean = false,
 )
 
 /** Every user action leaves the screen through here. */
@@ -99,6 +110,11 @@ sealed interface StudioAction {
     data class Message(val turnId: String, val action: StudioModel.MessageAction) : StudioAction
     data class OpenProject(val id: String) : StudioAction
     data object Attach : StudioAction
+    data class AttachRemove(val id: String) : StudioAction
+    data object CancelSend : StudioAction
+    data object OpenModelPicker : StudioAction
+    data object CloseModelPicker : StudioAction
+    data class PickModel(val name: String) : StudioAction
 }
 
 /**
@@ -142,6 +158,9 @@ fun StudioScreen(
                 }
             }
             StudioComposer(state = state, onAction = onAction)
+            if (state.showModelPicker) {
+                ModelPickerDialog(state = state, onAction = onAction)
+            }
         }
     }
 }
@@ -397,15 +416,82 @@ private fun MessageRow(row: StudioModel.Row.Message, onAction: (StudioAction) ->
         }
 
         if (actions.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.XS.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.padding(top = 2.dp),
+            ) {
                 actions.forEach { action ->
-                    TextButton(onClick = { onAction(StudioAction.Message(turn.id, action)) }) {
-                        Text(action.label, style = MaterialTheme.typography.labelMedium)
+                    IconButton(
+                        onClick = { onAction(StudioAction.Message(turn.id, action)) },
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(actionIcon(action)),
+                            contentDescription = action.label,
+                            tint = scheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * Model variant switcher without leaving chat.
+ *
+ * Lists what the provider reports; switching writes prefs.model, so the
+ * next send uses it. Frontier apps put this one tap from the composer —
+ * buried-in-settings model pickers are why people never try the cheap
+ * fast model for small talk.
+ */
+@Composable
+private fun ModelPickerDialog(
+    state: StudioUiState,
+    onAction: (StudioAction) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = { onAction(StudioAction.CloseModelPicker) },
+        title = { Text("Model") },
+        text = {
+            if (state.modelsLoading) {
+                Text("Fetching models…")
+            } else if (state.modelOptions.isEmpty()) {
+                Text("No models listed — check the base URL and key in AI Engine.")
+            } else {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 320.dp),
+                ) {
+                    items(
+                        count = state.modelOptions.size,
+                        key = { state.modelOptions[i] },
+                    ) { i ->
+                        val name = state.modelOptions[i]
+                        TextButton(onClick = { onAction(StudioAction.PickModel(name)) }) {
+                            Text(
+                                text = if (name == state.modelName) "✓ $name" else name,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onAction(StudioAction.CloseModelPicker) }) {
+                Text("Close")
+            }
+        },
+    )
+}
+
+private fun actionIcon(action: StudioModel.MessageAction): Int = when (action) {
+    StudioModel.MessageAction.COPY -> R.drawable.ic_copy
+    StudioModel.MessageAction.SPEAK -> R.drawable.ic_volume
+    StudioModel.MessageAction.RETRY -> R.drawable.ic_refresh
+    StudioModel.MessageAction.EXPLAIN -> R.drawable.ic_info
+    StudioModel.MessageAction.UNDO -> R.drawable.ic_undo
 }
 
 @Composable
@@ -535,12 +621,14 @@ private fun TypingRow() {
 // -------------------------------------------------------------- composer
 
 /**
- * The input bar.
+ * The input bar: a pill that grows.
  *
  * Pinned above the keyboard, never inside the scrolling list — a composer
- * that scrolls away is the classic chat bug. The counter appears only near
- * the limit ([StudioModel.showCounter]); a character counter visible from
- * the first keystroke reads as a warning and shortens what people write.
+ * that scrolls away is the classic chat bug. Collapsed it is one rounded
+ * line; the chevron opens the full field. The model chip above it switches
+ * variants without leaving chat. The counter appears only near the limit
+ * ([StudioModel.showCounter]); a character counter visible from the first
+ * keystroke reads as a warning and shortens what people write.
  */
 @Composable
 private fun StudioComposer(
@@ -548,10 +636,14 @@ private fun StudioComposer(
     onAction: (StudioAction) -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
+    var expanded by remember { mutableStateOf(false) }
     Surface(
         color = scheme.surface,
         tonalElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Space.SM.dp),
     ) {
         Column(
             modifier = Modifier
@@ -561,8 +653,74 @@ private fun StudioComposer(
                     vertical = Space.SM.dp,
                 ),
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (state.modelName.isNotBlank()) {
+                    AssistChip(
+                        onClick = { onAction(StudioAction.OpenModelPicker) },
+                        label = {
+                            Text(
+                                text = state.modelName,
+                                style = MaterialTheme.typography.labelMedium,
+                                maxLines = 1,
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_sparkle),
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        },
+                        trailingIcon = {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_chevron_down),
+                                contentDescription = "Choose model",
+                                modifier = Modifier.size(14.dp),
+                            )
+                        },
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                IconButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_chevron_down),
+                        contentDescription = if (expanded) "Collapse input" else "Expand input",
+                        tint = scheme.onSurfaceVariant,
+                        modifier = Modifier.rotate(if (expanded) 180f else 0f),
+                    )
+                }
+            }
             if (state.listening) {
                 Waveform(state.levels)
+                Spacer(Modifier.height(Space.SM.dp))
+            }
+            if (state.attachments.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(Space.SM.dp),
+                ) {
+                    for (a in state.attachments) {
+                        AssistChip(
+                            onClick = { onAction(StudioAction.AttachRemove(a.id)) },
+                            label = { Text(text = a.name) },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_upload),
+                                    contentDescription = null,
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_close),
+                                    contentDescription = "Remove ${a.name}",
+                                )
+                            },
+                        )
+                    }
+                }
                 Spacer(Modifier.height(Space.SM.dp))
             }
             Row(verticalAlignment = Alignment.Bottom) {
@@ -571,8 +729,8 @@ private fun StudioComposer(
                         value = state.input,
                         onValueChange = { onAction(StudioAction.Input(it)) },
                         placeholder = state.placeholder,
-                        singleLine = false,
-                        minLines = 1,
+                        singleLine = !expanded,
+                        minLines = if (expanded) 5 else 1,
                         supportingText = if (StudioModel.showCounter(state.input.length)) {
                             "${state.input.length} / ${StudioModel.MAX_INPUT}"
                         } else {
@@ -589,34 +747,39 @@ private fun StudioComposer(
                     )
                 }
                 Spacer(Modifier.width(Space.SM.dp))
-                IconButton(
-                    onClick = {
-                        onAction(
-                            if (state.listening) StudioAction.StopListening else StudioAction.Mic,
-                        )
-                    },
-                    colors = IconButtonDefaults.iconButtonColors(
-                        contentColor = if (state.listening) scheme.error else scheme.onSurfaceVariant,
-                    ),
-                ) {
-                    Icon(
-                        painter = painterResource(
-                            if (state.listening) R.drawable.ic_close else R.drawable.ic_mic,
+                if (state.voiceEnabled) {
+                    IconButton(
+                        onClick = {
+                            onAction(
+                                if (state.listening) StudioAction.StopListening else StudioAction.Mic,
+                            )
+                        },
+                        colors = IconButtonDefaults.iconButtonColors(
+                            contentColor = if (state.listening) scheme.error else scheme.onSurfaceVariant,
                         ),
-                        contentDescription = if (state.listening) "Stop listening" else "Speak",
-                    )
-                }
-                FilledIconButton(
-                    onClick = { onAction(StudioAction.Send) },
-                    enabled = state.canSend && !state.sending,
-                ) {
-                    if (state.sending) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = scheme.onPrimary,
+                    ) {
+                        Icon(
+                            painter = painterResource(
+                                if (state.listening) R.drawable.ic_close else R.drawable.ic_mic,
+                            ),
+                            contentDescription = if (state.listening) "Stop listening" else "Speak",
                         )
-                    } else {
+                    }
+                }
+                if (state.sending) {
+                    FilledIconButton(
+                        onClick = { onAction(StudioAction.CancelSend) },
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_close),
+                            contentDescription = "Stop generating",
+                        )
+                    }
+                } else {
+                    FilledIconButton(
+                        onClick = { onAction(StudioAction.Send) },
+                        enabled = state.canSend,
+                    ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_send),
                             contentDescription = "Send",

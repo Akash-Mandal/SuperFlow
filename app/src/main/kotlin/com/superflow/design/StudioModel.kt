@@ -207,6 +207,7 @@ object StudioModel {
         UNDO("undo", "Undo"),
         EXPLAIN("explain", "Explain"),
         RETRY("retry", "Try again"),
+        SPEAK("speak", "Listen"),
         ;
     }
 
@@ -226,6 +227,9 @@ object StudioModel {
         }
         if (turn.speaker == Speaker.USER || turn.state == RunState.FAILED) {
             out.add(MessageAction.RETRY)
+        }
+        if (turn.speaker == Speaker.ASSISTANT && turn.text.isNotBlank()) {
+            out.add(MessageAction.SPEAK)
         }
         return out
     }
@@ -272,6 +276,31 @@ object StudioModel {
 
     fun canSend(text: String, busy: Boolean): Boolean =
         !busy && text.isNotBlank() && text.length <= MAX_INPUT
+
+    fun canSend(text: String, busy: Boolean, hasAttachments: Boolean): Boolean =
+        !busy && (text.isNotBlank() || hasAttachments) && text.length <= MAX_INPUT
+
+    /**
+     * A file staged on the composer — never pasted into the input field.
+     *
+     * Text lands in the model call as a labelled excerpt; images travel as
+     * vision parts. Anything else is rejected at pick time, because decoding
+     * a binary as UTF-8 fills the prompt with garbage.
+     */
+    sealed interface Attachment {
+        val id: String
+        val name: String
+        data class Text(override val id: String, override val name: String, val text: String) : Attachment
+        data class Image(
+            override val id: String,
+            override val name: String,
+            val mime: String,
+            val base64: String,
+        ) : Attachment
+    }
+
+    /** Excerpt budget per text attachment, so one file cannot eat the context. */
+    const val ATTACHMENT_CHARS = 6000
 
     /**
      * The composer's placeholder.
