@@ -13,8 +13,10 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.superflow.R
 import com.superflow.data.model.LifeArea
+import com.superflow.data.model.Status
 import com.superflow.design.JourneyTree
 import com.superflow.ui.common.sfContent
 import com.superflow.ui.common.snack
@@ -106,10 +108,54 @@ class ComposeJourneyFragment : Fragment() {
         when (action) {
             is JourneyAction.Toggle -> model.toggle(action.kind, action.id)
             is JourneyAction.Open -> open(action.kind, action.id)
-            is JourneyAction.Menu -> open(action.kind, action.id)
+            is JourneyAction.Menu -> showMenu(action.kind, action.id)
             is JourneyAction.Add -> add(action.kind, action.parentId)
             is JourneyAction.Tool -> tool(action.which)
         }
+    }
+
+    private fun showMenu(kind: JourneyTree.Kind, id: String) {
+        val title = when (kind) {
+            JourneyTree.Kind.IDENTITY -> model.identity(id)?.statement
+            JourneyTree.Kind.GOAL -> model.goal(id)?.title
+            JourneyTree.Kind.SYSTEM -> model.system(id)?.title
+            JourneyTree.Kind.HABIT -> model.habit(id)?.title
+        } ?: kind.label
+        val archived = kind == JourneyTree.Kind.HABIT &&
+            model.habit(id)?.status == Status.ARCHIVED
+        val items = mutableListOf<String>()
+        items.add(if (kind == JourneyTree.Kind.HABIT) "Open" else "Edit")
+        if (kind == JourneyTree.Kind.HABIT) {
+            items.add("Edit design")
+            items.add("Duplicate")
+            items.add(if (archived) "Restore" else "Archive")
+        }
+        items.add("Delete")
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(title.take(60))
+            .setItems(items.toTypedArray()) { _, which ->
+                when (items[which]) {
+                    "Open", "Edit" -> open(kind, id)
+                    "Edit design" -> startActivity(
+                        Intent(requireContext(), HabitDesignerActivity::class.java)
+                            .putExtra(HabitDesignerActivity.EXTRA_HABIT_ID, id)
+                    )
+                    "Duplicate" -> model.duplicateHabit(id)
+                    "Archive" -> model.archiveHabit(id)
+                    "Restore" -> model.restoreHabit(id)
+                    "Delete" -> confirmDelete(kind, id, title)
+                }
+            }
+            .show()
+    }
+
+    private fun confirmDelete(kind: JourneyTree.Kind, id: String, title: String) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Delete \"${title.take(40)}\"?")
+            .setMessage("You can undo this from the Activity trail.")
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.delete) { _, _ -> model.delete(kind.key, id) }
+            .show()
     }
 
     private fun open(kind: JourneyTree.Kind, id: String) {
