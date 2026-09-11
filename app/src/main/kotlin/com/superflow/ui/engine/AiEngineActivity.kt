@@ -10,9 +10,11 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.superflow.ai.ProviderTemplates
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.textfield.TextInputEditText
@@ -142,31 +144,39 @@ class AiEngineActivity : ScrollActivity() {
         val keyField = field("API key (leave blank to keep)", "")
         val headersField = field("Custom headers (one per line: Name: Value)", prefs.customHeaders, lines = 2)
 
-        // Provider presets
-        val presetChips = ChipGroup(this).apply {
-            isSingleSelection = false
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        }
-        listOf(
-            "OpenAI" to Pair("https://api.openai.com", "gpt-4o"),
-            "Anthropic" to Pair("https://api.anthropic.com", "claude-sonnet-4-20250514"),
-            "Groq" to Pair("https://api.groq.com/openai", "llama-3.3-70b-versatile"),
-            "Ollama (local)" to Pair("http://localhost:11434", "llama3.1"),
-            "OpenRouter" to Pair("https://openrouter.ai/api", "openai/gpt-4o"),
-            "Together AI" to Pair("https://api.together.xyz", "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo")
-        ).forEach { (name, pair) ->
-            presetChips.addView(Chip(this).apply {
-                text = name
-                isCheckable = false
-                setEnsureMinTouchTargetSize(false)
+        // Provider templates: one tap fills, saves and rebuilds.
+        val currentBase = prefs.baseUrl.trim().trimEnd('/')
+        ProviderTemplates.all.forEach { t ->
+            val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
+            val selected = currentBase.equals(t.baseUrl.trim().trimEnd('/'), ignoreCase = true)
+            card.findViewById<TextView>(R.id.text_title).text =
+                if (selected) "✓ ${t.name}" else t.name
+            card.findViewById<TextView>(R.id.text_body).text =
+                t.description + if (t.note.isNotBlank()) "\n${t.note}" else ""
+            (card as MaterialCardView).apply {
+                isCheckable = true
+                isChecked = selected
                 setOnClickListener {
-                    val pf = providerField; val bf = baseField; val mf = modelField
-                    pf.setText(name); bf.setText(pair.first); mf.setText(pair.second)
-                    findViewById<View>(R.id.root).snack("Preset loaded — edit and save")
+                    providerField.setText(t.name)
+                    baseField.setText(t.baseUrl)
+                    modelField.setText(t.model)
+                    if (t.customHeaders.isNotBlank()) headersField.setText(t.customHeaders)
+                    saveProvider(
+                        providerField, baseField, modelField, keyField,
+                        fallbackField, orgField, headersField, quiet = true
+                    )
+                    findViewById<View>(R.id.root).snack("${t.name} applied & saved")
+                    rebuild()
                 }
-            })
+            }
+            content.addView(card, presetIndex + ProviderTemplates.all.indexOf(t))
         }
-        content.addView(presetChips, presetIndex)
+        content.addView(textCard(
+            "Anthropic",
+            "Anthropic uses x-api-key + /v1/messages, not the OpenAI chat format this " +
+                "app speaks. Use an OpenAI-compatible gateway (e.g. OpenRouter) or set a " +
+                "custom Base URL + headers manually."
+        ), presetIndex + ProviderTemplates.all.size)
         content.addView(textCard("Key status", prefs.maskedKey()))
 
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -246,57 +256,51 @@ class AiEngineActivity : ScrollActivity() {
 
         // === DEFAULT MODE ===
         if (prefs.aiSetupMode == "default") {
-            content.addView(picker("Creativity level", listOf(
-                "Precise (0.3)" to 30,
-                "Balanced (0.7)" to 70,
-                "Creative (1.0)" to 100,
-                "Very creative (1.5)" to 150
-            ), prefs.temperature) { prefs.temperature = it; rebuild() })
+            content.addView(sliderInput("Creativity level", 0, 200, prefs.temperature,
+                hint = "0 = precise, 70 = balanced, 100+ = creative. Drag or type (0.7 or 70).",
+                display = { "%.2f".format(it / 100.0) },
+                parse = { s -> s.toDoubleOrNull()?.let { d -> if (d <= 2.5) (d * 100).toInt() else d.toInt() } }) {
+                prefs.temperature = it
+            })
             infoViewWithShort("temperature")?.let { content.addView(it) }
 
-            content.addView(picker("Response length", listOf(
-                "Short (1024)" to 1024,
-                "Medium (4096)" to 4096,
-                "Long (8192)" to 8192,
-                "Very long (16384)" to 16384
-            ), prefs.maxTokens) { prefs.maxTokens = it; rebuild() })
+            content.addView(sliderInput("Response length", 256, 32768, prefs.maxTokens,
+                hint = "Max reply tokens. Type any value 64–131072.",
+                entryMin = 64, entryMax = 131_072) {
+                prefs.maxTokens = it
+            })
             infoViewWithShort("max_tokens")?.let { content.addView(it) }
 
-            content.addView(picker("Wait time", listOf(
-                "Quick (60s)" to 60,
-                "Normal (120s)" to 120,
-                "Patient (300s)" to 300,
-                "Very patient (600s)" to 600
-            ), prefs.requestTimeoutSec) { prefs.requestTimeoutSec = it; rebuild() })
+            content.addView(sliderInput("Wait time", 10, 600, prefs.requestTimeoutSec,
+                hint = "Seconds before giving up. Type any value 5–900.",
+                entryMin = 5, entryMax = 900) {
+                prefs.requestTimeoutSec = it
+            })
             infoViewWithShort("timeout")?.let { content.addView(it) }
         }
 
         // === INTERMEDIATE MODE ===
         if (prefs.aiSetupMode == "intermediate") {
-            // Same curated pickers as Default
-            content.addView(picker("Creativity level", listOf(
-                "Precise (0.3)" to 30,
-                "Balanced (0.7)" to 70,
-                "Creative (1.0)" to 100,
-                "Very creative (1.5)" to 150
-            ), prefs.temperature) { prefs.temperature = it; rebuild() })
+            content.addView(sliderInput("Creativity level", 0, 200, prefs.temperature,
+                hint = "0 = precise, 70 = balanced, 100+ = creative. Drag or type (0.7 or 70).",
+                display = { "%.2f".format(it / 100.0) },
+                parse = { s -> s.toDoubleOrNull()?.let { d -> if (d <= 2.5) (d * 100).toInt() else d.toInt() } }) {
+                prefs.temperature = it
+            })
             infoView("temperature")?.let { content.addView(it) }
 
-            content.addView(picker("Response length", listOf(
-                "Short (1024)" to 1024,
-                "Medium (4096)" to 4096,
-                "Long (8192)" to 8192,
-                "Very long (16384)" to 16384,
-                "Maximum (32768)" to 32768
-            ), prefs.maxTokens) { prefs.maxTokens = it; rebuild() })
+            content.addView(sliderInput("Response length", 256, 32768, prefs.maxTokens,
+                hint = "Max reply tokens. Type any value 64–131072.",
+                entryMin = 64, entryMax = 131_072) {
+                prefs.maxTokens = it
+            })
             infoView("max_tokens")?.let { content.addView(it) }
 
-            content.addView(picker("Wait time", listOf(
-                "Quick (60s)" to 60,
-                "Normal (120s)" to 120,
-                "Patient (300s)" to 300,
-                "Very patient (600s)" to 600
-            ), prefs.requestTimeoutSec) { prefs.requestTimeoutSec = it; rebuild() })
+            content.addView(sliderInput("Wait time", 10, 600, prefs.requestTimeoutSec,
+                hint = "Seconds before giving up. Type any value 5–900.",
+                entryMin = 5, entryMax = 900) {
+                prefs.requestTimeoutSec = it
+            })
             infoView("timeout")?.let { content.addView(it) }
 
             // Response format — useful for Blueprint Studio
@@ -321,21 +325,17 @@ class AiEngineActivity : ScrollActivity() {
             infoView("response_format")?.let { content.addView(it) }
 
             // Retries — practical for reliability
-            content.addView(picker("Retries on failure", listOf(
-                "None (0)" to 0,
-                "Standard (2)" to 2,
-                "Persistent (3)" to 3,
-                "Aggressive (5)" to 5
-            ), prefs.retryCount) { prefs.retryCount = it; rebuild() })
+            content.addView(sliderInput("Retries on failure", 0, 5, prefs.retryCount,
+                hint = "Extra attempts after a failure. 2 is the sane default.") {
+                prefs.retryCount = it
+            })
             infoView("retries")?.let { content.addView(it) }
 
             // Conversation history — affects cost and quality
-            content.addView(picker("Conversation history", listOf(
-                "Short (10 messages)" to 10,
-                "Normal (20 messages)" to 20,
-                "Long (40 messages)" to 40,
-                "Very long (80 messages)" to 80
-            ), prefs.conversationHistoryLimit) { prefs.conversationHistoryLimit = it; rebuild() })
+            content.addView(sliderInput("Conversation history", 2, 100, prefs.conversationHistoryLimit,
+                hint = "Past messages sent with each request. More = smarter and pricier.") {
+                prefs.conversationHistoryLimit = it
+            })
             infoView("history_limit")?.let { content.addView(it) }
 
             // Streaming toggle
@@ -482,6 +482,57 @@ class AiEngineActivity : ScrollActivity() {
 
         // Also keep the existing memory notes field
         content.addView(section("CONTEXT AND MEMORY"))
+        content.addView(textCard("Brain personality",
+            if (prefs.customSystemPrompt.isNotBlank())
+                "Custom prompt active (${prefs.customSystemPrompt.length} chars) — personality ignored."
+            else if (prefs.customVoiceStyle.isNotBlank())
+                "Currently: your own AI-created voice. Same tools and safety, your tone."
+            else "Currently: ${com.superflow.ai.SystemPromptPresets.byId(prefs.systemPromptPreset).name}. " +
+                "Same brain and tools, different voice."))
+        com.superflow.ai.SystemPromptPresets.all.forEach { p ->
+            val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
+            val selected = prefs.systemPromptPreset == p.id && prefs.customSystemPrompt.isBlank()
+            card.findViewById<TextView>(R.id.text_title).text =
+                if (selected) "✓ ${p.name}" else p.name
+            card.findViewById<TextView>(R.id.text_body).text = p.blurb
+            (card as MaterialCardView).apply {
+                isCheckable = true
+                isChecked = selected
+                setOnClickListener {
+                    prefs.systemPromptPreset = p.id
+                    findViewById<View>(R.id.root).snack("${p.name} active")
+                    rebuild()
+                }
+            }
+            content.addView(card)
+        }
+        val creatorCard = layoutInflater.inflate(R.layout.item_text_card, content, false)
+        creatorCard.findViewById<TextView>(R.id.text_title).text = "Create your own voice (AI)"
+        creatorCard.findViewById<TextView>(R.id.text_body).text =
+            "Describe your ideal coach and the AI writes the personality for you. " +
+                "Tools and safety rules stay untouched."
+        val creatorHolder = creatorCard.findViewById<TextView>(R.id.text_title).parent as? LinearLayout
+            ?: creatorCard as LinearLayout
+        creatorHolder.addView(MaterialButton(this).apply {
+            text = if (prefs.customVoiceStyle.isBlank()) "Open creator" else "Edit my voice"
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            setOnClickListener { openVoiceCreator() }
+        })
+        if (prefs.customVoiceStyle.isNotBlank()) {
+            creatorHolder.addView(MaterialButton(this, null,
+                com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                text = "Revert to presets"
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                setOnClickListener {
+                    prefs.customVoiceStyle = ""
+                    findViewById<View>(R.id.root).snack("Reverted to presets")
+                    rebuild()
+                }
+            })
+        }
+        content.addView(creatorCard)
         content.addView(textCard("Override or extend",
             if (prefs.customSystemPrompt.isNotBlank()) "Custom prompt active (${prefs.customSystemPrompt.length} chars)"
             else "Using the built-in system prompt."))
@@ -651,48 +702,133 @@ class AiEngineActivity : ScrollActivity() {
         content.addView(textCard("Privacy",
             "A context receipt shows exactly what would be sent. API keys are never part of it."))
 
-        // Voice / TTS / STT
+        // Voice / TTS / STT — each direction gets its own provider + model.
         content.addView(section("VOICE"))
         content.addView(toggles(listOf(
             Triple("Voice input (STT)", prefs.voiceEnabled) { v: Boolean ->
                 prefs.voiceEnabled = v },
             Triple("Voice output (TTS)", prefs.ttsEnabled) { v: Boolean ->
-                prefs.ttsEnabled = v },
+                prefs.ttsEnabled = v
+                if (!v) {
+                    com.superflow.ai.SfTextToSpeech.get(this).stop()
+                    com.superflow.ai.CloudTts.stop()
+                } },
+            Triple("Read replies aloud", prefs.ttsAutoRead) { v: Boolean ->
+                prefs.ttsAutoRead = v },
             Triple("Proactive AI suggestions", prefs.proactiveAi) { v: Boolean ->
                 prefs.proactiveAi = v },
             Triple("Proactive notifications", prefs.proactiveNotifications) { v: Boolean ->
                 prefs.proactiveNotifications = v }
         )))
 
+        // ---- Speech-to-text provider ----
+        content.addView(section("SPEECH-TO-TEXT"))
+        listOf(
+            Triple("platform", "Android (Google)",
+                "On-device when available, free, no key. Follows the system language."),
+            Triple("whisper_api", "Whisper API",
+                "Cloud transcription via ${prefs.sttModel.ifBlank { "whisper-1" }}. Needs a key below."),
+        ).forEach { (v, name, desc) ->
+            val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
+            val selected = prefs.sttProvider == v || prefs.preferredSttProvider.equals(v, ignoreCase = true)
+            card.findViewById<TextView>(R.id.text_title).text =
+                if (selected) "✓ $name" else name
+            card.findViewById<TextView>(R.id.text_body).text = desc
+            (card as MaterialCardView).apply {
+                isCheckable = true
+                isChecked = selected
+                setOnClickListener {
+                    prefs.sttProvider = v
+                    prefs.preferredSttProvider = v
+                    rebuild()
+                }
+            }
+            content.addView(card)
+        }
+        content.addView(textCard("Whisper local / Vosk offline",
+            "Not available in this build — they need binaries nothing has downloaded. " +
+                "Android (Google) already works fully offline on most devices."))
+        val whisperKeyField = field("Whisper API key (blank = reuse Main Brain key)", "")
+        val sttModelField = field("STT model", prefs.sttModel.ifBlank { "whisper-1" })
+        val sttLangField = field("STT language (blank = system, e.g. en-US)", prefs.sttLanguage)
+        content.addView(MaterialButton(this, null,
+            com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            text = "Save voice input settings"
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            setOnClickListener {
+                val k = whisperKeyField.text?.toString()?.trim().orEmpty()
+                if (k.isNotBlank()) prefs.whisperApiKey = k
+                prefs.sttModel = sttModelField.text?.toString()?.trim().orEmpty().ifBlank { "whisper-1" }
+                prefs.sttLanguage = sttLangField.text?.toString()?.trim().orEmpty()
+                findViewById<View>(R.id.root).snack("Voice input saved")
+                rebuild()
+            }
+        })
+
+        // ---- Text-to-speech provider ----
+        content.addView(section("TEXT-TO-SPEECH"))
+        listOf(
+            "system" to "Android system voice",
+            "openai" to "Cloud voice (OpenAI-compatible)",
+        ).forEach { (v, name) ->
+            val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
+            val selected = prefs.ttsProvider == v
+            card.findViewById<TextView>(R.id.text_title).text =
+                if (selected) "✓ $name" else name
+            card.findViewById<TextView>(R.id.text_body).text = when (v) {
+                "system" -> "Offline, instant, free. Voice, speed and pitch below."
+                else -> "Natural voice via ${prefs.ttsModel.ifBlank { "tts-1" }}. " +
+                    "Uses the Main Brain base URL + key. Costs API calls."
+            }
+            (card as MaterialCardView).apply {
+                isCheckable = true
+                isChecked = selected
+                setOnClickListener { prefs.ttsProvider = v; rebuild() }
+            }
+            content.addView(card)
+        }
+        val ttsModelField = field("Cloud voice model", prefs.ttsModel.ifBlank { "tts-1" })
+        val ttsVoiceField = field(
+            if (prefs.ttsProvider == "openai") "Cloud voice (alloy, echo, fable, onyx, nova, shimmer)"
+            else "System voice name (blank = default)",
+            prefs.ttsVoice,
+        )
         content.addView(sliderParam("TTS speech rate", 50, 200, prefs.ttsSpeechRate,
             hint = "100 = normal speed. 50 = half speed, 200 = double speed.") {
             prefs.ttsSpeechRate = it
+            com.superflow.ai.SfTextToSpeech.get(this).applySettings()
         })
-
         content.addView(sliderParam("TTS pitch", 50, 200, prefs.ttsPitch,
-            hint = "100 = normal pitch.") {
+            hint = "100 = normal pitch. System voices only.") {
             prefs.ttsPitch = it
+            com.superflow.ai.SfTextToSpeech.get(this).applySettings()
         })
-
-        // STT provider
-        val sttChips = ChipGroup(this).apply {
-            isSingleSelection = true
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        }
-        listOf("platform" to "Android (Google)", "whisper_api" to "Whisper API",
-            "whisper_local" to "Whisper local", "vosk" to "Vosk offline").forEach { (v, l) ->
-            sttChips.addView(Chip(this).apply {
-                text = l; isCheckable = true
-                isChecked = prefs.sttProvider == v
-                setEnsureMinTouchTargetSize(false)
-                setOnClickListener { prefs.sttProvider = v; rebuild() }
-            })
-        }
-        val sttCard = layoutInflater.inflate(R.layout.item_text_card, content, false)
-        sttCard.findViewById<TextView>(R.id.text_title).text = "Speech-to-text provider"
-        sttCard.findViewById<TextView>(R.id.text_body).visible(false)
-        (sttCard.findViewById<TextView>(R.id.text_title).parent as? LinearLayout)?.addView(sttChips)
-        content.addView(sttCard)
+        val ttsRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        ttsRow.addView(MaterialButton(this).apply {
+            text = "Save voice output"
+            layoutParams = LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also { it.marginEnd = dpi(8) }
+            setOnClickListener {
+                prefs.ttsModel = ttsModelField.text?.toString()?.trim().orEmpty().ifBlank { "tts-1" }
+                prefs.ttsVoice = ttsVoiceField.text?.toString()?.trim().orEmpty()
+                com.superflow.ai.SfTextToSpeech.get(this@AiEngineActivity).applySettings()
+                findViewById<View>(R.id.root).snack("Voice output saved")
+                rebuild()
+            }
+        })
+        ttsRow.addView(MaterialButton(this, null,
+            com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            text = "Preview"
+            layoutParams = LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener {
+                prefs.ttsModel = ttsModelField.text?.toString()?.trim().orEmpty().ifBlank { "tts-1" }
+                prefs.ttsVoice = ttsVoiceField.text?.toString()?.trim().orEmpty()
+                previewVoice()
+            }
+        })
+        content.addView(ttsRow)
 
         // Snapshots
         content.addView(section("SNAPSHOTS"))
@@ -846,29 +982,6 @@ class AiEngineActivity : ScrollActivity() {
         return card
     }
 
-    private fun picker(
-        title: String, options: List<Pair<String, Int>>, current: Int, onPick: (Int) -> Unit
-    ): View {
-        val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
-        card.findViewById<TextView>(R.id.text_title).text = title
-        card.findViewById<TextView>(R.id.text_body).visible(false)
-        val chips = ChipGroup(this).apply {
-            isSingleSelection = true
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        }
-        options.forEach { (label, value) ->
-            chips.addView(Chip(this).apply {
-                text = label
-                isCheckable = true
-                isChecked = value == current
-                setEnsureMinTouchTargetSize(false)
-                setOnClickListener { onPick(value) }
-            })
-        }
-        (card.findViewById<TextView>(R.id.text_title).parent as? LinearLayout)?.addView(chips)
-        return card
-    }
-
     private fun saveProvider(
         provider: TextInputEditText, base: TextInputEditText,
         model: TextInputEditText, key: TextInputEditText,
@@ -937,6 +1050,87 @@ class AiEngineActivity : ScrollActivity() {
         return card
     }
 
+    /**
+     * Slider with a type-in box beside it: drag for feel, type for exact.
+     *
+     * Fixed chip pickers (Precise/Balanced/Creative…) forced everyone into
+     * four buckets; this keeps the slider for exploration and adds the
+     * exact value next to it. No rebuild on change — rebuilding would drop
+     * focus mid-typing.
+     */
+    private fun sliderInput(
+        title: String, min: Int, max: Int, current: Int,
+        hint: String = "",
+        display: (Int) -> String = { it.toString() },
+        parse: (String) -> Int? = { it.toIntOrNull() },
+        entryMin: Int = min,
+        entryMax: Int = max,
+        onChange: (Int) -> Unit
+    ): View {
+        val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
+        val titleView = card.findViewById<TextView>(R.id.text_title)
+        val bodyView = card.findViewById<TextView>(R.id.text_body)
+        val holder = titleView.parent as? LinearLayout ?: card as LinearLayout
+        titleView.text = "$title: ${display(current)}"
+        bodyView.text = hint
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+        lateinit var edit: TextInputEditText
+        val slider = com.google.android.material.slider.Slider(this).apply {
+            valueFrom = min.toFloat()
+            valueTo = max.toFloat()
+            stepSize = 1f
+            value = current.toFloat().coerceIn(min.toFloat(), max.toFloat())
+            layoutParams = LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val input = com.google.android.material.textfield.TextInputLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                dpi(112), LinearLayout.LayoutParams.WRAP_CONTENT)
+            setBoxCornerRadii(
+                dpi(12).toFloat(), dpi(12).toFloat(),
+                dpi(12).toFloat(), dpi(12).toFloat())
+        }
+        edit = TextInputEditText(this).apply {
+            setText(display(current))
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                    android.text.InputType.TYPE_NUMBER_FLAG_SIGNED or
+                    android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            isSingleLine = true
+        }
+        fun commit(fromEdit: String) {
+            val v = parse(fromEdit)?.coerceIn(entryMin, entryMax) ?: return
+            titleView.text = "$title: ${display(v)}"
+            slider.value = v.toFloat().coerceIn(min.toFloat(), max.toFloat())
+            if (edit.text?.toString() != display(v)) edit.setText(display(v))
+            onChange(v)
+        }
+        slider.addOnChangeListener { _, value, fromUser ->
+            if (fromUser) {
+                val intVal = value.toInt()
+                titleView.text = "$title: ${display(intVal)}"
+                if (edit.text?.toString() != display(intVal)) edit.setText(display(intVal))
+                onChange(intVal)
+            }
+        }
+        edit.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) commit(edit.text?.toString().orEmpty())
+        }
+        edit.setOnEditorActionListener { _, _, _ ->
+            commit(edit.text?.toString().orEmpty())
+            true
+        }
+        input.addView(edit)
+        row.addView(slider)
+        row.addView(input)
+        holder.addView(row)
+        return card
+    }
+
     /** Free-text number input with validation and hint. */
     private fun numberParam(
         title: String, current: Int, min: Int, max: Int,
@@ -983,6 +1177,129 @@ class AiEngineActivity : ScrollActivity() {
         return card
     }
 
+    private fun previewVoice() {
+        val sample = "Hey — this is your Studio voice. Calm, clear, and on your side."
+        if (!prefs.ttsEnabled) {
+            findViewById<View>(R.id.root).snack("Turn on Voice output first")
+            return
+        }
+        if (prefs.ttsProvider == "openai") {
+            findViewById<View>(R.id.root).snack("Rendering cloud voice…")
+            com.superflow.ai.CloudTts.speak(this, prefs, sample)
+        } else {
+            com.superflow.ai.SfTextToSpeech.get(this).applySettings()
+            com.superflow.ai.SfTextToSpeech.get(this).speak(sample)
+        }
+    }
+
+    /**
+     * Personalize-with-AI: the user describes their ideal coach, the Main
+     * Brain writes a voice-style section, and it is stored as
+     * [Prefs.customVoiceStyle] — replacing only the personality, never the
+     * tool contract or safety core.
+     */
+    private fun openVoiceCreator() {
+        if (!prefs.cloudReady()) {
+            findViewById<View>(R.id.root).snack("Connect a Cloud Main Brain first")
+            return
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpi(4), dpi(4), dpi(4), 0)
+        }
+        box.addView(TextView(this).apply {
+            text = "Describe your ideal coach — tone, length, how hard it pushes. " +
+                "The AI writes the personality; tools and safety stay untouched."
+        })
+        val descLayout = com.google.android.material.textfield.TextInputLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .also { it.topMargin = dpi(8) }
+            hint = "e.g. Terse ex-marine. No fluff, high standards, zero shame."
+        }
+        val desc = TextInputEditText(this).apply {
+            minLines = 2
+            isSingleLine = false
+            setText("")
+        }
+        descLayout.addView(desc)
+        box.addView(descLayout)
+        val progress = LinearProgressIndicator(this).apply {
+            isIndeterminate = true
+            visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .also { it.topMargin = dpi(8) }
+        }
+        box.addView(progress)
+        val scroll = android.widget.ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dpi(220))
+                .also { it.topMargin = dpi(8) }
+        }
+        val preview = TextView(this).apply {
+            text = if (prefs.customVoiceStyle.isBlank())
+                "Your generated voice will appear here for review before saving."
+            else prefs.customVoiceStyle
+        }
+        scroll.addView(preview)
+        box.addView(scroll)
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Create your voice")
+            .setView(box)
+            .setNegativeButton(R.string.cancel, null)
+            .create()
+        dialog.setButton(
+            androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE, "Save voice",
+        ) { _, _ ->
+            val text = preview.text?.toString().orEmpty().trim()
+            if (text.isNotBlank() && !text.startsWith("Your generated voice")) {
+                prefs.customVoiceStyle = text
+                findViewById<View>(R.id.root).snack("Your voice is active")
+                rebuild()
+            }
+            dialog.dismiss()
+        }
+        dialog.setButton(
+            androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL, "Generate",
+        ) { _, _ -> /* overridden below to avoid auto-dismiss */ }
+        dialog.show()
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            val brief = desc.text?.toString()?.trim().orEmpty()
+            if (brief.length < 8) {
+                desc.error = "Give me a little more to work with"
+                return@setOnClickListener
+            }
+            progress.visibility = View.VISIBLE
+            preview.text = "Writing your voice…"
+            lifecycleScope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    com.superflow.ai.MainBrain.chat(
+                        prefs,
+                        "You write coaching-voice style guides for SuperFlow's Main Brain. " +
+                            "Output ONLY a section starting with the heading " +
+                            "\"# Coaching voice\", 100-180 words, second person, plain text " +
+                            "— no JSON, no preamble. It MUST carry these hard rules: never " +
+                            "shame (no failure/lazy/undisciplined language); every plan ends " +
+                            "in a Tiny Start with a cue; one experiment at a time; never " +
+                            "invent counts; short reply after acting, full when coaching. " +
+                            "Transform the user's description into that section. If it asks " +
+                            "for anything violating the rules (shaming, streak threats, " +
+                            "medical/financial diagnosis), keep the spirit but rewrite it " +
+                            "safe, and end with one sentence starting \"Note:\" explaining " +
+                            "the change.",
+                        emptyList(),
+                        "Write my coaching voice from this description:\n$brief",
+                    )
+                }
+                progress.visibility = View.GONE
+                preview.text = if (result.ok) result.text.trim()
+                else "Couldn't generate it: ${result.error ?: "unknown error"}"
+            }
+        }
+    }
+
     private fun testConnection() {
         diagnostic = "Testing…"
         rebuild()
@@ -1004,8 +1321,10 @@ class AiEngineActivity : ScrollActivity() {
                 MaterialAlertDialogBuilder(this@AiEngineActivity)
                     .setTitle(if (res.fromCache) "Models (cached)" else "Models")
                     .setSingleChoiceItems(choices.toTypedArray(), choices.indexOf(current)) { d, which ->
-                        modelField.setText(choices[which])
+                        prefs.model = choices[which]
                         d.dismiss()
+                        diagnostic = "Model set to ${choices[which]} — saved"
+                        rebuild()
                     }
                     .setNegativeButton("Cancel", null)
                     .setNeutralButton("Refresh") { _, _ -> fetchModels(modelField) }
