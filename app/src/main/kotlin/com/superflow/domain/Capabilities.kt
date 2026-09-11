@@ -2209,12 +2209,13 @@ object Capabilities {
             val project = c.repo.project(c.str("projectId"))
                 ?: return@Capability CommandResult.fail("Project not found")
             val sources = c.repo.sources(project.id)
-            val intent = com.superflow.blueprint.CompilerV2.captureIntent(
+            val intent = com.superflow.blueprint.Planner.dreamOf(
                 goal = c.str("goal", project.name),
-                dailyTimeMinutes = c.int("dailyTimeMinutes", 30),
-                durationWeeks = c.int("durationWeeks", 8)
+                dailyMinutes = c.int("dailyTimeMinutes", 30),
+                weeks = c.int("durationWeeks", 8)
             )
-            val plan = com.superflow.blueprint.CompilerV2.compileForBlueprint(project, sources, intent)
+            val plan = com.superflow.blueprint.Planner.makePlan(
+                com.superflow.blueprint.Planner.readThemes(sources, intent), intent)
             val text = "Progressive plan: ${plan.phases.size} phases over ${plan.totalWeeks} weeks (~${plan.estimatedDailyTimeMinutes} min/day)\n\n" +
                     plan.phases.joinToString("\n") { p ->
                         "Phase ${p.weekStart}-${p.weekEnd} (${p.label}): ${p.newHabits.size} new habits in ${p.focusArea}"
