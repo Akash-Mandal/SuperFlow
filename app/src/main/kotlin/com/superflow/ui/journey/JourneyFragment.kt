@@ -74,10 +74,22 @@ class JourneyFragment : Fragment() {
         val refresh = view.findViewById<SwipeRefreshLayout>(R.id.refresh)
         // The visible equivalent of the pull gesture, for users who have
         // switched it off or cannot perform it.
+        // One toolbar wiring only (#23): this block and a second one below
+        // both wired the same toolbar, and the second's menu.clear()
+        // destroyed the refresh item - the a11y equivalent of the pull
+        // gesture - before it could ever be used.
         view.findViewById<MaterialToolbar>(R.id.toolbar).apply {
-            inflateMenu(R.menu.list_menu)
+            inflateMenu(R.menu.journey_menu)
+            menu.add(0, R.id.action_refresh, 0, R.string.action_refresh)
             setOnMenuItemClickListener { item ->
-                if (item.itemId == R.id.action_refresh) { model.refresh(); true } else false
+                when (item.itemId) {
+                    R.id.action_refresh -> { model.refresh(); true }
+                    R.id.action_search -> {
+                        startActivity(Intent(requireContext(), SearchActivity::class.java))
+                        true
+                    }
+                    else -> false
+                }
             }
         }
         refresh.wireRefresh(Prefs.get(requireContext())) { done ->
@@ -91,19 +103,6 @@ class JourneyFragment : Fragment() {
             startActivity(Intent(requireContext(), HabitDesignerActivity::class.java))
         }
 
-        view.findViewById<Toolbar>(R.id.toolbar).apply {
-            menu.clear()
-            inflateMenu(R.menu.journey_menu)
-            setOnMenuItemClickListener { item: MenuItem ->
-                when (item.itemId) {
-                    R.id.action_search -> {
-                        startActivity(Intent(requireContext(), SearchActivity::class.java))
-                        true
-                    }
-                    else -> false
-                }
-            }
-        }
         list.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
                 if (dy > 8) fab.shrink() else if (dy < -8) fab.extend()

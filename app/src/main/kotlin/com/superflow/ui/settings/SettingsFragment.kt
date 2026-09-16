@@ -565,13 +565,19 @@ class SettingsFragment : Fragment() {
                     parentFragmentManager, "Pause habits", "Reason (optional)",
                     subtitle = "Vacation, illness, travel, or anything else."
                 ) { reason ->
-                    val res = bus.execute(
-                        "pause_habits",
-                        jsonOf("from" to fromIso, "to" to toIso, "reason" to reason.trim()),
-                        Actor.USER
-                    )
-                    view?.snack(res.message)
-                    render()
+                    // The write goes to the background lane (#51); the
+                    // nested sheet chain used to run it on the main thread.
+                    lifecycleScope.launch {
+                        val res = withContext(Dispatchers.IO) {
+                            bus.execute(
+                                "pause_habits",
+                                jsonOf("from" to fromIso, "to" to toIso, "reason" to reason.trim()),
+                                Actor.USER
+                            )
+                        }
+                        view?.snack(res.message)
+                        render()
+                    }
                 }
             }
         }

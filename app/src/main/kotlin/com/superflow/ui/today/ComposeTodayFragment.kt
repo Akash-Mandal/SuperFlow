@@ -336,12 +336,15 @@ class ComposeTodayFragment : Fragment() {
     }
 
     private fun handle(action: TodayAction) {
+        // A click landing after detach used to throw from requireContext()
+        // (#19); a missing context simply drops the action.
+        val ctx = context ?: return
         when (action) {
             is TodayAction.CheckIn -> model.checkIn(action.habitId, action.level)
             is TodayAction.Skip -> model.skip(action.habitId)
             is TodayAction.Undo -> model.clearCheckIn(action.habitId)
             is TodayAction.OpenHabit -> startActivity(
-                Intent(requireContext(), HabitDetailActivity::class.java)
+                Intent(ctx, HabitDetailActivity::class.java)
                     .putExtra(HabitDetailActivity.EXTRA_HABIT_ID, action.habitId)
             )
             is TodayAction.ToggleFocus -> model.toggleFocus(action.focusId, action.done)
@@ -358,7 +361,7 @@ class ComposeTodayFragment : Fragment() {
                 com.superflow.ai.Suggestions.Tone.ENCOURAGE ->
                     action.row.habitId?.let { id ->
                         startActivity(
-                            Intent(requireContext(), HabitDetailActivity::class.java)
+                            Intent(ctx, HabitDetailActivity::class.java)
                                 .putExtra(HabitDetailActivity.EXTRA_HABIT_ID, id)
                         )
                     }
@@ -366,20 +369,20 @@ class ComposeTodayFragment : Fragment() {
             }
             is TodayAction.LogEnergy -> model.logEnergy(action.value)
             TodayAction.AddHabit ->
-                startActivity(Intent(requireContext(), HabitDesignerActivity::class.java))
+                startActivity(Intent(ctx, HabitDesignerActivity::class.java))
             TodayAction.Refresh -> model.refresh()
             // Reachability (#13): see TodayAction.
             TodayAction.Checkpoints -> startActivity(
-                Intent(requireContext(), CheckpointActivity::class.java)
+                Intent(ctx, CheckpointActivity::class.java)
             )
             TodayAction.PlanTomorrow -> startActivity(
-                Intent(requireContext(), PlanTomorrowActivity::class.java)
+                Intent(ctx, PlanTomorrowActivity::class.java)
             )
             TodayAction.Recovery -> startActivity(
-                Intent(requireContext(), RecoveryActivity::class.java)
+                Intent(ctx, RecoveryActivity::class.java)
             )
             TodayAction.OpenSettings -> startActivity(
-                Intent(requireContext(), SettingsActivity::class.java)
+                Intent(ctx, SettingsActivity::class.java)
             )
         }
     }
