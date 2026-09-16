@@ -1,6 +1,7 @@
 package com.superflow.ui.today
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.superflow.data.Prefs
@@ -26,6 +27,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+
+private const val TAG = "TodayViewModel"
 
 /** Rows rendered by the Today list. */
 sealed class TodayRow {
@@ -85,7 +88,12 @@ data class TodayUiState(
     val date: LocalDate = LocalDate.now(),
     val greeting: Greeting = Greeting.MORNING,
     val rows: List<TodayRow> = emptyList(),
-    val loading: Boolean = true
+    val loading: Boolean = true,
+    /**
+     * Set when the last build failed (#9). The screen shows a retry card
+     * above the (stale) rows instead of crashing the tab; null on success.
+     */
+    val error: String? = null,
 )
 
 class TodayViewModel(app: Application) : AndroidViewModel(app) {
@@ -114,8 +122,20 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refresh() {
         viewModelScope.launch {
-            val built = withContext(Dispatchers.IO) { build() }
-            _state.value = built
+            try {
+                val built = withContext(Dispatchers.IO) { build() }
+                _state.value = built
+            } catch (e: Exception) {
+                // A single bad row must not take the whole tab down (#9):
+                // keep whatever was last rendered, surface the failure, and
+                // let the user retry.
+                Log.e(TAG, "Today build failed", e)
+                _state.value = _state.value.copy(
+                    loading = false,
+                    error = e.message ?: "Today could not be loaded"
+                )
+                _events.value = e.message ?: "Today could not be loaded"
+            }
         }
     }
 

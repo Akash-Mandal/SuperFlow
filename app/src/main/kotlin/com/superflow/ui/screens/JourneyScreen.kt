@@ -127,7 +127,12 @@ fun JourneyScreen(
 
         for (gap in gaps) {
             item(key = "gap_${gap.kind.key}_${gap.nodeId ?: "none"}") {
-                GapCard(gap = gap, onAdd = { onAction(JourneyAction.Add(it, gap.nodeId)) })
+                // The parent id is deliberately null (#20): the gap offers to
+                // create the *missing* kind at its own level, and linking is
+                // done in the editor. Passing the dangling node's id as the
+                // new node's parent inverted the hierarchy - it produced a
+                // SYSTEM whose goalId was a habit id.
+                GapCard(gap = gap, onAdd = { onAction(JourneyAction.Add(it, null)) })
             }
         }
 
@@ -298,7 +303,13 @@ private fun ToolCard(icon: Int, label: String, modifier: Modifier = Modifier, on
  */
 @Composable
 private fun GapCard(gap: JourneyTree.Gap, onAdd: (JourneyTree.Kind) -> Unit) {
-    val target = gap.kind.parent ?: gap.kind
+    // Offer the kind that is actually missing (#20). An empty-level gap
+    // (nothing below it yet) asks for that kind itself; a dangling-entity
+    // gap asks for the parent the entity is missing. The old mapping
+    // (kind.parent, with the dangling id as parent) both mislabelled the
+    // button - "add habit" rendered as "Add system" - and corrupted the
+    // hierarchy when the editor saved.
+    val target = if (gap.nodeId == null) gap.kind else gap.kind.parent ?: gap.kind
     SfCard(variant = SfCardVariant.Warm) {
         Text(
             text = gap.title,

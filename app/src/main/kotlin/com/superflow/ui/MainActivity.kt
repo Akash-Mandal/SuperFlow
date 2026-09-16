@@ -231,11 +231,27 @@ class MainActivity : AppCompatActivity() {
         if (intent?.action == com.superflow.Shortcuts.ACTION_CHECK_IN) {
             val habitId = intent.getStringExtra(com.superflow.Shortcuts.EXTRA_HABIT_ID)
             if (!habitId.isNullOrBlank()) {
-                com.superflow.domain.CommandBus.get(this).execute(
-                    "check_in",
-                    com.superflow.util.jsonOf("habit" to habitId, "level" to "STANDARD"),
-                    com.superflow.domain.Actor.USER
-                )
+                // The check-in is a database write (#1); it ran inline here,
+                // on the main thread, during a cold-start intent delivery.
+                // It belongs on the serialized background lane.
+                com.superflow.AppBackground.launch {
+                    val res = com.superflow.domain.CommandBus.get(applicationContext).execute(
+                        "check_in",
+                        com.superflow.util.jsonOf("habit" to habitId, "level" to "STANDARD"),
+                        com.superflow.domain.Actor.USER
+                    )
+                    // Confirm without stealing focus (also covers #2's
+                    // missing-feedback complaint for the shortcut path).
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        if (!isFinishing && !isDestroyed) {
+                            android.widget.Toast.makeText(
+                                applicationContext,
+                                res.message,
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
             }
         }
         val key = intent?.getStringExtra(EXTRA_TAB) ?: return

@@ -172,16 +172,12 @@ class RoutineBuilderActivity : ScrollActivity() {
             .setMessage("Follow these steps:\n\n$stepText\n\n" +
                     "Mark each as done when you complete it.")
             .setPositiveButton("Start") { _, _ ->
-                // Check in linked habits
-                for (step in steps) {
-                    if (step.habitId != null) {
-                        val bus = com.superflow.domain.CommandBus.get(this)
-                        bus.execute("check_in",
-                            com.superflow.util.jsonOf("habit" to step.habitId, "level" to "TINY"),
-                            com.superflow.domain.Actor.USER)
-                    }
-                }
-                snack("Routine started! Check in as you go.")
+                // Nothing is checked in here (#41). A routine start is a
+                // prompt, not a record: checking every linked habit in at
+                // once wrote false history the user then had to undo by
+                // hand. Each habit is checked in from its own card when it
+                // is actually done.
+                snack("Routine started — check in each habit as you go.")
             }
             .setNegativeButton("Close", null)
             .show()

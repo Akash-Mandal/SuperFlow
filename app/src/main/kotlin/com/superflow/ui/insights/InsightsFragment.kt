@@ -58,7 +58,11 @@ sealed class InsightRow {
         val v1: String, val l1: String,
         val v2: String, val l2: String,
         val v3: String, val l3: String
-    ) : InsightRow() { override val stableId = 2L }
+    ) : InsightRow() {
+        // Two Stats rows are on screen at once ("Last N days" and "At a
+        // glance"); a constant id collided under setHasStableIds(true) (#25).
+        override val stableId = ("stats$title").hashCode().toLong()
+    }
 
     data class Heatmap(val title: String, val sub: String, val cells: List<Float>) : InsightRow() {
         override val stableId = 3L

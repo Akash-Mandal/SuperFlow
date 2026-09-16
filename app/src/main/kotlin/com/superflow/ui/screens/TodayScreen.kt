@@ -91,6 +91,13 @@ sealed interface TodayAction {
     data class LogEnergy(val value: Int) : TodayAction
     data object AddHabit : TodayAction
     data object Refresh : TodayAction
+    // Reachability (#13): the View path exposed these from its toolbar
+    // menu; the live Compose screen had no counterpart, so they were
+    // unreachable.
+    data object OpenSettings : TodayAction
+    data object PlanTomorrow : TodayAction
+    data object Recovery : TodayAction
+    data object Checkpoints : TodayAction
 }
 
 @Composable
@@ -179,6 +186,52 @@ fun TodayScreen(
 }
 
 /**
+ * The quiet action strip at the top of Today.
+ *
+ * Reachability (#13): the View path's toolbar carried Settings, Plan
+ * tomorrow, Recovery and Checkpoints; the Compose rebuild dropped the
+ * toolbar and never re-homed them, so those screens dead-ended. They live
+ * here as icon buttons - reachable, out of the day's way.
+ */
+@Composable
+private fun TodayActionsRow(onAction: (TodayAction) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = { onAction(TodayAction.Checkpoints) }) {
+            Icon(
+                painter = painterResource(R.drawable.ic_energy),
+                contentDescription = "Checkpoints",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(onClick = { onAction(TodayAction.PlanTomorrow) }) {
+            Icon(
+                painter = painterResource(R.drawable.ic_calendar),
+                contentDescription = "Plan tomorrow",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(onClick = { onAction(TodayAction.Recovery) }) {
+            Icon(
+                painter = painterResource(R.drawable.ic_recovery),
+                contentDescription = "Recovery",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(onClick = { onAction(TodayAction.OpenSettings) }) {
+            Icon(
+                painter = painterResource(R.drawable.ic_settings),
+                contentDescription = "Settings",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
  * Emits one lazy item per row.
  *
  * An extension on the lazy scope rather than a composable, so each row stays
@@ -195,6 +248,28 @@ private fun LazyListScope.todayRows(
     onAction: (TodayAction) -> Unit,
     reduceMotion: Boolean,
 ) {
+    // A failed build keeps the last good rows on screen and adds a retry
+    // card above them (#9) - the tab degrades, it does not crash.
+    state.error?.let { message ->
+        item(key = "error", contentType = "error") {
+            SfCard(variant = SfCardVariant.Filled) {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Spacer(modifier = Modifier.height(Space.XS.dp))
+                TextButton(onClick = { onAction(TodayAction.Refresh) }) {
+                    Text(text = "Retry")
+                }
+            }
+        }
+    }
+
+    item(key = "today_actions", contentType = "actions") {
+        TodayActionsRow(onAction = onAction)
+    }
+
     rows.forEachIndexed { index, row ->
         item(key = row.stableId, contentType = row::class.simpleName) {
             TodayRowItem(

@@ -42,6 +42,18 @@ class ActivityLogActivity : ScrollActivity() {
     }
 
     override fun buildContent() {
+        addStaticContent()
+        loadEntries()
+    }
+
+    /**
+     * The part of the screen that never depends on the loaded entries:
+     * the explainer card and the filter chips. Kept separate so the load
+     * completion handler can redraw the static chrome *without* calling
+     * [buildContent] again - that self-call relaunched the load, which
+     * called buildContent again, forever (#40).
+     */
+    private fun addStaticContent() {
         content.addView(textCard("Everything that changed",
             "Actions from you, from AI and from scheduled jobs — each individually undoable."))
 
@@ -56,7 +68,9 @@ class ActivityLogActivity : ScrollActivity() {
             })
         }
         content.addView(chips)
+    }
 
+    private fun loadEntries() {
         // The trail is a database read; load it off the render thread.
         val gen = ++loadGeneration
         AppBackground.launch {
@@ -64,7 +78,7 @@ class ActivityLogActivity : ScrollActivity() {
             mainHandler.post {
                 if (gen != loadGeneration || isFinishing || isDestroyed) return@post
                 content.removeAllViews()
-                buildContent()
+                addStaticContent()
                 fillEntries(entries)
             }
         }

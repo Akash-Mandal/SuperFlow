@@ -32,6 +32,8 @@ import com.superflow.ui.common.snack
 import com.superflow.ui.components.SfCommandPalette
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.detail.HabitDetailActivity
+import com.superflow.ui.recovery.RecoveryActivity
+import com.superflow.ui.settings.SettingsActivity
 import com.superflow.ui.inbox.InboxSheet
 import com.superflow.ui.sheets.TextInputSheet
 import com.superflow.ui.screens.TodayAction
@@ -366,6 +368,19 @@ class ComposeTodayFragment : Fragment() {
             TodayAction.AddHabit ->
                 startActivity(Intent(requireContext(), HabitDesignerActivity::class.java))
             TodayAction.Refresh -> model.refresh()
+            // Reachability (#13): see TodayAction.
+            TodayAction.Checkpoints -> startActivity(
+                Intent(requireContext(), CheckpointActivity::class.java)
+            )
+            TodayAction.PlanTomorrow -> startActivity(
+                Intent(requireContext(), PlanTomorrowActivity::class.java)
+            )
+            TodayAction.Recovery -> startActivity(
+                Intent(requireContext(), RecoveryActivity::class.java)
+            )
+            TodayAction.OpenSettings -> startActivity(
+                Intent(requireContext(), SettingsActivity::class.java)
+            )
         }
     }
 }

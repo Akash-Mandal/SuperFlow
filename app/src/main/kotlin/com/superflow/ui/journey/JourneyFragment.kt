@@ -634,8 +634,14 @@ class JourneyAdapter(
             title.text = row.gap.title
             body.text = row.gap.body
             action.visibility = View.VISIBLE
-            action.text = "Add ${row.gap.kind.label.lowercase()}"
-            action.onDebouncedClick { onAdd(row.gap.kind.key, row.gap.nodeId) }
+            // Mirror of the Compose GapCard fix (#21): offer the missing kind
+            // itself, and never hand the dangling node's id to the editor as
+            // the new node's parent - that wrote a SYSTEM with goalId set to
+            // a habit id. Linking happens inside the editor instead.
+            val target = if (row.gap.nodeId == null) row.gap.kind
+                else row.gap.kind.parent ?: row.gap.kind
+            action.text = "Add ${target.label.lowercase()}"
+            action.onDebouncedClick { onAdd(target.key, null) }
         }
     }
 
