@@ -103,7 +103,8 @@ class HabitDesignerActivity : AppCompatActivity() {
         btnNext = findViewById(R.id.btn_next)
 
         intent.getStringExtra(EXTRA_HABIT_ID)?.let { loadExisting(it) }
-        if (editing == null) {
+        savedInstanceState?.let { restoreWizardState(it) }
+        if (editing == null && savedInstanceState == null) {
             initialSystemId = intent.getStringExtra(EXTRA_SYSTEM_ID)
             initialIdentityId = intent.getStringExtra(EXTRA_IDENTITY_ID)
         }
@@ -160,6 +161,38 @@ class HabitDesignerActivity : AppCompatActivity() {
         values["recoveryPlan"] = h.recoveryPlan
         values["unit"] = h.unit
         values["targetCount"] = h.targetCount.toString()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(STATE_STEP, step)
+        outState.putInt(STATE_MODE, mode.ordinal)
+        outState.putInt(STATE_TRACK, trackType.ordinal)
+        outState.putString(STATE_RECURRENCE, recurrence.encode())
+        outState.putBoolean(STATE_REMINDER, reminder)
+        outState.putBoolean(STATE_PROTECTED, protectedRoutine)
+        val o = org.json.JSONObject()
+        for ((k, v) in values) o.put(k, v)
+        outState.putString(STATE_VALUES, o.toString())
+    }
+
+    /**
+     * Restores the wizard across rotation (#45): the step, every typed
+     * field, and the mode/track/toggle state. Losing five sections of
+     * answers to a rotation was the single most expensive state loss in
+     * the app.
+     */
+    private fun restoreWizardState(saved: Bundle) {
+        step = saved.getInt(STATE_STEP, step)
+        mode = HabitMode.entries.getOrElse(saved.getInt(STATE_MODE)) { mode }
+        trackType = TrackType.entries.getOrElse(saved.getInt(STATE_TRACK)) { trackType }
+        recurrence = Recurrence.decode(saved.getString(STATE_RECURRENCE) ?: recurrence.encode())
+        reminder = saved.getBoolean(STATE_REMINDER, reminder)
+        protectedRoutine = saved.getBoolean(STATE_PROTECTED, protectedRoutine)
+        runCatching {
+            val o = org.json.JSONObject(saved.getString(STATE_VALUES) ?: return)
+            for (key in o.keys()) values[key] = o.optString(key)
+        }
     }
 
     /* ---------------------------------------------------------------- render */
@@ -707,5 +740,13 @@ class HabitDesignerActivity : AppCompatActivity() {
         const val EXTRA_HABIT_ID = "habitId"
         const val EXTRA_SYSTEM_ID = "systemId"
         const val EXTRA_IDENTITY_ID = "identityId"
+        private const val STATE_STEP = "designer_step"
+        private const val STATE_VALUES = "designer_values"
+        private const val STATE_VALUE_PREFIX = "designer_value_"
+        private const val STATE_MODE = "designer_mode"
+        private const val STATE_TRACK = "designer_track"
+        private const val STATE_RECURRENCE = "designer_recurrence"
+        private const val STATE_REMINDER = "designer_reminder"
+        private const val STATE_PROTECTED = "designer_protected"
     }
 }

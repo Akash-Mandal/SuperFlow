@@ -102,6 +102,18 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
     private val _rows = MutableStateFlow<List<JourneyRow>>(emptyList())
     val rows: StateFlow<List<JourneyRow>> = _rows.asStateFlow()
 
+    /**
+     * The true expansion set (#22).
+     *
+     * A collapsed ancestor hides its descendants from the row list, so a
+     * projection rebuilt from rows alone forgets that those descendants
+     * were open - re-expanding the ancestor then shows a subtree that
+     * quietly collapsed itself. This flow is the source of truth the
+     * Compose screen projects from instead.
+     */
+    private val _expandedKeys = MutableStateFlow<Set<String>>(emptySet())
+    val expandedKeys: StateFlow<Set<String>> = _expandedKeys.asStateFlow()
+
     private val _events = MutableStateFlow<String?>(null)
     val events: StateFlow<String?> = _events.asStateFlow()
 
@@ -166,6 +178,7 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
     private fun build(): List<JourneyRow> {
         val nodes = nodes()
         val open = expanded ?: JourneyTree.defaultExpansion(nodes).also { expanded = it }
+        _expandedKeys.value = open
         val tree = JourneyTree.build(nodes, open)
 
         val out = ArrayList<JourneyRow>(tree.rows.size + 8)

@@ -24,7 +24,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.superflow.design.ChartGeometry
@@ -74,6 +76,18 @@ fun SfHeatmap(
     }
     var selected by remember(states) { mutableIntStateOf(-1) }
 
+    /**
+     * Day selection from the keyboard or a screen reader (#37): the grid is
+     * one a11y node, so without these actions a TalkBack user could never
+     * inspect a single day. The caption below the grid announces the result.
+     */
+    val selectDay: (Int) -> Unit = { index ->
+        if (index in states.indices) {
+            selected = index
+            SfHaptics.perform(view, Haptics.SELECT)
+        }
+    }
+
     val rate = HistoryStates.completionRate(states)
     val summary = buildString {
         append("${states.size} days. ")
@@ -99,7 +113,17 @@ fun SfHeatmap(
                 modifier = Modifier
                     .width(gridWidth.dp)
                     .height(gridHeight.dp)
-                    .semantics { contentDescription = summary }
+                    .semantics {
+                        contentDescription = summary
+                        customActions = listOf(
+                            CustomAccessibilityAction("Previous day") {
+                                selectDay(selected - 1); true
+                            },
+                            CustomAccessibilityAction("Next day") {
+                                selectDay(selected + 1); true
+                            },
+                        )
+                    }
                     .pointerInput(weeks) {
                         detectTapGestures { offset ->
                             val slot = (cellSize + gap).dp.toPx()

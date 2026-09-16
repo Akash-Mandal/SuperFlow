@@ -283,12 +283,16 @@ private fun EnergyCard(pairs: List<Pair<Double, Double>>) {
         )
         if (r != null && Periods.canClaim(pairs.size, Periods.MinSamples.CORRELATION)) {
             Spacer(modifier = Modifier.height(Space.XS.dp))
+            // The sentence must match the sign of r (#27): a positive
+            // correlation and an inverse correlation describe opposite
+            // days, and the old copy always claimed the positive one.
+            val direction = if (r >= 0.0) "completed more" else "completed less"
             Text(
                 // Stated as an association, never as advice. Suggesting the
                 // user "should" do anything from a personal correlation of
                 // 30 points would be overreach.
                 text = "Days you rated higher energy tended to be days you " +
-                    "completed more. Based on ${pairs.size} days.",
+                    "$direction. Based on ${pairs.size} days.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

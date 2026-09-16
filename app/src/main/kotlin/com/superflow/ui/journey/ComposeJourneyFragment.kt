@@ -58,7 +58,8 @@ class ComposeJourneyFragment : Fragment() {
         val host = root.findViewById<ComposeView>(R.id.compose_host)
         host.sfContent {
             val rows by model.rows.collectAsState()
-            JourneyScreen(state = stateFrom(rows), onAction = ::handle)
+            val expandedKeys by model.expandedKeys.collectAsState()
+            JourneyScreen(state = stateFrom(rows, expandedKeys), onAction = ::handle)
         }
         return root
     }
@@ -87,20 +88,24 @@ class ComposeJourneyFragment : Fragment() {
      * Rather than have the ViewModel publish two shapes, the nodes are
      * recovered from the rows it already built - they are carried whole on
      * each [JourneyRow.Entity] precisely so this is a projection rather
-     * than a second query. Expansion comes back the same way: a row is in
-     * the set exactly when the tree said it was expanded.
+     * than a second query.
+     *
+     * Expansion is NOT projected from the rows (#22): a collapsed ancestor
+     * hides its descendants from the row list, so rows alone cannot
+     * describe the full expansion set. [JourneyViewModel.expandedKeys] is
+     * the source of truth, and this only carries it across.
      *
      * `loading` is inferred from emptiness rather than tracked. The first
      * emission always contains at least the tools row, so an empty list
      * means the first build has not landed yet.
      */
-    private fun stateFrom(rows: List<JourneyRow>): JourneyUiState {
+    private fun stateFrom(rows: List<JourneyRow>, expandedKeys: Set<String>): JourneyUiState {
         if (rows.isEmpty()) return JourneyUiState(loading = true)
         val entities = rows.filterIsInstance<JourneyRow.Entity>()
         return JourneyUiState(
             loading = false,
             nodes = entities.map { it.row.node },
-            expanded = entities.filter { it.row.expanded }.map { it.row.key }.toSet(),
+            expanded = expandedKeys,
         )
     }
 

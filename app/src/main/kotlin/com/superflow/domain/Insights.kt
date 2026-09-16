@@ -304,6 +304,33 @@ object Insights {
         }
     }
 
+    /**
+     * Successes per week for the bar chart (#26).
+     *
+     * Long windows bucket per week ending on [today], oldest first; the
+     * pair's date is the week's first day, for the bar's label. A year as
+     * 90 clipped daily bars was not a year.
+     */
+    fun weeklyCounts(
+        repo: Repository,
+        weeks: Int = 13,
+        today: LocalDate = repo.clock.today()
+    ): List<Pair<LocalDate, Int>> {
+        val out = ArrayList<Pair<LocalDate, Int>>(weeks)
+        val start = today.minusDays(weeks.toLong() * 7 - 1)
+        val all = repo.checkInsBetween(SfTime.format(start), SfTime.format(today))
+        var weekStart = start
+        while (!weekStart.isAfter(today)) {
+            val weekEnd = minOf(weekStart.plusDays(6), today)
+            // ISO dates sort lexicographically, so string range tests work.
+            val from = SfTime.format(weekStart)
+            val to = SfTime.format(weekEnd)
+            out.add(weekStart to all.count { it.date in from..to && it.isSuccess })
+            weekStart = weekEnd.plusDays(1)
+        }
+        return out
+    }
+
     fun reduceModeProgress(repo: Repository): List<Triple<String, Int, Int>> =
         reduceModeProgress(repo.snapshot())
 

@@ -89,6 +89,13 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
         ) {
             override fun isLongPressDragEnabled() = true
 
+            // Reorder writes are batched (#10): onMove fires for every frame
+            // of a drag, and it used to persist the order each time - a
+            // storm of identical writes and undo rows. Positions are only
+            // recorded here; clearView persists once, when the finger lifts.
+            var pendingFrom: String? = null
+            var pendingTo: String? = null
+
             override fun onMove(
                 rv: RecyclerView,
                 viewHolder: RecyclerView.ViewHolder,
@@ -96,8 +103,18 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
             ): Boolean {
                 val fromHabit = (viewHolder as? TodayAdapter.HabitVH)?.habit ?: return false
                 val toHabit = (target as? TodayAdapter.HabitVH)?.habit ?: return false
-                model.reorderHabitTo(fromHabit.id, toHabit.id)
+                pendingFrom = fromHabit.id
+                pendingTo = toHabit.id
                 return true
+            }
+
+            override fun clearView(rv: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                super.clearView(rv, viewHolder)
+                val from = pendingFrom
+                val to = pendingTo
+                pendingFrom = null
+                pendingTo = null
+                if (from != null && to != null && from != to) model.reorderHabitTo(from, to)
             }
 
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit

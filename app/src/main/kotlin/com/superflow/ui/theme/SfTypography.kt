@@ -120,11 +120,17 @@ internal fun materialTypography(variant: SfTypographyVariant): Typography {
 
         titleLarge = TypeRoles.headlineSmall.toTextStyle().scaled(f),
         titleMedium = TypeRoles.titleMedium.toTextStyle().scaled(f),
-        titleSmall = TypeRoles.labelLarge.toTextStyle().scaled(f),
+        // The scale has no TitleSmall step, and mapping it to LabelLarge
+        // made titles render SMALLER than body text (14sp vs 16sp) - the
+        // slot drift (#38). A missing title step snaps to the title family,
+        // not to the label family.
+        titleSmall = TypeRoles.titleMedium.toTextStyle().scaled(f),
 
         bodyLarge = TypeRoles.bodyLarge.toTextStyle().scaled(f),
         bodyMedium = TypeRoles.bodyMedium.toTextStyle().scaled(f),
-        bodySmall = TypeRoles.labelMedium.toTextStyle().scaled(f),
+        // Same drift (#38): bodySmall was drawn as a 12sp medium-weight
+        // label with label tracking. Body copy keeps body metrics.
+        bodySmall = TypeRoles.bodyMedium.toTextStyle().scaled(f),
 
         labelLarge = TypeRoles.labelLarge.toTextStyle().scaled(f),
         labelMedium = TypeRoles.labelMedium.toTextStyle().scaled(f),

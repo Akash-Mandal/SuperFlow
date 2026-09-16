@@ -397,19 +397,28 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
     fun undoToday() = run("undo_today", JSONObject())
 
     /**
-     * Reorder by dragging: move [fromId] to the global position of [toId].
-     * Only meaningful among active habits; the adapter only allows dragging
-     * habit rows, so both ids are habits.
+     * Reorder by dragging: move [fromId] into [toId]'s position.
+     *
+     * The index is computed over the visible Today list, not every habit
+     * (#11): paused and archived habits occupy orderIndex slots the Today
+     * list never shows, so a position derived from the full table landed
+     * the habit somewhere the user could not see. The persisted order is
+     * the whole visible list in its new arrangement, via the `reorder_habits`
+     * command (one undoable write instead of a per-habit patch).
      */
     fun reorderHabitTo(fromId: String, toId: String) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                val list = repo.habits().sortedBy { it.orderIndex }
-                val from = list.indexOfFirst { it.id == fromId }
-                val to = list.indexOfFirst { it.id == toId }
+                val visible = repo.habitsForDay(repo.clock.today())
+                    .sortedBy { it.orderIndex }
+                    .map { it.id }
+                val from = visible.indexOf(fromId)
+                val to = visible.indexOf(toId)
                 if (from >= 0 && to >= 0 && from != to) {
-                    bus.execute("reorder_habit",
-                        jsonOf("habit" to fromId, "toIndex" to to), Actor.USER)
+                    val moved = visible.toMutableList()
+                    moved.remove(fromId)
+                    moved.add(to, fromId)
+                    bus.execute("reorder_habits", jsonOf("ids" to jsonArrayOf(moved)), Actor.USER)
                 }
             }
         }

@@ -643,8 +643,16 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
     fun openModelPicker() {
         _state.update { it.copy(showModelPicker = true, modelsLoading = true, modelOptions = emptyList()) }
         viewModelScope.launch {
-            val res = withContext(Dispatchers.IO) {
-                com.superflow.ai.ModelCatalog.fetchModels(getApplication(), prefs)
+            val res = try {
+                withContext(Dispatchers.IO) {
+                    com.superflow.ai.ModelCatalog.fetchModels(getApplication(), prefs)
+                }
+            } catch (e: Exception) {
+                // A failed fetch used to leave modelsLoading true forever and
+                // the picker as an eternal skeleton (#52). The picker's empty
+                // state is recoverable; show it instead.
+                _state.update { it.copy(modelsLoading = false, modelOptions = emptyList()) }
+                return@launch
             }
             _state.update { it.copy(modelsLoading = false, modelOptions = res.models) }
         }

@@ -3,6 +3,7 @@
 package com.superflow.ui.blueprint
 
 import android.content.Intent
+import android.os.Bundle
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -57,9 +58,54 @@ class BlueprintActivity : ScrollActivity() {
 
     companion object {
         const val EXTRA_PROJECT = "project"
+        private const val STATE_PROJECT = "bp_project"
+        private const val STATE_GOAL = "bp_goal"
+        private const val STATE_MINUTES = "bp_minutes"
+        private const val STATE_WEEKS = "bp_weeks"
     }
 
     override fun titleText() = getString(R.string.blueprint_studio)
+
+    /**
+     * The dream, project id and (re-derived) plan survive a rotation or a
+     * process kill (#43): they used to live only in fields, so step 3 came
+     * back locked even though the same plan re-derives deterministically
+     * from the dream and the sources.
+     */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        val restoring = savedInstanceState != null
+        if (restoring) {
+            projectId = savedInstanceState?.getString(STATE_PROJECT)
+            dream = UserIntent(
+                goal = savedInstanceState?.getString(STATE_GOAL).orEmpty(),
+                dailyTimeMinutes = savedInstanceState?.getInt(STATE_MINUTES) ?: 30,
+                durationWeeks = savedInstanceState?.getInt(STATE_WEEKS) ?: 8,
+            )
+        }
+        super.onCreate(savedInstanceState)
+        if (restoring) restorePlanIfNeeded()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(STATE_PROJECT, projectId)
+        outState.putString(STATE_GOAL, dream.goal)
+        outState.putInt(STATE_MINUTES, dream.dailyTimeMinutes)
+        outState.putInt(STATE_WEEKS, dream.durationWeeks)
+    }
+
+    /** Recompute the dropped plan once, off the main thread, after a restore. */
+    private fun restorePlanIfNeeded() {
+        val pid = projectId ?: return
+        val p = repo.project(pid) ?: return
+        if (plan != null || stepOf(p) < 3) return
+        busy = true
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) { ensurePlan(p) }
+            busy = false
+            rebuild()
+        }
+    }
 
     override fun onResume() {
         super.onResume()

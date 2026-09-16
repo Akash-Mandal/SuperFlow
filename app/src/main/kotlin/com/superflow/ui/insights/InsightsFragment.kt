@@ -120,14 +120,22 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
             return rows
         }
 
-        // Repetitions chart for the selected period (bars for 7d; weekly buckets otherwise).
-        val daily = Insights.dailyCounts(repo, days.coerceAtMost(90))
-        rows.add(InsightRow.Chart(
-            "Last $days days", "Repetitions per day.",
-            daily.map { (date, count) ->
+        // Repetitions chart for the selected period. A week or less draws
+        // one bar per day; anything longer buckets per week (#26) - the
+        // old path capped daily bars at 90 and called that a year.
+        val chartSub: String
+        val bars = if (days <= 7) {
+            chartSub = "Repetitions per day."
+            Insights.dailyCounts(repo, days).map { (date, count) ->
                 BarChart.Bar(SfTime.dayLetter(date), count, date == today)
             }
-        ))
+        } else {
+            chartSub = "Repetitions per week."
+            Insights.weeklyCounts(repo, (days + 6) / 7).map { (weekStart, count) ->
+                BarChart.Bar(SfTime.shortDay(weekStart), count, false)
+            }
+        }
+        rows.add(InsightRow.Chart("Last $days days", chartSub, bars))
 
         // Delta vs previous equal-length period (#56).
         val cur = countWindow(repo, today, days)

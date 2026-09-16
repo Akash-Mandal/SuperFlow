@@ -81,6 +81,8 @@ class OnboardingActivity : AppCompatActivity() {
         state.update {
             it.copy(
                 step = OnboardingFlow.stepAt(savedInstanceState?.getInt(KEY_STEP) ?: 0),
+                answers = savedInstanceState?.getString(KEY_ANSWERS)?.let(::decodeAnswers)
+                    ?: it.answers,
                 lifeAreas = lifeAreaChips(),
                 widthClass = widthClass(),
             )
@@ -107,7 +109,45 @@ class OnboardingActivity : AppCompatActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putInt(KEY_STEP, state.value.step.index)
+        outState.putString(KEY_ANSWERS, answersJson(state.value.answers))
     }
+
+    /**
+     * The answers ride through rotation too (#45). Only the step survived
+     * before, so turning the phone mid-flow silently wiped everything the
+     * user had typed on the steps that had no savedInstanceState handling.
+     */
+    private fun answersJson(a: OnboardingFlow.Answers): String =
+        org.json.JSONObject().apply {
+            put("lifeArea", a.lifeArea)
+            put("identity", a.identity)
+            put("goal", a.goal)
+            put("why", a.why)
+            put("system", a.system)
+            put("habit", a.habit)
+            put("tinyStart", a.tinyStart)
+            put("cueTime", a.cueTime)
+            put("anchor", a.anchor)
+            put("reward", a.reward)
+            put("reminder", a.reminder)
+        }.toString()
+
+    private fun decodeAnswers(raw: String): OnboardingFlow.Answers? = runCatching {
+        val o = org.json.JSONObject(raw)
+        OnboardingFlow.Answers(
+            lifeArea = o.optString("lifeArea"),
+            identity = o.optString("identity"),
+            goal = o.optString("goal"),
+            why = o.optString("why"),
+            system = o.optString("system"),
+            habit = o.optString("habit"),
+            tinyStart = o.optString("tinyStart"),
+            cueTime = o.optString("cueTime"),
+            anchor = o.optString("anchor"),
+            reward = o.optString("reward"),
+            reminder = o.optBoolean("reminder", true),
+        )
+    }.getOrNull()
 
     override fun onDestroy() {
         super.onDestroy()
@@ -305,6 +345,7 @@ class OnboardingActivity : AppCompatActivity() {
 
     private companion object {
         const val KEY_STEP = "step"
+        const val KEY_ANSWERS = "answers"
         const val DEFAULT_HOUR = 7
         const val DEFAULT_MINUTE = 30
     }

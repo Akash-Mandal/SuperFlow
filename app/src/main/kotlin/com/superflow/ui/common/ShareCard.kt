@@ -225,12 +225,28 @@ object ShareCard {
         context.startActivity(Intent.createChooser(send, "Share progress"))
     }
 
-    /** Generates and shares in one call, all on the current (main) thread. */
+    /** Generates and shares in one call. Generation is heavy — bitmap plus
+     *  PNG encoding — so it runs on the app's background lane (#44) and only
+     *  the share sheet itself is opened on the main thread.
+     */
     fun share(context: Context, repo: Repository) {
-        shareFile(context, saveToCache(context, repo))
+        val appContext = context.applicationContext
+        com.superflow.AppBackground.launch {
+            val file = runCatching { saveToCache(appContext, repo) }.getOrNull()
+                ?: return@launch
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                if (context is android.app.Activity && (context.isFinishing || context.isDestroyed)) {
+                    return@post
+                }
+                runCatching { shareFile(context, file) }
+            }
+        }
     }
 
-    /** Saves the card to the gallery (MediaStore, API 29+). */
+    /**
+     * Saves the card to the gallery (MediaStore, API 29+). Slow — bitmap
+     * plus PNG encode — so call it off the main thread.
+     */
     fun saveToGallery(context: Context, repo: Repository): Boolean {
         if (Build.VERSION.SDK_INT < 29) return false
         val bitmap = generate(repo)
@@ -242,12 +258,15 @@ object ShareCard {
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SuperFlow")
             }
             val uri: Uri? = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            if (uri == null) false
-            else {
-                resolver.openOutputStream(uri)?.use {
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
-                }
-                true
+            // A null stream means MediaStore handed us an unusable entry:
+            // that is a failure, not a silent success (#44), and the empty
+            // row is cleaned up rather than left behind.
+            val stream = if (uri == null) null else resolver.openOutputStream(uri)
+            if (uri == null || stream == null) {
+                if (uri != null) runCatching { resolver.delete(uri, null, null) }
+                false
+            } else {
+                stream.use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
             }
         } catch (e: Exception) {
             false

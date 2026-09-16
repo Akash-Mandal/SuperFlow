@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.FragmentManager
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.button.MaterialButton
@@ -86,6 +87,10 @@ class EntityEditorSheet : BottomSheetDialogFragment() {
             onSave?.invoke(text1, f2.text?.toString().orEmpty().trim(), key)
             dismiss()
         }
+        // An error that survives retyping reads as "this field is broken"
+        // (#14): it is cleared the moment the user edits the text again.
+        f1.doOnTextChanged { _, _, _, _ -> l1.error = null }
+        f2.doOnTextChanged { _, _, _, _ -> l2.error = null }
     }
 
     companion object {
