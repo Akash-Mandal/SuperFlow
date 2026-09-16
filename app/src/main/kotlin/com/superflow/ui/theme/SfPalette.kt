@@ -11,7 +11,9 @@ import com.superflow.design.SurfaceRoles
 import com.superflow.design.ThemeSelection
 
 /**
- * The five palettes, as Compose colour schemes.
+ * The palettes, as Compose colour schemes. Seven in total: the five bases
+ * (Calm, Forest, Ocean, Dusk, Mono) plus the 2026 additions Terracotta and
+ * Aurora.
  *
  * Accents come from [ColorRoles] and every other colour from [Ramps], both
  * of which are generated from or tested against the XML theme resources, so

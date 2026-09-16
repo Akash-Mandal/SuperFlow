@@ -68,6 +68,15 @@ val LocalSfShapes = staticCompositionLocalOf<SfShapeTokens> {
  */
 val LocalSfHighContrast: ProvidableCompositionLocal<Boolean> = compositionLocalOf { false }
 
+/**
+ * Whether the current SfTheme is dark, however it was decided: system
+ * setting, user preference, or a pinned preview. Components that must
+ * branch on darkness (elevation tinting, icon scrims) read this instead of
+ * `isSystemInDarkTheme()`, which cannot see a theme that was forced dark
+ * under a light system - and vice versa.
+ */
+val LocalSfIsDark: ProvidableCompositionLocal<Boolean> = compositionLocalOf { false }
+
 /** Density metrics in Compose units (§4.2). */
 @Immutable
 data class SfDensityMetrics(
@@ -128,6 +137,9 @@ object SfTheme {
 
     val highContrast: Boolean
         @Composable @ReadOnlyComposable get() = LocalSfHighContrast.current
+
+    val isDark: Boolean
+        @Composable @ReadOnlyComposable get() = LocalSfIsDark.current
 }
 
 /**
@@ -219,6 +231,7 @@ fun SfTheme(
         LocalSfMotion provides motionSpecs,
         LocalSfShapes provides sfShapeTokens,
         LocalSfHighContrast provides highContrast,
+        LocalSfIsDark provides isDark,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

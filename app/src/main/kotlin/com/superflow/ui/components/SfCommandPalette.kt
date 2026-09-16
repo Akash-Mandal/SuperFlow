@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -73,6 +75,11 @@ fun <T> SfCommandPalette(
         Surface(
             modifier = modifier
                 .fillMaxSize()
+                .navigationBarsPadding()
+                // The keyboard must never cover the results: the palette is
+                // opened by a search intent, and the first thing a user does
+                // is type.
+                .imePadding()
                 .padding(horizontal = Space.MD.dp, vertical = Space.XL.dp),
             shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
@@ -117,10 +124,21 @@ fun <T> SfCommandPalette(
 
                     // Focus lands in the field as the dialog attaches, so
                     // typing starts immediately - the point of a pull-down
-                    // palette.
+                    // palette. A fixed delay races window attach on slow
+                    // devices; retrying until the window is focusable does
+                    // not, and gives up only if the dialog is really gone.
                     LaunchedEffect(Unit) {
-                        delay(80) // let the window attach first
-                        requester.requestFocus()
+                        var attempts = 0
+                        while (attempts < 20) {
+                            delay(40)
+                            attempts++
+                            try {
+                                requester.requestFocus()
+                                break
+                            } catch (_: IllegalStateException) {
+                                // Window not attached yet; retry next frame.
+                            }
+                        }
                     }
                 }
 

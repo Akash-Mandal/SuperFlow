@@ -1,6 +1,6 @@
 package com.superflow.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -70,11 +71,16 @@ fun SfBarChart(
 
     // One animation driving every bar, rather than one per bar: a chart with
     // 90 independent animations is 90 recompositions a frame.
-    val grow by animateFloatAsState(
-        targetValue = 1f,
-        animationSpec = motion.tween(motion.normal),
-        label = "barGrow",
-    )
+    //
+    // An `animateFloatAsState` targeting a constant 1f would initialise AT
+    // its target - permanently 1f, no entrance at all. An `Animatable`
+    // started at 0 grows for real, and `remember(bars)` re-runs the entrance
+    // whenever the series itself changes.
+    val grow = remember(bars) { Animatable(0f) }
+    LaunchedEffect(bars) {
+        grow.animateTo(1f, animationSpec = motion.tween(motion.normal))
+    }
+    val barGrow = grow.value
 
     val summary = buildString {
         if (label != null) {
@@ -127,7 +133,7 @@ fun SfBarChart(
                 }
 
                 bars.forEachIndexed { index, bar ->
-                    val fraction = ChartGeometry.normalise(bar.value, maxValue) * grow
+                    val fraction = ChartGeometry.normalise(bar.value, maxValue) * barGrow
                     val barHeight = size.height * fraction
                     if (barHeight <= 0f) return@forEachIndexed
 

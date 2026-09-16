@@ -6,13 +6,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -20,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.superflow.design.tokens.ElevationTint
@@ -83,7 +85,10 @@ fun SfCard(
     val scheme = MaterialTheme.colorScheme
     val highContrast = SfTheme.highContrast
 
-    val isDark = isSystemInDarkTheme()
+    // Darkness must come from the theme, not the system: a screen pinned
+    // dark under a light system (preview, forced-dark surface) would
+    // otherwise compute elevation tints for the wrong world.
+    val isDark = SfTheme.isDark
     val elevatedBase = scheme.surface
     val elevatedTinted = run {
         val baseArgb = elevatedBase.toArgb().toLong() and 0xFFFFFFFFL
@@ -124,7 +129,12 @@ fun SfCard(
     // The default indication is the theme's ripple; naming one explicitly
     // would pull in the material (not material3) ripple artifact.
     val clickModifier = if (onClick != null) {
-        Modifier.clickable(onClick = onClick)
+        Modifier.clickable(
+            onClick = onClick,
+            // A card acts as a single control: announce it as one, not as a
+            // pile of text the screen reader walks through twice.
+            role = Role.Button,
+        )
     } else {
         Modifier
     }
@@ -139,7 +149,15 @@ fun SfCard(
         border = stroke,
     ) {
         Box(modifier = clickModifier) {
-            Row(modifier = Modifier.fillMaxWidth()) {
+            // IntrinsicSize.Min lets the accent stripe measure the row's
+            // real height. A bare fillMaxHeight() inside a LazyColumn (an
+            // unbounded parent) measures to zero and the stripe vanishes -
+            // the bug SfEntityRow already worked around with this pattern.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
+            ) {
                 if (accentColor != null) {
                     // The accent is a border, not a padding inset, so the
                     // content still starts at the card's normal padding and

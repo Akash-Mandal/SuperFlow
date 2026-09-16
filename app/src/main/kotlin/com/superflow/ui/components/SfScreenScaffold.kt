@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -132,10 +133,15 @@ fun SfScreenScaffold(
         }
 
         // Content owns scrolling; the scaffold never scrolls itself, so a
-        // screen's scroll state survives navigation round-trips.
+        // screen's scroll state survives navigation round-trips. The nav-bar
+        // padding sits on the content box only - the header stays pinned to
+        // the top - and mirrors the dock clearance the list variant gives
+        // its LazyColumn, so gesture-nav devices never draw content under
+        // the system dock.
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .navigationBarsPadding()
                 .padding(contentPadding),
         ) {
             content()
