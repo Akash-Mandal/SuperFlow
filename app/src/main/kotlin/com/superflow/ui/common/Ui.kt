@@ -21,6 +21,16 @@ import com.superflow.design.Haptics
 
 /** Shared UI helpers: theme lookups, haptics, snackbars, insets. */
 
+/**
+ * A one-shot snackbar message carrying a sequence number (#12).
+ *
+ * `StateFlow<String?>` conflates by equality, so two consecutive identical
+ * messages arrived as one: check in two habits in a row, see a single
+ * "Checked in". The sequence number makes every emission distinct without
+ * giving up the retention that makes rotation survive.
+ */
+data class UiEvent(val seq: Long, val message: String)
+
 fun Context.themeColor(attr: Int, fallback: Int = Color.GRAY): Int =
     MaterialColors.getColor(this, attr, fallback)
 

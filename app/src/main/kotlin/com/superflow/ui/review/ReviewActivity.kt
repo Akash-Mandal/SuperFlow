@@ -13,7 +13,6 @@ import com.superflow.R
 import com.superflow.data.Repository
 import com.superflow.data.model.ReviewKind
 import com.superflow.data.Prefs
-import com.superflow.domain.Actor
 import com.superflow.domain.CommandBus
 import com.superflow.domain.Insights
 import com.superflow.domain.ReviewActions
@@ -36,9 +35,51 @@ class ReviewActivity : ScrollActivity() {
     private var kind = ReviewKind.WEEKLY
     private val answers = HashMap<String, String>()
 
+    /** Set while [load] gathers data; [buildContent] shows a spinner (#49). */
+    private var loading = true
+    /** Habit stats for the suggestion cards, gathered off the main thread. */
+    private var stats: List<com.superflow.data.model.HabitStats> = emptyList()
+    /** Pre-filled "what the data says" text for the selected [kind]. */
+    private var dataText: String = ""
+    /** Saved reviews, newest first, gathered off the main thread. */
+    private var past: List<com.superflow.data.model.Review> = emptyList()
+
     override fun titleText() = getString(R.string.review)
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        load()
+    }
+
+    /**
+     * The repo reads run off the main thread and flip [loading] off when
+     * done (#49). The screen used to call Insights.allStats directly inside
+     * buildContent, freezing on open when the scorecard was large. The
+     * period chips re-run the same load for the newly selected kind.
+     */
+    private fun load() {
+        loading = true
+        rebuild()
+        com.superflow.AppBackground.launch {
+            val loadedStats = com.superflow.domain.Insights.allStats(repo)
+            val loadedData = com.superflow.domain.Insights.reviewData(repo, kind)
+            val loadedPast = repo.reviews()
+            mainHandler.post {
+                if (isFinishing || isDestroyed) return@post
+                stats = loadedStats
+                dataText = loadedData
+                past = loadedPast
+                loading = false
+                rebuild()
+            }
+        }
+    }
+
     override fun buildContent() {
+        if (loading) {
+            content.addView(buildProgressRow())
+            return
+        }
         content.addView(textCard("Look at the system, not at yourself",
             "The goal of a review is one concrete change, not a verdict."))
 
@@ -49,16 +90,16 @@ class ReviewActivity : ScrollActivity() {
                 isCheckable = true
                 isChecked = kind == k
                 setEnsureMinTouchTargetSize(false)
-                setOnClickListener { kind = k; rebuild() }
+                setOnClickListener { if (kind != k) { kind = k; load() } }
             })
         }
         content.addView(chips)
 
         content.addView(section("WHAT THE DATA SAYS"))
-        content.addView(textCard("Pre-filled from your real activity", Insights.reviewData(repo, kind)))
+        content.addView(textCard("Pre-filled from your real activity", dataText))
 
         // Previous review's open action items (§9): decide before writing a new one.
-        val previous = repo.reviews().firstOrNull()
+        val previous = past.firstOrNull()
         val openActions = previous?.actionItems?.filter { !it.completed }
         if (openActions != null && openActions.isNotEmpty()) {
             content.addView(section("DID LAST REVIEW LAND?"))
@@ -68,19 +109,18 @@ class ReviewActivity : ScrollActivity() {
                 card.findViewById<TextView>(R.id.text_body).text =
                     "Decided ${previous.periodLabel}. Mark it done if it happened."
                 card.setOnClickListener {
-                    bus.execute("complete_review_action", jsonOf(
+                    // #51 family: the write leaves the main thread.
+                    runCommand(bus, "complete_review_action", jsonOf(
                         "reviewId" to previous.id, "itemId" to item.id,
                         "outcome" to "Did it, worked"
-                    ), Actor.USER)
-                    findViewById<View>(R.id.root).snack("Action item marked done")
-                    rebuild()
+                    )) { findViewById<View>(R.id.root).snack("Action item marked done") }
+                    load()
                 }
                 content.addView(card)
             }
         }
 
         content.addView(section("SUGGESTIONS"))
-        val stats = Insights.allStats(repo)
         val weak = stats.filter { it.consistency30 < 50 }
         val strong = stats.filter { it.consistency30 >= 80 }
         content.addView(textCard("Where to change one thing", buildString {
@@ -142,7 +182,6 @@ class ReviewActivity : ScrollActivity() {
         })
 
         content.addView(section("PAST REVIEWS"))
-        val past = repo.reviews()
         if (past.isEmpty()) content.addView(textCard("None yet", "Reviews you save appear here."))
         past.forEach { r ->
             val card = layoutInflater.inflate(R.layout.item_text_card, content, false)
@@ -160,7 +199,9 @@ class ReviewActivity : ScrollActivity() {
                 append(Dates.stamp(r.createdAt))
             }
             card.setOnLongClickListener {
-                bus.execute("delete_review", jsonOf("id" to r.id), Actor.USER); rebuild(); true
+                // #51 family: the write leaves the main thread.
+                runCommand(bus, "delete_review", jsonOf("id" to r.id)) { load() }
+                true
             }
             content.addView(card)
 
@@ -185,6 +226,32 @@ class ReviewActivity : ScrollActivity() {
                 content.addView(group)
             }
         }
+    }
+
+    /** The #49 loading row: a spinner and a quiet line of copy. */
+    private fun buildProgressRow(): View {
+        val row = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, dpi(24), 0, dpi(24))
+        }
+        val spinner = android.widget.ProgressBar(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dpi(24), dpi(24)).also {
+                it.marginEnd = dpi(12)
+            }
+            indeterminateTintList = android.content.res.ColorStateList.valueOf(
+                com.google.android.material.color.MaterialColors.getColor(
+                    row, com.google.android.material.R.attr.colorPrimary
+                )
+            )
+        }
+        val label = TextView(this).apply {
+            text = "Looking at your data…"
+            setTextAppearance(R.style.Text_SuperFlow_BodyMedium)
+        }
+        row.addView(spinner)
+        row.addView(label)
+        return row
     }
 
     private fun field(key: String, hint: String) {

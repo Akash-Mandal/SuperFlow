@@ -91,6 +91,7 @@ private fun SfHistoryCell(
 ) {
     val base = when (state) {
         HistoryStates.COMPLETED -> completedColor
+        HistoryStates.PARTIAL -> completedColor
         HistoryStates.MISSED -> missedColor
         HistoryStates.SKIPPED -> skippedColor
         else -> emptyColor

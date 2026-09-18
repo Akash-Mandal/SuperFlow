@@ -181,9 +181,9 @@ class JourneyFragment : Fragment() {
                     }
                 }
                 launch {
-                    model.events.collect {
-                        if (it != null) {
-                            view.snack(it, "Undo") { model.undoLast() }
+                    model.events.collect { event ->
+                        if (event != null) {
+                            view.snack(event.message, "Undo") { model.undoLast() }
                             model.consumeEvent()
                         }
                     }

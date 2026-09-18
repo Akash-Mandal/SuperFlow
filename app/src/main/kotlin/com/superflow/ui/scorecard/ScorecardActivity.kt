@@ -29,10 +29,44 @@ class ScorecardActivity : ScrollActivity() {
     private val repo by lazy { Repository.get(this) }
     private val prefs by lazy { Prefs.get(this) }
 
+    /** Set until the first off-main read lands (#49); [buildContent] spins. */
+    private var loading = true
+    /** Entries read once per load, instead of twice inside every build. */
+    private var entries: List<com.superflow.data.model.ScorecardEntry> = emptyList()
+
     override fun titleText() = getString(R.string.habit_scorecard)
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        load()
+    }
+
+    /**
+     * One background read serves the whole screen (#49): buildContent used to
+     * call repo.scorecard() twice on the main thread — once directly and once
+     * from the monthly-prompt check — recomputing everything on every open
+     * and on every rebuild.
+     */
+    private fun load() {
+        loading = true
+        rebuild()
+        com.superflow.AppBackground.launch {
+            val loaded = repo.scorecard()
+            mainHandler.post {
+                if (isFinishing || isDestroyed) return@post
+                entries = loaded
+                loading = false
+                rebuild()
+                maybePromptRescore(loaded)
+            }
+        }
+    }
+
     override fun buildContent() {
-        maybePromptRescore()
+        if (loading) {
+            content.addView(loadingRow())
+            return
+        }
 
         content.addView(textCard("Notice, do not judge",
             "List what you already do on a normal day, then mark each one. " +
@@ -46,7 +80,6 @@ class ScorecardActivity : ScrollActivity() {
             setOnClickListener { addRoutine() }
         })
 
-        val entries = repo.scorecard()
         if (entries.isEmpty()) {
             content.addView(textCard("Nothing recorded yet",
                 "Try walking through a typical morning: waking, phone, coffee, commute. " +
@@ -126,16 +159,16 @@ class ScorecardActivity : ScrollActivity() {
      * Once a month, nudge the user to re-score their routines (#25). The
      * marker stores the last ISO month the prompt was shown; "re-scoring"
      * means reviewing existing entries and removing routines that no longer
-     * fit, then adding new ones.
+     * fit, then adding new ones. Runs from [load]'s completion, with the
+     * entries already read.
      */
-    private fun maybePromptRescore() {
-        val entries = repo.scorecard()
-        if (entries.isEmpty()) return
-        val now = LocalDate.now()
+    private fun maybePromptRescore(loaded: List<com.superflow.data.model.ScorecardEntry>) {
+        if (loaded.isEmpty()) return
+        val now = repo.clock.today()
         val thisMonth = "%d-%02d".format(now.year, now.monthValue)
         if (prefs.scorecardLastPrompt == thisMonth) return
         prefs.scorecardLastPrompt = thisMonth
-        val lastEntry = entries.maxByOrNull { it.createdAt }?.createdAt ?: 0L
+        val lastEntry = loaded.maxByOrNull { it.createdAt }?.createdAt ?: 0L
         val daysOld = ChronoUnit.DAYS.between(
             java.time.Instant.ofEpochMilli(lastEntry).atZone(java.time.ZoneId.systemDefault()).toLocalDate(),
             now
@@ -166,10 +199,34 @@ class ScorecardActivity : ScrollActivity() {
 
     private fun dpi(v: Int) = (v * resources.displayMetrics.density).toInt()
 
+    /** The #49 loading row, shown until the first background read lands. */
+    private fun loadingRow(): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, dpi(24), 0, dpi(24))
+        }
+        row.addView(android.widget.ProgressBar(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dpi(24), dpi(24)).also {
+                it.marginEnd = dpi(12)
+            }
+            indeterminateTintList = android.content.res.ColorStateList.valueOf(
+                com.google.android.material.color.MaterialColors.getColor(
+                    row, com.google.android.material.R.attr.colorPrimary
+                )
+            )
+        })
+        row.addView(TextView(this).apply {
+            text = "Loading your routines…"
+            setTextAppearance(R.style.Text_SuperFlow_BodyMedium)
+        })
+        return row
+    }
+
     private fun exec(command: String, args: org.json.JSONObject) {
         runCommand(bus, command, args) { res ->
             if (!res.ok) findViewById<View>(R.id.root).snack(res.message)
-            rebuild()
+            load()
         }
     }
 }

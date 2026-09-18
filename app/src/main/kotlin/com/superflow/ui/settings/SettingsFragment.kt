@@ -69,7 +69,7 @@ class SettingsFragment : Fragment() {
 
         view.findViewById<TextView>(R.id.screen_title).text = getString(R.string.tab_settings)
         view.findViewById<TextView>(R.id.screen_subtitle).text =
-            "Everything is optional. The app works fully offline."
+            getString(R.string.settings_subtitle)
 
         ViewCompat.setOnApplyWindowInsetsListener(view.findViewById(R.id.header)) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -270,11 +270,11 @@ class SettingsFragment : Fragment() {
         // Pause / Vacation
         container.addView(section("PAUSE / VACATION"))
         container.addView(group(buildList {
-            add(action(R.drawable.ic_pause, "Pause habits",
-                "Take a break without creating misses") { startPauseFlow() })
+            add(action(R.drawable.ic_pause, getString(R.string.settings_pause_title),
+                getString(R.string.settings_pause_sub)) { startPauseFlow() })
             val pauses = repo.pauses()
             if (pauses.isEmpty()) {
-                add(note("No active pauses. Paused days never count as misses."))
+                add(note(getString(R.string.settings_pause_note_empty)))
             } else {
                 pauses.forEach { p ->
                     val scope = p.habitId?.let { id -> repo.habit(id)?.title } ?: "All habits"
@@ -396,8 +396,8 @@ class SettingsFragment : Fragment() {
             val end = runCatching { java.time.LocalDate.parse(it.endDate) }.getOrNull()
             end != null && !end.isBefore(today)
         }
-        return if (active == 0) "Pause habits for a holiday or break"
-        else "$active active pause${if (active == 1) "" else "s"}"
+        return if (active == 0) getString(R.string.settings_pause_action_hint)
+        else resources.getQuantityString(R.plurals.settings_pause_active, active, active)
     }
 
     private fun section(title: String): View =
@@ -552,18 +552,21 @@ class SettingsFragment : Fragment() {
     private fun startPauseFlow() {
         val today = com.superflow.core.time.SfTime.format(repo.clock.today())
         TextInputSheet.show(
-            parentFragmentManager, "Pause habits", "Start date (yyyy-MM-dd)",
-            subtitle = "Paused days never count as misses.", value = today
+            parentFragmentManager, getString(R.string.settings_pause_title),
+            getString(R.string.settings_pause_from_title),
+            subtitle = getString(R.string.settings_pause_from_sub), value = today
         ) { from ->
             val fromIso = from.trim().ifBlank { today }
             TextInputSheet.show(
-                parentFragmentManager, "Pause habits", "End date (yyyy-MM-dd)",
-                subtitle = "The break ends after this day.", value = fromIso
+                parentFragmentManager, getString(R.string.settings_pause_title),
+                getString(R.string.settings_pause_to_title),
+                subtitle = getString(R.string.settings_pause_to_sub), value = fromIso
             ) { to ->
                 val toIso = to.trim().ifBlank { fromIso }
                 TextInputSheet.show(
-                    parentFragmentManager, "Pause habits", "Reason (optional)",
-                    subtitle = "Vacation, illness, travel, or anything else."
+                    parentFragmentManager, getString(R.string.settings_pause_title),
+                    getString(R.string.settings_pause_reason_title),
+                    subtitle = getString(R.string.settings_pause_reason_sub)
                 ) { reason ->
                     // The write goes to the background lane (#51); the
                     // nested sheet chain used to run it on the main thread.
@@ -600,21 +603,24 @@ class SettingsFragment : Fragment() {
                 putExtra(Intent.EXTRA_SUBJECT, "SuperFlow export")
                 putExtra(Intent.EXTRA_TEXT, json.take(400_000))
             }
-            startActivity(Intent.createChooser(share, "Export SuperFlow data"))
-            if (!ok) view?.snack("Shared, but the local copy could not be written")
+            startActivity(Intent.createChooser(share, getString(R.string.settings_export_chooser)))
+            if (!ok) view?.snack(getString(R.string.settings_export_no_local_copy))
         }
     }
 
     private fun importData() {
         TextInputSheet.show(
-            parentFragmentManager, "Import", "Paste exported JSON",
-            subtitle = "This replaces everything currently in the app.", lines = 6
+            parentFragmentManager, getString(R.string.import_data),
+            getString(R.string.settings_import_paste_title),
+            subtitle = getString(R.string.settings_import_paste_sub), lines = 6
         ) { text ->
             lifecycleScope.launch {
                 val ok = withContext(Dispatchers.IO) {
                     runCatching { Serial.importAll(repo, org.json.JSONObject(text)) }.isSuccess
                 }
-                view?.snack(if (ok) "Import complete" else "That did not look like a SuperFlow export")
+                view?.snack(getString(
+                    if (ok) R.string.settings_import_done else R.string.settings_import_failed
+                ))
                 render()
             }
         }

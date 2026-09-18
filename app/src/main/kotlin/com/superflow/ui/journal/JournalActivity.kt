@@ -18,6 +18,10 @@ import com.superflow.ui.common.SfTheme
 import com.superflow.data.model.JournalEntry
 import com.superflow.ui.common.snack
 import com.superflow.core.time.SfTime
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Journal: free-form reflection with guided prompts (Section 5.5).
@@ -85,30 +89,48 @@ class JournalActivity : AppCompatActivity() {
                 content = text,
                 mood = moodSlider.value.toInt().coerceIn(1, 5)
             )
-            repo.saveJournalEntry(entry)
-
-            // Offer to remember key insights as AiMemory
-            if (entry.content.length > 50) {
-                android.app.AlertDialog.Builder(this)
-                    .setTitle("Remember this?")
-                    .setMessage("Would you like me to remember key insights from this entry?")
-                    .setPositiveButton("Remember") { _, _ ->
-                        val memory = com.superflow.data.model.AiMemory(
-                            category = com.superflow.data.model.MemoryCategory.USER_CONTEXT,
-                            content = entry.content.take(200),
-                            importance = (entry.mood ?: 3)
-                        )
-                        repo.saveMemory(memory)
-                        Toast.makeText(this, "I'll remember that", Toast.LENGTH_SHORT).show()
-                    }
-                    .setNegativeButton("No thanks", null)
-                    .show()
+            // The write leaves the main thread (#48); finish() waits for it
+            // so a rotation can't orphan the save.
+            lifecycleScope.launch {
+                withContext(Dispatchers.IO) { repo.saveJournalEntry(entry) }
+                onSaved(entry)
             }
-
-            snack("Journal entry saved for ${SfTime.humanDay(repo.clock.today())}")
-            finish()
         }
 
         cancelBtn.setOnClickListener { finish() }
+    }
+
+    /**
+     * Post-save flow, called while the activity is still alive.
+     *
+     * The "Remember this?" dialog used to be shown after finish() (#48):
+     * a dialog whose host is finishing leaks its window and its buttons
+     * wrote to a dead activity. finish() now happens only when the dialog
+     * resolves — or immediately when there is nothing to ask.
+     */
+    private fun onSaved(entry: JournalEntry) {
+        snack("Journal entry saved for ${SfTime.humanDay(repo.clock.today())}")
+        if (entry.content.length <= 50) {
+            finish()
+            return
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Remember this?")
+            .setMessage("Would you like me to remember key insights from this entry?")
+            .setPositiveButton("Remember") { _, _ ->
+                lifecycleScope.launch {
+                    val memory = com.superflow.data.model.AiMemory(
+                        category = com.superflow.data.model.MemoryCategory.USER_CONTEXT,
+                        content = entry.content.take(200),
+                        importance = (entry.mood ?: 3)
+                    )
+                    withContext(Dispatchers.IO) { repo.saveMemory(memory) }
+                    Toast.makeText(this@JournalActivity, "I'll remember that", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+            }
+            .setNegativeButton("No thanks") { _, _ -> finish() }
+            .setCancelable(false)
+            .show()
     }
 }

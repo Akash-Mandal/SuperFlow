@@ -188,6 +188,22 @@ fun SfTheme(
         else -> resolved.material
     }
 
+    // When the wallpaper wins, the Material scheme is Android's, not the
+    // palette's — so the palette accents shipped in `extras` would describe
+    // a scheme the screen is no longer drawing (#39). The three accent
+    // roles follow the active scheme; the semantic colours (success,
+    // caution, state colours) deliberately stay with the palette, because
+    // "done" and "rest day" keep their meaning under any wallpaper.
+    val extras = if (dynamic) {
+        resolved.extras.copy(
+            accentIdentity = colorScheme.primary,
+            accentGoal = colorScheme.secondary,
+            accentSystem = colorScheme.tertiary,
+        )
+    } else {
+        resolved.extras
+    }
+
     // The system's animation setting is an accessibility preference, not a
     // suggestion: if the user has switched animations off device-wide, the
     // app's own "Expressive" must not override it.
@@ -216,7 +232,10 @@ fun SfTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            // `as? Activity` bails when the context is a wrapper — the
+            // ComposeView inside a dialog or a themed context (#39) — so
+            // the wrapper chain is walked to the host activity.
+            val window = view.context.findHostActivity()?.window ?: return@SideEffect
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !isDark
                 isAppearanceLightNavigationBars = !isDark
@@ -225,7 +244,7 @@ fun SfTheme(
     }
 
     CompositionLocalProvider(
-        LocalSfColors provides resolved.extras,
+        LocalSfColors provides extras,
         LocalSfTypeStyles provides typeStyles,
         LocalSfDensity provides densityMetrics,
         LocalSfMotion provides motionSpecs,
@@ -280,4 +299,17 @@ fun SfThemeFromPrefs(
         highContrast = prefs.highContrast,
         content = content,
     )
+}
+
+/**
+ * Walks a context wrapper chain to the host activity.
+ *
+ * `(context as? Activity)` fails inside dialogs and themed contexts, where
+ * the ComposeView's context is a ContextThemeWrapper around the activity;
+ * the bar-icon appearance then silently stops following the theme (#39).
+ */
+private tailrec fun android.content.Context.findHostActivity(): Activity? = when (this) {
+    is Activity -> this
+    is android.content.ContextWrapper -> baseContext.findHostActivity()
+    else -> null
 }

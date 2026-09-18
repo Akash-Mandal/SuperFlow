@@ -19,6 +19,11 @@ import com.superflow.ui.activity.ActivityLogActivity
 import com.superflow.ui.common.ScrollActivity
 import com.superflow.ui.detail.HabitDetailActivity
 import com.superflow.ui.review.ReviewActivity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Global search across every entity.
@@ -26,12 +31,20 @@ import com.superflow.ui.review.ReviewActivity
  * One field, ranked results grouped by type, tapping navigates straight to the
  * entity. The search itself lives in [Search] so the AI tool and this screen
  * never disagree about what a query matches.
+ *
+ * Queries are debounced and run off the main thread (#47): the LIKE scan
+ * used to execute per keystroke on the UI thread, so a fast typist queued
+ * one full-workspace read per character.
  */
 class SearchActivity : ScrollActivity() {
 
     private val repo by lazy { Repository.get(this) }
     private lateinit var results: LinearLayout
     private var query = ""
+    private var searchJob: Job? = null
+
+    /** Guards against a stale response overwriting a newer query's results. */
+    private var searchEpoch = 0L
 
     override fun titleText() = "Search"
 
@@ -46,7 +59,7 @@ class SearchActivity : ScrollActivity() {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {
                 query = s?.toString().orEmpty()
-                renderResults()
+                scheduleSearch()
             }
             override fun afterTextChanged(s: Editable?) {}
         })
@@ -55,18 +68,38 @@ class SearchActivity : ScrollActivity() {
         results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(results)
         edit.requestFocus()
-        renderResults()
+        renderResults(emptyList(), isInitial = true)
     }
 
-    private fun renderResults() {
-        results.removeAllViews()
+    /**
+     * Debounces keystrokes, then runs the search on a background thread.
+     * A blank query renders immediately — the hint card needs no I/O.
+     */
+    private fun scheduleSearch() {
+        searchJob?.cancel()
         if (query.isBlank()) {
+            results.removeAllViews()
             results.addView(textCard("Find anything", "Your whole workspace is searchable — " +
                     "habits, identities, goals, systems, reviews, journal entries, activity " +
                     "and obstacle plans."))
             return
         }
-        val found = Search.search(repo, query)
+        val epoch = ++searchEpoch
+        searchJob = lifecycleScope.launch {
+            delay(250)
+            val found = withContext(Dispatchers.IO) { Search.search(repo, query) }
+            if (epoch == searchEpoch) renderResults(found)
+        }
+    }
+
+    private fun renderResults(found: List<SearchResult>, isInitial: Boolean = false) {
+        results.removeAllViews()
+        if (isInitial) {
+            results.addView(textCard("Find anything", "Your whole workspace is searchable — " +
+                    "habits, identities, goals, systems, reviews, journal entries, activity " +
+                    "and obstacle plans."))
+            return
+        }
         if (found.isEmpty()) {
             results.addView(textCard("No matches", "Nothing for \"$query\". " +
                     "Try a shorter word or a different spelling."))

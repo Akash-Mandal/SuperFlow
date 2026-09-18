@@ -40,8 +40,8 @@ class PauseActivity : ScrollActivity() {
     private lateinit var repo: Repository
     private lateinit var bus: CommandBus
 
-    private var fromDate: LocalDate = LocalDate.now()
-    private var toDate: LocalDate = LocalDate.now()
+    private var fromDate: LocalDate = LocalDate.EPOCH   // set from the repo clock in onCreate (#46)
+    private var toDate: LocalDate = LocalDate.EPOCH
     private var habitId: String? = null
 
     override fun titleText() = getString(R.string.pause_mode)
@@ -50,6 +50,11 @@ class PauseActivity : ScrollActivity() {
         super.onCreate(savedInstanceState)
         repo = Repository.get(this)
         bus = CommandBus.get(this)
+        // All dates come from the injected clock (#46): a fixed test clock
+        // or a shifted zone used to be ignored here.
+        val today = repo.clock.today()
+        fromDate = today
+        toDate = today
     }
 
     override fun buildContent() {
@@ -63,7 +68,7 @@ class PauseActivity : ScrollActivity() {
         // Range chips
         content.addView(label("How long?"))
         val rangeChips = ChipGroup(this).apply { isSingleSelection = true }
-        val today = LocalDate.now()
+        val today = repo.clock.today()
         val ranges = listOf(
             "Today" to (today to today),
             "This weekend" to run {
@@ -108,7 +113,7 @@ class PauseActivity : ScrollActivity() {
         scopeChips.addView(Chip(this).apply {
             text = "All habits"; isCheckable = true; isChecked = true
             setEnsureMinTouchTargetSize(false)
-            setOnClickListener { habitId = null; rebuildHabitPicker() }
+            setOnClickListener { habitId = null }
         })
         val habits = repo.habits()
         if (habits.isNotEmpty()) {
@@ -116,7 +121,7 @@ class PauseActivity : ScrollActivity() {
                 scopeChips.addView(Chip(this).apply {
                     text = h.title; isCheckable = true
                     setEnsureMinTouchTargetSize(false)
-                    setOnClickListener { habitId = h.id; rebuildHabitPicker() }
+                    setOnClickListener { habitId = h.id }
                 })
             }
         }
@@ -195,10 +200,8 @@ class PauseActivity : ScrollActivity() {
     private var fromButton: MaterialButton? = null
     private var toButton: MaterialButton? = null
 
-    private fun rebuildHabitPicker() { /* selection is stored in habitId */ }
-
     private fun activePauses(): List<PauseWindow> {
-        val today = LocalDate.now()
+        val today = repo.clock.today()
         return repo.pauses().filter {
             val end = runCatching { LocalDate.parse(it.endDate) }.getOrNull() ?: return@filter false
             !end.isBefore(today)

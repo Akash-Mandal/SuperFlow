@@ -515,6 +515,11 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
     fun energyFor(date: String): List<EnergyLog> =
         query("SELECT * FROM energy WHERE date=?", arrayOf(date)).mapAll(Rows::energy)
 
+    /** Energy logs across an inclusive window, one query instead of one per day. */
+    fun energyBetween(from: String, to: String): List<EnergyLog> =
+        query("SELECT * FROM energy WHERE date>=? AND date<=? ORDER BY date", arrayOf(from, to))
+            .mapAll(Rows::energy)
+
     fun saveEnergy(e: EnergyLog) = transaction {
         db.delete("energy", "date=? AND checkpoint=?", arrayOf(e.date, e.checkpoint.name))
         db.insert("energy", android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE, contentValuesOf(
@@ -571,6 +576,9 @@ class Repository private constructor(context: Context, val clock: SuperFlowClock
         query(
             "SELECT * FROM audit ORDER BY createdAt DESC LIMIT $limit OFFSET $offset"
         ).mapAll(Rows::audit)
+
+    fun auditEntry(id: String): AuditEntry? =
+        query("SELECT * FROM audit WHERE id=?", arrayOf(id)).mapAll(Rows::audit).firstOrNull()
 
     fun auditGroup(groupId: String): List<AuditEntry> =
         query("SELECT * FROM audit WHERE groupId=? ORDER BY createdAt DESC", arrayOf(groupId))

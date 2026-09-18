@@ -72,4 +72,7 @@
     <dimen name="swatch_disc">30dp</dimen>
     <dimen name="drag_handle_width">32dp</dimen>
     <dimen name="drag_handle_height">4dp</dimen>
+    <!-- #17: bottom clearance for the Today FAB above the bottom bar; a named
+         token instead of a magic number so the bar height can be tuned once. -->
+    <dimen name="today_fab_bottom_clearance">96dp</dimen>
 </resources>

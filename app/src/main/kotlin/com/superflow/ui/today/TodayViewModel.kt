@@ -105,8 +105,8 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(TodayUiState())
     val state: StateFlow<TodayUiState> = _state.asStateFlow()
 
-    private val _events = MutableStateFlow<String?>(null)
-    val events: StateFlow<String?> = _events.asStateFlow()
+    private val _events = MutableStateFlow<UiEvent?>(null)
+    val events: StateFlow<UiEvent?> = _events.asStateFlow()
 
     private var lastAuditId: String? = null
 
@@ -117,6 +117,16 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun consumeEvent() { _events.value = null }
+
+    /**
+     * Emits a snackbar message (#12). StateFlow conflates by equality, so
+     * two consecutive identical messages used to collapse into one —
+     * check in two habits, see one "Checked in". Each event carries a
+     * fresh sequence number, which makes every emission distinct.
+     */
+    private fun emit(message: String) {
+        _events.value = UiEvent(seq = System.nanoTime(), message = message)
+    }
 
     fun lastUndoId(): String? = lastAuditId
 
@@ -134,7 +144,7 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
                     loading = false,
                     error = e.message ?: "Today could not be loaded"
                 )
-                _events.value = e.message ?: "Today could not be loaded"
+                emit(e.message ?: "Today could not be loaded")
             }
         }
     }
@@ -303,7 +313,7 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
                 bus.execute(command, args, Actor.USER)
             }
             lastAuditId = res.auditId
-            if (announce || !res.ok) _events.value = res.message
+            if (announce || !res.ok) emit(res.message)
         }
     }
 
@@ -359,7 +369,7 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
                 .sortedWith(compareByDescending<Habit> { it.protectedRoutine }.thenBy { it.orderIndex })
                 .take(3 - existing.size)
             if (candidates.isEmpty()) {
-                _events.value = "Nothing left to suggest"
+                emit("Nothing left to suggest")
                 return@launch
             }
             run("set_daily_focus",

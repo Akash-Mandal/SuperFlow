@@ -208,11 +208,11 @@ class TodayFragment : Fragment(), TodayAdapter.Callbacks {
                     }
                 }
                 launch {
-                    model.events.collect { message ->
-                        if (message != null) {
+                    model.events.collect { event ->
+                        if (event != null) {
                             val undoId = model.lastUndoId()
-                            if (undoId != null) view.snack(message, "Undo") { model.undoLast() }
-                            else view.snack(message)
+                            if (undoId != null) view.snack(event.message, "Undo") { model.undoLast() }
+                            else view.snack(event.message)
                             model.consumeEvent()
                         }
                     }

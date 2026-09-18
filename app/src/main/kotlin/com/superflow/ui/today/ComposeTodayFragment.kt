@@ -182,15 +182,15 @@ class ComposeTodayFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                model.events.collect { message ->
-                    if (message != null) {
+                model.events.collect { event ->
+                    if (event != null) {
                         // Undo stays a snackbar rather than becoming part of
                         // the composition: it belongs to the window, it must
                         // outlive a recomposition, and the View screens use
                         // the same one.
                         val undoId = model.lastUndoId()
-                        if (undoId != null) view.snack(message, "Undo") { model.undoLast() }
-                        else view.snack(message)
+                        if (undoId != null) view.snack(event.message, "Undo") { model.undoLast() }
+                        else view.snack(event.message)
                         model.consumeEvent()
                     }
                 }

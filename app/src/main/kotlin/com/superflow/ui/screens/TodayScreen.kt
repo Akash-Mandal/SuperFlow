@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -203,28 +204,28 @@ private fun TodayActionsRow(onAction: (TodayAction) -> Unit) {
         IconButton(onClick = { onAction(TodayAction.Checkpoints) }) {
             Icon(
                 painter = painterResource(R.drawable.ic_energy),
-                contentDescription = "Checkpoints",
+                contentDescription = stringResource(R.string.today_open_checkpoints),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         IconButton(onClick = { onAction(TodayAction.PlanTomorrow) }) {
             Icon(
                 painter = painterResource(R.drawable.ic_calendar),
-                contentDescription = "Plan tomorrow",
+                contentDescription = stringResource(R.string.today_open_plan_tomorrow),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         IconButton(onClick = { onAction(TodayAction.Recovery) }) {
             Icon(
                 painter = painterResource(R.drawable.ic_recovery),
-                contentDescription = "Recovery",
+                contentDescription = stringResource(R.string.today_open_recovery),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         IconButton(onClick = { onAction(TodayAction.OpenSettings) }) {
             Icon(
                 painter = painterResource(R.drawable.ic_settings),
-                contentDescription = "Settings",
+                contentDescription = stringResource(R.string.today_open_settings),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -391,7 +392,8 @@ private fun ProgressBlock(state: TodayUiState, row: TodayRow.Progress) {
             SfProgressRing(done = row.done, total = row.total, size = 96, strokeWidth = 8)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (row.total <= 0) "A quiet day" else "${row.done} of ${row.total} done",
+                    text = if (row.total <= 0) stringResource(R.string.today_progress_quiet)
+                    else stringResource(R.string.today_progress_done, row.done, row.total),
                     style = MaterialTheme.typography.titleMedium,
                     color = scheme.onSurface,
                 )
@@ -442,11 +444,12 @@ private fun IdentityBlock(row: TodayRow.IdentityCard) {
         )
         Spacer(modifier = Modifier.height(Space.SM.dp))
         Text(
-            text = if (row.votes == 1) "1 vote" else "${row.votes} votes",
+            text = pluralStringResource(R.plurals.today_identity_votes, row.votes, row.votes),
             style = SfTheme.type.data,
             color = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.semantics {
-                contentDescription = "${row.votes} pieces of evidence for this identity"
+                contentDescription =
+                    stringResource(R.string.today_identity_evidence_a11y, row.votes)
             },
         )
     }
@@ -601,7 +604,7 @@ private fun FocusBlock(row: TodayRow.Focus, onAction: (TodayAction) -> Unit) {
                 IconButton(onClick = { onAction(TodayAction.RemoveFocus(item.id)) }) {
                     Icon(
                         painter = painterResource(com.superflow.R.drawable.ic_close),
-                        contentDescription = "Remove ${item.title}",
+                        contentDescription = stringResource(R.string.today_remove_focus_a11y, item.title),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -665,7 +668,7 @@ private fun GrowthBlock(row: TodayRow.GrowthPlanStatus) {
         )
         Spacer(modifier = Modifier.height(Space.XS.dp))
         Text(
-            text = "Phase ${row.phaseIndex} of ${row.totalPhases}",
+            text = stringResource(R.string.today_phase_progress, row.phaseIndex, row.totalPhases),
             style = SfTheme.type.data,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

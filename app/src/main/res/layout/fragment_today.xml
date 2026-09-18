@@ -98,7 +98,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="@dimen/screen_margin"
-        android:layout_marginBottom="96dp"
+        android:layout_marginBottom="@dimen/today_fab_bottom_clearance"
         android:text="@string/ask_superflow"
         app:icon="@drawable/ic_sparkle" />
 

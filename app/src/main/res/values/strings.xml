@@ -254,4 +254,42 @@
     <string name="performance_performance_detail">Forces reduced motion everywhere</string>
     <string name="performance_quality">Quality</string>
     <string name="performance_quality_detail">Forces full visuals everywhere</string>
+
+    <!-- Settings screen (#53): previously hardcoded in the fragment. -->
+    <string name="settings_subtitle">Everything is optional. The app works fully offline.</string>
+    <string name="settings_pause_title">Pause habits</string>
+    <string name="settings_pause_sub">Take a break without creating misses</string>
+    <string name="settings_pause_note_empty">No active pauses. Paused days never count as misses.</string>
+    <string name="settings_pause_action_hint">Pause habits for a holiday or break</string>
+    <string name="settings_pause_from_title">Start date (yyyy-MM-dd)</string>
+    <string name="settings_pause_from_sub">Paused days never count as misses.</string>
+    <string name="settings_pause_to_title">End date (yyyy-MM-dd)</string>
+    <string name="settings_pause_to_sub">The break ends after this day.</string>
+    <string name="settings_pause_reason_title">Reason (optional)</string>
+    <string name="settings_pause_reason_sub">Vacation, illness, travel, or anything else.</string>
+    <string name="settings_export_chooser">Export SuperFlow data</string>
+    <string name="settings_export_no_local_copy">Shared, but the local copy could not be written</string>
+    <string name="settings_import_paste_title">Paste exported JSON</string>
+    <string name="settings_import_paste_sub">This replaces everything currently in the app.</string>
+    <string name="settings_import_done">Import complete</string>
+    <string name="settings_import_failed">That did not look like a SuperFlow export</string>
+    <plurals name="settings_pause_active">
+        <item quantity="one">%d active pause</item>
+        <item quantity="other">%d active pauses</item>
+    </plurals>
+
+    <!-- Today screen (#18): previously hardcoded in the Compose screen. -->
+    <string name="today_open_checkpoints">Checkpoints</string>
+    <string name="today_open_plan_tomorrow">Plan tomorrow</string>
+    <string name="today_open_recovery">Recovery</string>
+    <string name="today_open_settings">Settings</string>
+    <string name="today_progress_quiet">A quiet day</string>
+    <string name="today_progress_done">%1$d of %2$d done</string>
+    <string name="today_identity_evidence_a11y">%1$d pieces of evidence for this identity</string>
+    <string name="today_remove_focus_a11y">Remove %1$s</string>
+    <string name="today_phase_progress">Phase %1$d of %2$d</string>
+    <plurals name="today_identity_votes">
+        <item quantity="one">%d vote</item>
+        <item quantity="other">%d votes</item>
+    </plurals>
 </resources>

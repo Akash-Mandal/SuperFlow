@@ -104,7 +104,22 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refresh() {
-        viewModelScope.launch { _rows.value = withContext(Dispatchers.IO) { build() } }
+        viewModelScope.launch {
+            _rows.value = withContext(Dispatchers.IO) {
+                // A DB error used to crash the tab and leave stale rows on
+                // screen with no explanation (#30). It now degrades to an
+                // honest error row; the next revision re-runs refresh().
+                runCatching { build() }.getOrElse { e ->
+                    listOf(
+                        InsightRow.Text(
+                            "Insights could not load",
+                            "Something went wrong while reading your history " +
+                                    "(${e.javaClass.simpleName}). Reopen this tab to retry."
+                        )
+                    )
+                }
+            }
+        }
     }
 
     private fun build(): List<InsightRow> {
@@ -161,12 +176,16 @@ class InsightsViewModel(app: Application) : AndroidViewModel(app) {
             val cis = repo.checkInsOf(s.habit.id).filter { it.date in SfTime.lastDays(days, today).map(SfTime::format) }
             cis.count { it.level.name == "STRETCH" }
         }
-        val avgCons = all.filter { it.hasEnoughData }.map { it.consistency30 }.average().toInt()
+        val consSamples = all.filter { it.hasEnoughData }.map { it.consistency30 }
+        // An empty average is NaN, and NaN.toInt() is 0 — which used to
+        // display as a confident "0%" (#32). With no samples there is no
+        // average, so show the em dash the other empty stats use.
+        val avgCons = if (consSamples.isEmpty()) null else consSamples.average().toInt()
         rows.add(InsightRow.Stats(
             "At a glance",
             "Averaged across habits with enough data.",
             "${all.size}", "Habits",
-            "$avgCons%", "Avg consistency",
+            avgCons?.let { "$it%" } ?: "—", "Avg consistency",
             stretch.toString(), "Stretch reps"
         ))
 
@@ -377,7 +396,10 @@ class InsightsFragment : Fragment() {
                 text = label
                 isCheckable = true
                 isChecked = days == model.period.value
-                setEnsureMinTouchTargetSize(false)
+                // Chips under 48dp fail the touch-target guideline (#31);
+                // the extra padding is transparent, so the layout is
+                // unchanged.
+                setEnsureMinTouchTargetSize(true)
                 setOnClickListener { model.setPeriod(days) }
             })
         }

@@ -165,9 +165,11 @@ class ComposeInsightsViewModel(app: Application) : AndroidViewModel(app) {
         val done = successByDate[SfTime.format(date)] ?: 0
         return when {
             done >= scheduled -> HistoryStates.COMPLETED
-            // Today is not a failure until it is over.
-            date == today -> HistoryStates.PENDING
-            done > 0 -> HistoryStates.COMPLETED
+            // Today is not a failure until it is over; a partly done day
+            // shows as PARTIAL either way (#28) — full green for an
+            // unfinished day reads as a lie at 9am.
+            date == today -> if (done > 0) HistoryStates.PARTIAL else HistoryStates.PENDING
+            done > 0 -> HistoryStates.PARTIAL
             else -> HistoryStates.MISSED
         }
     }
@@ -180,14 +182,20 @@ class ComposeInsightsViewModel(app: Application) : AndroidViewModel(app) {
      * screen may go on to describe in words.
      */
     private fun energyPairs(days: List<LocalDate>, daily: List<Double>): List<Pair<Double, Double>> {
+        if (days.isEmpty()) return emptyList()
+        // One windowed query instead of one round-trip per day (#29): a
+        // Year refresh used to issue ~365 energyFor() calls on top of the
+        // schedule reads.
+        val byDate = repo.energyBetween(SfTime.format(days.first()), SfTime.format(days.last()))
+            .groupBy { it.date }
+            .mapValues { (_, logs) -> logs.map { it.energy }.average() }
         val out = ArrayList<Pair<Double, Double>>()
         days.forEachIndexed { index, date ->
             // A day can carry several checkpoint ratings; the day's energy
             // is their mean, not the last one logged, so an evening slump
             // does not erase a good morning.
-            val logs = repo.energyFor(SfTime.format(date))
-            if (logs.isEmpty()) return@forEachIndexed
-            out.add(logs.map { it.energy }.average() to daily[index])
+            val energy = byDate[SfTime.format(date)] ?: return@forEachIndexed
+            out.add(energy to daily[index])
         }
         return out
     }

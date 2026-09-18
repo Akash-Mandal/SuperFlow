@@ -97,8 +97,8 @@ class RecoveryActivity : ScrollActivity() {
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
                 ).also { it.topMargin = dpi(12) }
                 setOnClickListener {
-                    exec("check_in", jsonOf("habit" to h.id, "level" to Level.TINY.name))
-                    findViewById<View>(R.id.root).snack("You are back. That is the whole win.")
+                    exec("check_in", jsonOf("habit" to h.id, "level" to Level.TINY.name),
+                        "You are back. That is the whole win.")
                 }
             })
             content.addView(card)
@@ -192,9 +192,28 @@ class RecoveryActivity : ScrollActivity() {
             .show()
     }
 
-    private fun exec(command: String, args: org.json.JSONObject) {
+    private fun exec(command: String, args: org.json.JSONObject, successMessage: String? = null) {
         runCommand(bus, command, args) { res ->
+            // Every Recovery action now reports back (#49): the screen used
+            // to stay silent on success. When the command recorded an audit
+            // entry the snack carries an Undo action, matching Today.
+            val message = successMessage ?: res.message
             if (!res.ok) findViewById<View>(R.id.root).snack(res.message)
+            else {
+                val auditId = res.auditId
+                if (auditId != null) {
+                    findViewById<View>(R.id.root).snack(message, "Undo") {
+                        com.superflow.AppBackground.launch {
+                            bus.undo(repo.auditEntry(auditId) ?: return@launch)
+                            mainHandler.post {
+                                if (!isFinishing && !isDestroyed) rebuild()
+                            }
+                        }
+                    }
+                } else {
+                    findViewById<View>(R.id.root).snack(message)
+                }
+            }
             rebuild()
         }
     }

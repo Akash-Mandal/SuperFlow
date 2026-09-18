@@ -24,8 +24,19 @@ object HistoryStates {
     /** Not scheduled, or the habit was paused. Nothing was expected. */
     const val INACTIVE = -3
 
+    /**
+     * Some, but not all, of the day's check-ins landed (#28).
+     *
+     * Added after the original encoding was fixed in place, so it takes a
+     * fresh value and no existing constant was renumbered. It counts as an
+     * opportunity (something was scheduled and partially done) but neither
+     * increments nor breaks a streak — a partly done day is progress, not a
+     * failure, and not yet a full success.
+     */
+    const val PARTIAL = 2
+
     /** All states, in the order they appear in a legend. */
-    val all = listOf(COMPLETED, PENDING, MISSED, SKIPPED, INACTIVE)
+    val all = listOf(COMPLETED, PARTIAL, PENDING, MISSED, SKIPPED, INACTIVE)
 
     /**
      * A human label, for screen readers and legends.
@@ -37,6 +48,7 @@ object HistoryStates {
      */
     fun labelFor(state: Int): String = when (state) {
         COMPLETED -> "Done"
+        PARTIAL -> "Partly done"
         PENDING -> "Not yet"
         MISSED -> "Missed"
         SKIPPED -> "Rest day"
@@ -53,6 +65,7 @@ object HistoryStates {
      */
     fun emphasisFor(state: Int): Float = when (state) {
         COMPLETED -> 1f
+        PARTIAL -> 0.7f
         MISSED -> 0.55f
         SKIPPED -> 0.35f
         PENDING -> 0.22f
@@ -61,7 +74,7 @@ object HistoryStates {
 
     /** Whether this state counts towards a completion rate. */
     fun countsAsOpportunity(state: Int): Boolean =
-        state == COMPLETED || state == MISSED
+        state == COMPLETED || state == PARTIAL || state == MISSED
 
     /** Completion rate over a history window, or null when nothing was scheduled. */
     fun completionRate(states: List<Int>): Double? {
@@ -82,7 +95,7 @@ object HistoryStates {
         for (state in states.asReversed()) {
             when (state) {
                 COMPLETED -> streak++
-                SKIPPED, INACTIVE, PENDING -> Unit
+                SKIPPED, INACTIVE, PENDING, PARTIAL -> Unit
                 else -> return streak
             }
         }

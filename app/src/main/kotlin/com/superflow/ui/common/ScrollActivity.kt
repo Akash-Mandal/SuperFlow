@@ -57,7 +57,6 @@ abstract class ScrollActivity : AppCompatActivity() {
         toolbar.title = titleText()
         toolbar.setNavigationOnClickListener { finish() }
 
-        val list = findViewById<RecyclerView>(R.id.list)
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = RecyclerView.LayoutParams(
@@ -90,9 +89,26 @@ abstract class ScrollActivity : AppCompatActivity() {
     }
 
     protected fun rebuild() {
+        // Preserve the scroll position across a rebuild (#50): rebuilding the
+        // content used to leave the RecyclerView momentarily empty, which
+        // reset it to the top, so every save or command threw the user back
+        // to the start of a long screen. Anchor on the first fully visible
+        // position and restore it after the new content is attached.
+        val list = findViewById<RecyclerView>(R.id.list)
+        val lm = list.layoutManager as? LinearLayoutManager
+        val anchor = lm?.findFirstCompletelyVisibleItemPosition() ?: RecyclerView.NO_POSITION
+        val anchorView = if (anchor > 0) list.getChildAt(0) else null
+        val offset = anchorView?.top ?: 0
+
         content.removeAllViews()
         buildContent()
+
+        if (anchor > 0) lm?.scrollToPositionWithOffset(anchor, offset)
     }
+
+    /** A loading card subclasses can add first while data is fetched (#49). */
+    protected fun loadingCard(text: String = "Loading…"): View =
+        textCard(text, "One moment.")
 
     protected val mainHandler = Handler(Looper.getMainLooper())
 

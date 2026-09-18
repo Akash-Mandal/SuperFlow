@@ -156,6 +156,10 @@ fun SfHeatmap(
 
                         val base = when (state) {
                             HistoryStates.COMPLETED -> colors.success
+                            // A partly done day is a lighter shade of done,
+                            // not an empty cell (#28): the emphasis scale in
+                            // HistoryStates does the dimming.
+                            HistoryStates.PARTIAL -> colors.success
                             HistoryStates.MISSED -> colors.stateMissed
                             HistoryStates.SKIPPED -> colors.stateSkipped
                             else -> colors.stateEmpty

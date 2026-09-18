@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.superflow.ui.common.UiEvent
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -114,8 +115,8 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
     private val _expandedKeys = MutableStateFlow<Set<String>>(emptySet())
     val expandedKeys: StateFlow<Set<String>> = _expandedKeys.asStateFlow()
 
-    private val _events = MutableStateFlow<String?>(null)
-    val events: StateFlow<String?> = _events.asStateFlow()
+    private val _events = MutableStateFlow<UiEvent?>(null)
+    val events: StateFlow<UiEvent?> = _events.asStateFlow()
 
     /**
      * Which nodes are open.
@@ -135,6 +136,16 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun consumeEvent() { _events.value = null }
+
+    /**
+     * Emits a snackbar message (#12). StateFlow conflates by equality, so two
+     * consecutive identical messages used to collapse into one; each
+     * event carries a fresh sequence number, which makes every emission
+     * distinct.
+     */
+    private fun emit(message: String) {
+        _events.value = UiEvent(seq = System.nanoTime(), message = message)
+    }
 
     fun refresh() {
         viewModelScope.launch {
@@ -289,7 +300,7 @@ class JourneyViewModel(app: Application) : AndroidViewModel(app) {
     private fun run(command: String, args: JSONObject) {
         viewModelScope.launch {
             val res = withContext(Dispatchers.IO) { bus.execute(command, args, Actor.USER) }
-            _events.value = res.message
+            emit(res.message)
         }
     }
 

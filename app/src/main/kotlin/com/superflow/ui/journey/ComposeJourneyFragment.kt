@@ -67,9 +67,9 @@ class ComposeJourneyFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                model.events.collect { message ->
-                    if (message != null) {
-                        view.snack(message, "Undo") { model.undoLast() }
+                model.events.collect { event ->
+                    if (event != null) {
+                        view.snack(event.message, "Undo") { model.undoLast() }
                         model.consumeEvent()
                     }
                 }
@@ -133,6 +133,21 @@ class ComposeJourneyFragment : Fragment() {
         if (kind == JourneyTree.Kind.HABIT) {
             items.add("Edit design")
             items.add("Duplicate")
+        } else {
+            // Adding from inside the tree pre-links to the parent (#24),
+            // matching the View path's context menu.
+            when (kind) {
+                JourneyTree.Kind.IDENTITY -> items.add("Add goal to this identity")
+                JourneyTree.Kind.GOAL -> items.add("Add system to this goal")
+                JourneyTree.Kind.SYSTEM -> items.add("Add habit to this system")
+                else -> Unit
+            }
+        }
+        if (kind == JourneyTree.Kind.HABIT && !archived) {
+            items.add("Move up")
+            items.add("Move down")
+        }
+        if (kind == JourneyTree.Kind.HABIT) {
             items.add(if (archived) "Restore" else "Archive")
         }
         items.add("Delete")
@@ -145,6 +160,11 @@ class ComposeJourneyFragment : Fragment() {
                         Intent(requireContext(), HabitDesignerActivity::class.java)
                             .putExtra(HabitDesignerActivity.EXTRA_HABIT_ID, id)
                     )
+                    "Add goal to this identity" -> add(JourneyTree.Kind.GOAL, id)
+                    "Add system to this goal" -> add(JourneyTree.Kind.SYSTEM, id)
+                    "Add habit to this system" -> add(JourneyTree.Kind.HABIT, id)
+                    "Move up" -> model.moveHabit(id, "up")
+                    "Move down" -> model.moveHabit(id, "down")
                     "Duplicate" -> model.duplicateHabit(id)
                     "Archive" -> model.archiveHabit(id)
                     "Restore" -> model.restoreHabit(id)
