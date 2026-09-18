@@ -1,5 +1,6 @@
 package com.superflow.ui.review
 
+import android.os.Bundle
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -241,7 +242,7 @@ class ReviewActivity : ScrollActivity() {
             }
             indeterminateTintList = android.content.res.ColorStateList.valueOf(
                 com.google.android.material.color.MaterialColors.getColor(
-                    row, com.google.android.material.R.attr.colorPrimary
+                    row, androidx.appcompat.R.attr.colorPrimary
                 )
             )
         }

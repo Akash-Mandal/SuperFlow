@@ -29,6 +29,7 @@ import com.superflow.domain.SearchResult
 import com.superflow.ui.MainActivity
 import com.superflow.ui.common.sfContent
 import com.superflow.ui.common.snack
+import com.superflow.ui.common.UiEvent
 import com.superflow.ui.components.SfCommandPalette
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.detail.HabitDetailActivity

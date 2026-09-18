@@ -20,6 +20,7 @@ import com.superflow.data.model.Status
 import com.superflow.design.JourneyTree
 import com.superflow.ui.common.sfContent
 import com.superflow.ui.common.snack
+import com.superflow.ui.common.UiEvent
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.detail.HabitDetailActivity
 import com.superflow.ui.flows.FlowActivity

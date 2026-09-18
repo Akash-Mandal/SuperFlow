@@ -434,6 +434,10 @@ private fun ProgressBlock(state: TodayUiState, row: TodayRow.Progress) {
 
 @Composable
 private fun IdentityBlock(row: TodayRow.IdentityCard) {
+    // The semantics block is not a @Composable scope, so the description
+    // is resolved here and captured.
+    val evidenceDescription =
+        stringResource(R.string.today_identity_evidence_a11y, row.votes)
     SfCard(variant = SfCardVariant.Accent) {
         Text(
             text = row.statement,
@@ -448,8 +452,7 @@ private fun IdentityBlock(row: TodayRow.IdentityCard) {
             style = SfTheme.type.data,
             color = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.semantics {
-                contentDescription =
-                    stringResource(R.string.today_identity_evidence_a11y, row.votes)
+                contentDescription = evidenceDescription
             },
         )
     }

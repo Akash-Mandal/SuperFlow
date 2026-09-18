@@ -19,6 +19,7 @@ import com.superflow.ui.activity.ActivityLogActivity
 import com.superflow.ui.common.ScrollActivity
 import com.superflow.ui.detail.HabitDetailActivity
 import com.superflow.ui.review.ReviewActivity
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay

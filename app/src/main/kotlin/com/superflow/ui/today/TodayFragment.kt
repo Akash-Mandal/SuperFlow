@@ -31,6 +31,7 @@ import com.superflow.design.Navigation
 import com.superflow.ui.MainActivity
 import com.superflow.data.Prefs
 import com.superflow.ui.common.snack
+import com.superflow.ui.common.UiEvent
 import com.superflow.ui.common.wireRefresh
 import com.superflow.ui.designer.HabitDesignerActivity
 import com.superflow.ui.detail.HabitDetailActivity

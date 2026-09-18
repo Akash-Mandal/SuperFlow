@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.superflow.data.Prefs
 import com.superflow.data.Repository
 import com.superflow.data.model.*
+import com.superflow.ui.common.UiEvent
 import com.superflow.domain.Actor
 import com.superflow.domain.CommandBus
 import com.superflow.domain.CommandResult

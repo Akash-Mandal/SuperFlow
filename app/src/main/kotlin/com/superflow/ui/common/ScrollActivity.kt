@@ -63,6 +63,7 @@ abstract class ScrollActivity : AppCompatActivity() {
                 RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.WRAP_CONTENT
             )
         }
+        val list = findViewById<RecyclerView>(R.id.list)
         list.layoutManager = LinearLayoutManager(this)
         list.setHasFixedSize(false)
         list.setItemViewCacheSize(4)
